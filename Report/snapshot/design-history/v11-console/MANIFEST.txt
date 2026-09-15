@@ -1,0 +1,35 @@
+v11 — the assessment record, reorganised.
+
+Chrome
+  · Sidebar removed. Contents moved on to the masthead as a horizontal
+    section nav with an underline for the current section.
+  · Scan controls moved out of the masthead into their own full-width bar,
+    with room for real field labels and larger inputs.
+  · The sidebar's scan metadata became a "Scan record" block inside section 01,
+    now also carrying the per-sensor file counts.
+
+Scan telemetry
+  · A full-width band with a 1.6rem percentage, the live phase, a 6px track
+    with a moving hatch, and six sensor pills that change state as each
+    sensor runs. Replaces the previous hairline strip.
+
+Exposure window, reimagined
+  · The inequality is stated first as a strip of labelled cells:
+    X + Y = protect-through vs Z -> exposure, P(exposed).
+  · One chart on one axis. Above it, the protection window as two bars.
+    Below it, Q-Day modelled as a triangular distribution over
+    [earliest, likely, latest]; the portion falling inside the protection
+    window is shaded, and that area is the probability of exposure.
+    Replaces the plain timeline.
+
+Inventory
+  · Two views on one toggle. "Ranked" is the default: one asset per row with
+    risk drawn as a length and coloured by class, readable across a room.
+    "Table" is the previous dense eight-column record. Filters, the class
+    filter and Report / CBOM / Validate serve both.
+
+Robustness
+  · renderAll now isolates each renderer, so a fault in one figure cannot
+    blank the rest of the document.
+
+Zero external requests. No hex colours in app.js.

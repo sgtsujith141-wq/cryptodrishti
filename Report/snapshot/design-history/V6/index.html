@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti</title>
+<script>
+/* Resolve the theme before the stylesheet parses, or the browser commits form
+   controls to its own colour scheme and they render dark on a light page. */
+(function(){try{var q=new URLSearchParams(location.search).get("theme"),
+s=localStorage.getItem("cd-theme"),t=(q==="dark"||q==="light")?q:s;
+if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     THE CONSOLE — the instrument itself. This is the landing state and
+     the centre of the demonstration: you aim it at an estate and run it.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="console" id="console">
+
+  <header class="con-head">
+    <div class="con-id">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <p class="con-name" id="product-name">CryptoDrishti</p>
+        <p class="con-sub">Cryptographic discovery &amp; quantum risk analysis</p>
+      </div>
+    </div>
+    <div class="con-meta">
+      <span class="stamp">SIH26164</span>
+      <span class="stamp">NTRO</span>
+      <button id="theme-toggle" class="btn-q">Dark</button>
+    </div>
+  </header>
+
+  <div class="con-body">
+
+    <!-- aim -->
+    <div class="aim">
+      <p class="con-lede">Point it at a codebase, a tree of binaries, a certificate store or a
+        live endpoint. Six sensors read what is actually there and return every cryptographic
+        asset present — each one classified by what a quantum computer does to it.</p>
+      <label class="aim-l" for="scan-path">Target estate</label>
+      <div class="aim-row">
+        <input id="scan-path" type="text" spellcheck="false" autocomplete="off"
+               placeholder="/path/to/the/estate">
+        <button id="browse" class="browse" type="button"
+                aria-haspopup="dialog" aria-expanded="false">Browse…</button>
+        <button id="run-scan" class="fire">
+          <span class="fire-t">Run scan</span>
+          <span class="fire-k">↵</span>
+        </button>
+      </div>
+
+      <div class="picker" id="picker" hidden role="dialog" aria-label="Choose a folder">
+        <div class="pick-head">
+          <span class="lbl">Choose any folder on this machine</span>
+          <button id="pick-close" class="btn-q" type="button">Close</button>
+        </div>
+        <div class="pick-places" id="pick-places"></div>
+        <p class="pick-path" id="pick-path">—</p>
+        <ol class="pick-list" id="pick-list"></ol>
+        <div class="pick-foot">
+          <button id="pick-up" class="btn-s" type="button">↑ Parent folder</button>
+          <button id="pick-use" class="btn-p" type="button">Scan this folder</button>
+        </div>
+      </div>
+
+      <div class="presets" id="presets"></div>
+
+      <div class="aim-opts">
+        <label class="opt">
+          <span class="opt-l">Deployment profile</span>
+          <select id="profile"></select>
+        </label>
+        <label class="opt">
+          <span class="opt-l">Live endpoint <i>optional</i></span>
+          <input id="scan-endpoints" type="text" spellcheck="false" placeholder="host:443">
+        </label>
+        <div class="opt run-state">
+          <span class="opt-l">Progress</span>
+          <div class="run-row">
+            <span class="clock" id="clock">—</span>
+            <span class="run-pct" id="run-pct"></span>
+          </div>
+          <div class="run-bar" id="run-bar" hidden><i id="run-fill"></i></div>
+          <span class="run-detail" id="run-detail"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- the array -->
+    <div class="array">
+      <div class="array-h">
+        <span class="lbl">Sensor array</span>
+        <span class="lbl" id="array-state">Idle</span>
+      </div>
+      <ol id="sensors"></ol>
+    </div>
+  </div>
+
+  <footer class="con-foot">
+    <p class="con-last" id="con-last">No scan on record.</p>
+    <a class="jump" href="#s-verdict" id="jump">Open the record ↓</a>
+  </footer>
+</section>
+
+<!-- ═══ record chrome, revealed once you leave the console ═══════════ -->
+<nav class="rail" id="rail" hidden aria-label="Sections">
+  <ol id="index-list"></ol>
+  <div class="rail-foot">
+    <button id="explain-toggle" class="btn-q" aria-pressed="false">Notes</button>
+    <a class="btn-q" href="#console">Top</a>
+  </div>
+</nav>
+
+<main class="deck" id="doc">
+
+  <!-- 01 ───────────────────────────────────────────────────────────── -->
+  <section class="scene" id="s-verdict" tabindex="-1">
+    <div class="scene-in">
+      <header class="sh">
+        <span class="sh-n">01</span><h2 class="sh-t">Assessment</h2>
+        <span class="sh-r"></span><span class="sh-x" id="x-verdict"></span>
+      </header>
+
+      <div class="verdict">
+        <figure class="dial">
+          <svg id="radial" viewBox="0 0 420 420" role="img"
+               aria-label="Every cryptographic asset as a spoke, length by risk score"></svg>
+        </figure>
+
+        <div class="verdict-r">
+          <p class="head-s" id="v-line">Run a scan to assess an estate.</p>
+          <dl class="figs" id="figs"></dl>
+          <div class="comp-wrap">
+            <p class="lbl">Composition by quantum exposure class</p>
+            <div class="comp" id="composition" role="img" aria-label="Estate composition"></div>
+            <ul class="key" id="legend"></ul>
+          </div>
+        </div>
+      </div>
+
+      <p class="note" data-explain>
+        Every asset in the estate is one spoke. Its length is the risk score and its colour is
+        what happens to it under quantum attack; they run in order of urgency, so the work
+        sweeps from the most critical round to the assets that need nothing at all.
+      </p>
+    </div>
+  </section>
+
+  <!-- 02 ───────────────────────────────────────────────────────────── -->
+  <section class="scene" id="s-clock" tabindex="-1">
+    <div class="scene-in wide">
+    <header class="sh">
+      <span class="sh-n">02</span><h2 class="sh-t">Exposure window</h2>
+      <span class="sh-r"></span><span class="sh-x" id="x-clock"></span>
+    </header>
+
+    <p class="sub">Mosca's inequality: if <b class="m">X + Y &gt; Z</b>, data recorded
+      today is readable before you have finished migrating.</p>
+
+    <div class="mosca" id="mosca-eq"></div>
+
+    <p class="plain" id="mosca-plain"></p>
+
+    <figure class="plot">
+      <svg id="mosca-svg" viewBox="0 0 1000 200" preserveAspectRatio="xMidYMid meet"
+           role="img" aria-label="Protection needed against time available"></svg>
+    </figure>
+
+    <div class="params">
+      <p class="lbl">Assumptions</p>
+      <div class="params-g">
+        <div class="par">
+          <label for="qday-likely">When a quantum computer breaks RSA — best estimate</label>
+          <div class="par-r">
+            <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+            <output id="qday-out">2034</output>
+          </div>
+        </div>
+        <div class="par">
+          <label for="sensitivity">How long this data must stay secret</label>
+          <select id="sensitivity"></select>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" data-explain>
+      Michele Mosca's formulation, and the standard way this risk is stated. <b>X</b> is
+      how long the data must stay secret, <b>Y</b> how long migration takes, <b>Z</b> the
+      years until a quantum computer exists. Nobody knows Z, so it is given as a range rather
+      than asserted as a date — move the control and every asset re-ranks against it.
+    </p>
+    </div>
+  </section>
+
+  <!-- 03 ───────────────────────────────────────────────────────────── -->
+  <section class="scene" id="s-plan" tabindex="-1">
+    <div class="scene-in wide">
+    <header class="sh">
+      <span class="sh-n">03</span><h2 class="sh-t">Remediation programme</h2>
+      <span class="sh-r"></span><span class="sh-x" id="x-plan"></span>
+    </header>
+    <p class="sub">Grouped by replacement algorithm, which is how a migration is actually
+      staffed and budgeted.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr>
+          <th>Workstream</th><th class="n">Assets</th><th class="n">Call sites</th>
+          <th class="n">Δ bytes</th><th>Effort</th><th>Action</th>
+        </tr></thead>
+        <tbody id="plan-body"><tr class="empty"><td colspan="6">No scan loaded.</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note" data-explain>
+      A migration is resourced per target algorithm, not per finding. <b>Call sites</b> is the
+      total number of places that workstream has to touch; <b>Δ bytes</b> is what the
+      replacement costs per operation, which is what breaks fixed-width protocol fields.
+    </p>
+    </div>
+  </section>
+
+  <!-- 04 ───────────────────────────────────────────────────────────── -->
+  <section class="scene" id="s-record" tabindex="-1">
+    <div class="scene-in wide">
+    <header class="sh">
+      <span class="sh-n">04</span><h2 class="sh-t">Inventory</h2>
+      <span class="sh-r"></span><span class="sh-x" id="x-record"></span>
+    </header>
+
+    <div class="tools">
+      <input id="filter-q" type="search" placeholder="Filter" aria-label="Filter assets">
+      <select id="filter-class" aria-label="Filter by quantum class"><option value="">All classes</option></select>
+      <select id="filter-context" aria-label="Filter by code context">
+        <option value="">All code</option><option value="production">Production</option>
+        <option value="test">Test fixtures</option><option value="vendored">Vendored</option>
+      </select>
+      <span class="tools-sp"></span>
+      <span class="count" id="findings-hint"></span>
+    </div>
+
+    <ol class="ledger" id="ledger"></ol>
+    </div>
+  </section>
+
+  <!-- output ───────────────────────────────────────────────────────── -->
+  <section class="scene out" id="s-out" tabindex="-1">
+    <div class="scene-in wide">
+    <header class="sh">
+      <span class="sh-n">05</span><h2 class="sh-t">Machine-readable output</h2>
+      <span class="sh-r"></span><span class="sh-x">CycloneDX 1.6 · ECMA-424</span>
+    </header>
+    <div class="out-g">
+      <div class="out-c">
+        <p class="lbl">Cryptography bill of materials</p>
+        <p class="out-d">Every asset emitted as a CycloneDX 1.6 <code>cryptographic-asset</code>
+          component — the ECMA-424 standard a regulator or a downstream tool can actually
+          consume. Validation checks the document structurally, live.</p>
+        <div class="out-b">
+          <button id="btn-cbom" class="btn-o">Download CBOM</button>
+          <button id="btn-validate" class="btn-o">Validate</button>
+        </div>
+        <p id="validate-result" class="call" hidden></p>
+      </div>
+      <div class="out-c">
+        <p class="lbl">Assessment report</p>
+        <p class="out-d">The same record as a self-contained printable document: findings,
+          evidence, Mosca exposure and recommended migration targets.</p>
+        <div class="out-b">
+          <button id="btn-report" class="btn-o">Open report</button>
+        </div>
+      </div>
+    </div>
+    <p class="foot"><span id="foot-meta">SIH26164 · NTRO</span><span>NIST IR 8547 · FIPS 203/204/205</span></p>
+    </div>
+  </section>
+
+</main>
+
+<div id="tip" class="tip" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Asset detail">
+  <button id="drawer-close" class="d-x" aria-label="Close">Close</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

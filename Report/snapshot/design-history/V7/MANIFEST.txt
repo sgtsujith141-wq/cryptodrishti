@@ -1,0 +1,15 @@
+V7 — V6 with the round of fixes that followed.  CURRENT.
+
+  · Browse fixed. The endpoint was listing every child folder in full to label
+    it, so opening a home directory hung. It now probes a dozen marker files
+    per entry: home and / both answer in under a quarter second.
+  · Live scan progress. Every scanner reports as it works, the percentage
+    advances continuously inside each sensor's slice, a detail line reads
+    "1,300 of 3,043 files", and a server-side tick lets the console say
+    "no update for 12s" when something has actually stalled.
+  · "Where the work is" removed entirely — markup, treemap renderer,
+    squarify, styles. Sections renumbered 01-05.
+  · Exposure window graph redesigned as a direct comparison from a common
+    origin: NEED (X + Y) against HAVE (Z), with the shortfall called out
+    between the two ends. The Mosca term strip and sentence are unchanged.
+  · Removed a dead write to rail-target that threw on every render.

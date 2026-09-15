@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti</title>
+<script>
+/* Resolve the theme before the stylesheet is parsed. Setting data-theme later
+   from the main script leaves the browser having already committed form
+   controls to its own colour scheme, which is why inputs rendered dark on a
+   light page — and it causes a visible flash of the wrong theme besides. */
+(function () {
+  try {
+    var q = new URLSearchParams(location.search).get("theme");
+    var saved = localStorage.getItem("cd-theme");
+    var t = (q === "dark" || q === "light") ? q : saved;
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) { /* private mode: fall through to the system preference */ }
+})();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-l">
+    <span class="logo" aria-hidden="true"></span>
+    <span class="brand" id="product-name">CryptoDrishti</span>
+    <span class="chip" id="posture-target">no scan</span>
+  </div>
+  <div class="nav-r">
+    <button id="explain-toggle" class="tbtn" aria-pressed="false">Explain</button>
+    <button id="theme-toggle" class="tbtn">Dark</button>
+    <span class="chip ghost mono" id="ps-badge">SIH26164</span>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- ═══ scan ═══════════════════════════════════════════════════════ -->
+  <section class="scanner">
+    <div class="scan-row">
+      <div class="field grow">
+        <label for="scan-path">Target</label>
+        <input id="scan-path" type="text" spellcheck="false" placeholder="/path/to/a/repository">
+      </div>
+      <div class="field">
+        <label for="target-preset">Preset</label>
+        <select id="target-preset"><option value="">Choose…</option></select>
+      </div>
+      <div class="field">
+        <label for="profile">Profile</label>
+        <select id="profile"></select>
+      </div>
+      <div class="field">
+        <label for="scan-endpoints">Probe TLS</label>
+        <input id="scan-endpoints" type="text" spellcheck="false" placeholder="optional">
+      </div>
+      <button id="run-scan" class="cta">Scan</button>
+    </div>
+    <div class="prog" id="scan-progress" hidden>
+      <div class="sensors" id="sensors"></div>
+      <div class="pbar"><i id="progress-fill"></i></div>
+      <span class="mono pphase" id="progress-phase">Queued</span>
+    </div>
+    <p class="note" data-explain>
+      Point this at any folder. Six sensors read the source, compiled binaries, certificates,
+      dependency manifests and configuration inside it. It is not hunting for bugs — it builds
+      an inventory of every piece of cryptography present, then works out which of it survives
+      a quantum computer.
+    </p>
+  </section>
+
+  <!-- ═══ hero ═══════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Cryptographic posture</p>
+      <h1 class="headline" id="posture-verdict">Run a scan to assess an estate.</h1>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="sv mono" id="t-total">—</span>
+          <span class="sl">Assets</span>
+          <span class="sn" id="t-total-sub"></span>
+        </div>
+        <div class="stat alert">
+          <span class="sv mono" id="t-vuln">—</span>
+          <span class="sl">Vulnerable</span>
+          <span class="sn" id="t-vuln-sub"></span>
+        </div>
+        <div class="stat">
+          <span class="sv mono" id="t-crit">—</span>
+          <span class="sl">Critical</span>
+          <span class="sn" id="t-crit-sub"></span>
+        </div>
+        <div class="stat">
+          <span class="sv mono"><span id="t-exposure">—</span><em>yr</em></span>
+          <span class="sl">Peak exposure</span>
+          <span class="sn">after Q-Day</span>
+        </div>
+      </div>
+
+      <p class="scanfacts mono" id="lang-summary"></p>
+    </div>
+
+    <figure class="dial">
+      <svg id="radial" viewBox="0 0 420 420" role="img"
+           aria-label="Every cryptographic asset as a spoke: length is risk, colour is quantum exposure class"></svg>
+      <figcaption class="legend" id="legend"></figcaption>
+    </figure>
+
+    <p class="note wide" data-explain>
+      Each spoke is one cryptographic asset. Its <b>length</b> is the risk score and its
+      <b>colour</b> is what happens to it under quantum attack. They are ordered by risk, so
+      the arc sweeps from the most urgent work round to the assets that need nothing.
+    </p>
+  </section>
+
+  <!-- ═══ clock ══════════════════════════════════════════════════════ -->
+  <section class="card clock">
+    <header class="card-head">
+      <div>
+        <h2>The clock</h2>
+        <p class="sub">Mosca's inequality — move the estimate and the estate re-ranks.</p>
+      </div>
+      <span class="pilleq mono" id="formula"></span>
+    </header>
+
+    <svg id="mosca-svg" viewBox="0 0 1000 138" preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label="Mosca exposure timeline"></svg>
+
+    <div class="clock-ctl">
+      <div class="slider">
+        <div class="sl-head">
+          <label for="qday-likely">Q-Day — median arrival of a quantum computer able to break RSA</label>
+          <output class="mono" id="qday-out">2034</output>
+        </div>
+        <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+      </div>
+      <div class="field">
+        <label for="sensitivity">Data sensitivity</label>
+        <select id="sensitivity"></select>
+      </div>
+    </div>
+
+    <p class="verdict" id="mosca-verdict"></p>
+    <p class="note" data-explain>
+      <b>X</b> is how long the data must stay secret, <b>Y</b> how long migration takes,
+      <b>Z</b> the years until a quantum computer exists. If X + Y exceeds Z, data sealed today
+      is already readable by an adversary recording it now. Nobody knows Z, so it is modelled
+      as a distribution and reported as a probability — never asserted as a date.
+    </p>
+  </section>
+
+  <!-- ═══ inventory ══════════════════════════════════════════════════ -->
+  <section class="card">
+    <header class="card-head">
+      <div>
+        <h2>Inventory</h2>
+        <p class="sub" id="findings-hint">Detector hits grouped into distinct assets.</p>
+      </div>
+      <div class="acts">
+        <input id="filter-q" type="search" placeholder="Filter">
+        <select id="filter-class"><option value="">All classes</option></select>
+        <select id="filter-context">
+          <option value="">All code</option>
+          <option value="production">Production</option>
+          <option value="test">Test fixtures</option>
+          <option value="vendored">Vendored</option>
+        </select>
+        <button id="btn-report" class="tbtn">Report</button>
+        <button id="btn-cbom" class="tbtn">CBOM</button>
+        <button id="btn-validate" class="tbtn accent">Validate</button>
+      </div>
+    </header>
+
+    <p id="validate-result" class="banner" hidden></p>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">Risk</th><th>Algorithm</th><th>Class</th><th>Finding</th>
+            <th class="num">Uses</th><th>Context</th><th>Location</th><th>Migrate to</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body">
+          <tr class="empty"><td colspan="8">No scan loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" data-explain>
+      One row per distinct asset, not per occurrence. <b>Uses</b> is blast radius — how many
+      call sites a migration must touch. Click any row for its evidence, the full score
+      breakdown, and the recommended replacement.
+    </p>
+  </section>
+
+  <footer class="foot">
+    <span id="foot-meta">Problem statement SIH26164 · National Technical Research Organisation</span>
+    <span class="mono">CycloneDX 1.6 · ECMA-424</span>
+  </footer>
+</div>
+
+<div id="tip" class="tip" hidden></div>
+
+<aside id="drawer" class="drawer" hidden aria-label="Asset detail">
+  <button id="drawer-close" class="dclose" aria-label="Close">&times;</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+V6 — V1 + V2 + V5 combined.  The current design.
+
+From V5 (the instrument)
+  · Console landing at full viewport: the target field with the run action
+    fused to it, presets, and the six-sensor array stating what each sensor
+    reads. Running a scan drives the array and the elapsed clock, then moves
+    to the record.
+  · Achromatic chrome, bone and graphite; primary actions inverted ink. The
+    only colour on the page is the five quantum-exposure classes.
+  · 02 treemap sized by call sites · 03 plain-language exposure window with
+    two spans on one ruler · 05 the ledger · 06 machine-readable output.
+
+From V1 (the design you first approved)
+  · The radial dial is back, and now carries the verdict itself: every asset
+    is one spoke, length is risk score, colour is exposure class, ordered by
+    urgency, with the headline percentage in the hub. Section 01 pairs it with
+    the key figures and the composition bar.
+
+From V2 (the scene deck)
+  · The record is a scroll-snapped deck — one idea per full viewport — with a
+    pip rail marking position, revealed only once you leave the console.
+
+?compact=1 drops the snap and sizes every scene to its content, so the whole
+deck prints and screenshots as one page.
+
+Verified: preflight ALL CLEAR · 77 assets / 58 vulnerable / 18 critical /
+4.5 yr peak exposure · zero external requests · no hex colours in app.js.

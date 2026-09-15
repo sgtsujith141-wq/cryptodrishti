@@ -1,0 +1,23 @@
+v10 — the assessment record. Built from scratch after v9 (glass over aurora)
+was rejected as unserious for the subject matter.
+
+Register: an institutional technical assessment. Flat surfaces, hairline rules,
+a fixed contents column with a colophon, numbered sections, everything numeric
+set in mono. One accent — a deep navy — used only for interactive state.
+No gradients, no glow, no ambient colour, no entrance animation.
+
+Motion is limited to what reports state: figures counting to a new value when
+the Q-Day control changes them, the scan progress bar, and the drawer.
+
+Class palettes revalidated with the dataviz checker, muted rather than neon:
+  light  #A63A2D #DDAA4A #6B7787 #3F3D8F #136B4E
+         adjacent-pair 16.9 deutan · 8.7 tritan · 18.8 normal
+  dark   #D9655A #D2A23E #646E7C #B0A6FA #31AA84
+         adjacent-pair 10.4 deutan · 13.2 tritan · 15.9 normal · contrast PASS
+
+New in this version: a stacked composition bar that doubles as the class
+filter, and a remediation programme rendered as a real table rather than cards.
+Removed: scroll-snap scenes, the scene rail, and the ?flat=1 capture mode --
+the document now scrolls continuously, so it screenshots whole.
+
+Zero external requests. No hex colours in app.js.

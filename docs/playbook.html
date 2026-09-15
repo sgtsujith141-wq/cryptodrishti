@@ -1,0 +1,1068 @@
+<title>CryptoDrishti Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap">
+
+<style>
+:root {
+  --ground:    #F3F4F9;
+  --surface:   #FFFFFF;
+  --surface-2: #EAECF4;
+  --ink:       #15171F;
+  --ink-2:     #3C4054;
+  --muted:     #676C82;
+  --rule:      #DCDEEA;
+  --rule-soft: #E9EAF2;
+  --accent:    #4A52C0;
+  --accent-2:  #3A419E;
+  --accent-bg: #E7E9F7;
+  --crit:      #A8261B;
+  --crit-bg:   #F8E6E3;
+  --warn:      #8A5806;
+  --warn-bg:   #F8EFDD;
+  --safe:      #146150;
+  --safe-bg:   #DEEDE8;
+
+  --f-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --f-body:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --measure: 70ch;
+  --nav-w: 244px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:    #0F1117;
+    --surface:   #171A24;
+    --surface-2: #1E2231;
+    --ink:       #E7E9F2;
+    --ink-2:     #C2C6D8;
+    --muted:     #8B90A8;
+    --rule:      #2A2E40;
+    --rule-soft: #212434;
+    --accent:    #8F97F0;
+    --accent-2:  #A8AEF5;
+    --accent-bg: #1F2338;
+    --crit:      #E88478;
+    --crit-bg:   #33201D;
+    --warn:      #D6A354;
+    --warn-bg:   #322817;
+    --safe:      #5CBFA1;
+    --safe-bg:   #14302A;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:    #0F1117;
+  --surface:   #171A24;
+  --surface-2: #1E2231;
+  --ink:       #E7E9F2;
+  --ink-2:     #C2C6D8;
+  --muted:     #8B90A8;
+  --rule:      #2A2E40;
+  --rule-soft: #212434;
+  --accent:    #8F97F0;
+  --accent-2:  #A8AEF5;
+  --accent-bg: #1F2338;
+  --crit:      #E88478;
+  --crit-bg:   #33201D;
+  --warn:      #D6A354;
+  --warn-bg:   #322817;
+  --safe:      #5CBFA1;
+  --safe-bg:   #14302A;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15.5px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.6vw, 2.9rem); font-weight: 700; letter-spacing: -.022em; line-height: 1.08; }
+h2 { font-size: clamp(1.35rem, 2.6vw, 1.75rem); font-weight: 700; letter-spacing: -.014em; line-height: 1.2; }
+h3 { font-size: 1.08rem; font-weight: 600; }
+h4 { font-family: var(--f-body); font-size: .93rem; font-weight: 600; }
+p { margin: 0; max-width: var(--measure); }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+strong { font-weight: 600; color: var(--ink); }
+
+code {
+  font-family: var(--f-mono); font-size: .85em;
+  background: var(--surface-2); padding: .1em .34em;
+  border-radius: 3px; color: var(--ink-2);
+}
+.mono { font-family: var(--f-mono); }
+
+.eyebrow {
+  font-family: var(--f-mono); font-size: .67rem; font-weight: 500;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); gap: 0; }
+
+nav {
+  position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+  border-right: 1px solid var(--rule); padding: 1.6rem 1rem 3rem;
+  background: var(--surface);
+}
+nav .navtitle {
+  font-family: var(--f-display); font-weight: 700; font-size: 1.02rem;
+  margin-bottom: .2rem;
+}
+nav .navsub { font-size: .72rem; color: var(--muted); margin-bottom: 1.2rem; }
+nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+nav a {
+  display: flex; gap: .55rem; padding: .3rem .5rem; border-radius: 4px;
+  font-size: .81rem; color: var(--ink-2); text-decoration: none; line-height: 1.35;
+}
+nav a:hover { background: var(--surface-2); color: var(--ink); }
+nav a .n { font-family: var(--f-mono); font-size: .7rem; color: var(--muted); flex: none; width: 1.4em; }
+nav .navgroup {
+  font-family: var(--f-mono); font-size: .62rem; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 1.1rem 0 .35rem .5rem;
+}
+
+main { padding: 0 clamp(1.2rem, 4vw, 3.2rem) 6rem; max-width: 1000px; }
+
+header.doc {
+  padding: clamp(2.4rem, 6vw, 3.6rem) 0 1.4rem;
+  border-bottom: 2px solid var(--ink); margin-bottom: .6rem;
+}
+header.doc h1 { margin: .5rem 0 .7rem; max-width: 18ch; }
+.lede { font-size: 1.06rem; color: var(--ink-2); max-width: 60ch; }
+
+section { padding: 2.8rem 0 .4rem; scroll-margin-top: 1rem; }
+.sec-head {
+  display: flex; align-items: baseline; gap: .8rem;
+  padding-bottom: .6rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--rule);
+}
+.sec-num { font-family: var(--f-mono); font-size: .78rem; font-weight: 600; color: var(--accent); flex: none; }
+.stack { display: flex; flex-direction: column; gap: 1rem; }
+
+/* ---------- blocks ---------- */
+.note {
+  border-left: 3px solid var(--accent); background: var(--accent-bg);
+  padding: .85rem 1rem; display: flex; flex-direction: column; gap: .4rem;
+}
+.note .eyebrow { color: var(--accent-2); }
+.note.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+.note.warn .eyebrow { color: var(--warn); }
+.note.crit { border-left-color: var(--crit); background: var(--crit-bg); }
+.note.crit .eyebrow { color: var(--crit); }
+.note p { max-width: 66ch; }
+
+pre {
+  margin: 0; overflow-x: auto; background: var(--surface); border: 1px solid var(--rule);
+  padding: .85rem 1rem; font-family: var(--f-mono); font-size: .78rem;
+  line-height: 1.6; color: var(--ink-2); border-radius: 4px;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--accent); }
+pre .s { color: var(--safe); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; min-width: 540px; font-size: .855rem; }
+th, td { text-align: left; padding: .55rem .75rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+thead th {
+  font-family: var(--f-mono); font-size: .64rem; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--muted); font-weight: 500; background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.mono, th.mono { font-family: var(--f-mono); font-size: .79rem; }
+td.num { font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+ul.checks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+ul.checks li { position: relative; padding-left: 1.3rem; max-width: 70ch; color: var(--ink-2); font-size: .93rem; }
+ul.checks li::before { content: "▸"; position: absolute; left: .1rem; color: var(--accent); }
+
+ol.steps { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .5rem; }
+ol.steps li { max-width: 68ch; color: var(--ink-2); font-size: .93rem; }
+
+.grid2 { display: grid; gap: .9rem; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+.card {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  padding: .85rem .95rem; display: flex; flex-direction: column; gap: .35rem;
+}
+.card h4 { font-size: .92rem; }
+.card p { font-size: .855rem; color: var(--ink-2); max-width: none; }
+.card .tag { font-family: var(--f-mono); font-size: .63rem; letter-spacing: .11em; text-transform: uppercase; color: var(--muted); }
+
+.pill {
+  display: inline-block; font-family: var(--f-mono); font-size: .65rem; font-weight: 500;
+  letter-spacing: .05em; padding: .14rem .42rem; border-radius: 3px; white-space: nowrap;
+}
+.pill.crit { background: var(--crit-bg); color: var(--crit); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.safe { background: var(--safe-bg); color: var(--safe); }
+.pill.neutral { background: var(--surface-2); color: var(--muted); }
+
+/* ---------- pipeline diagram ---------- */
+.pipe { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); padding: 1rem; border-radius: 4px; }
+.pipe-inner { display: flex; align-items: stretch; gap: .5rem; min-width: 780px; }
+.pipe-col { flex: 1; display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.pipe-col > .eyebrow { padding-bottom: .3rem; border-bottom: 1px solid var(--rule); margin-bottom: .1rem; }
+.node {
+  background: var(--surface-2); border: 1px solid var(--rule-soft); border-radius: 3px;
+  padding: .38rem .5rem; font-size: .755rem; line-height: 1.3;
+}
+.node b { display: block; font-size: .765rem; font-weight: 600; }
+.node span { color: var(--muted); font-family: var(--f-mono); font-size: .655rem; }
+.node.hi { background: var(--accent-bg); border-color: var(--accent); }
+.arrow { flex: none; align-self: center; color: var(--accent); font-size: 1.05rem; }
+
+.filetree {
+  font-family: var(--f-mono); font-size: .78rem; line-height: 1.75;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  padding: .9rem 1rem; overflow-x: auto; color: var(--ink-2);
+}
+.filetree .d { color: var(--accent); font-weight: 600; }
+.filetree .cm { color: var(--muted); }
+
+footer {
+  margin-top: 3rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+  font-size: .8rem; color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+  nav ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="shell">
+
+<nav aria-label="Contents">
+  <div class="navtitle">Playbook</div>
+  <div class="navsub">CryptoDrishti · SIH26164</div>
+  <div class="navgroup">Operate</div>
+  <ol>
+    <li><a href="#what"><span class="n">1</span> What this actually is</a></li>
+    <li><a href="#run"><span class="n">2</span> Running it — every command</a></li>
+    <li><a href="#tour"><span class="n">3</span> Tour of the screen</a></li>
+    <li><a href="#choosing"><span class="n">4</span> Choosing what to scan</a></li>
+  </ol>
+  <div class="navgroup">Understand</div>
+  <ol>
+    <li><a href="#looking"><span class="n">5</span> What it looks for</a></li>
+    <li><a href="#sensors"><span class="n">6</span> The six sensors</a></li>
+    <li><a href="#scoring"><span class="n">7</span> How risk is scored</a></li>
+    <li><a href="#recommend"><span class="n">8</span> How advice is chosen</a></li>
+    <li><a href="#cbom"><span class="n">9</span> The CBOM output</a></li>
+  </ol>
+  <div class="navgroup">The code</div>
+  <ol>
+    <li><a href="#stack"><span class="n">10</span> Stack, and why</a></li>
+    <li><a href="#flow"><span class="n">11</span> End-to-end data flow</a></li>
+    <li><a href="#backend"><span class="n">12</span> Backend</a></li>
+    <li><a href="#frontend"><span class="n">13</span> Frontend</a></li>
+    <li><a href="#files"><span class="n">14</span> Every file explained</a></li>
+  </ol>
+  <div class="navgroup">Survive</div>
+  <ol>
+    <li><a href="#limits"><span class="n">15</span> Honest limitations</a></li>
+    <li><a href="#change"><span class="n">16</span> How to change things</a></li>
+    <li><a href="#trouble"><span class="n">17</span> Troubleshooting</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="doc">
+  <span class="eyebrow">Project playbook · read before you present</span>
+  <h1>CryptoDrishti, end to end</h1>
+  <p class="lede">Everything about this project in one place: what it does, how to drive it,
+  what every sensor looks for, how the scoring maths works, and how the code is put
+  together — file by file. Written so you can answer any question about it without
+  having written it.</p>
+</header>
+
+<!-- ================= 1 ================= -->
+<section id="what">
+  <div class="sec-head"><span class="sec-num">01</span><h2>What this actually is</h2></div>
+  <div class="stack">
+
+    <p>In one sentence: <strong>it is a virus scanner, except it hunts cryptography
+    instead of malware, and then tells you what to replace each thing with.</strong></p>
+
+    <p>You point it at a codebase or a directory. It reads the source, the compiled
+    binaries, the certificates, the dependency manifests and the config files, and it
+    finds every piece of cryptography in there. Then it works out which of those will be
+    broken by a quantum computer, ranks them by how much that matters, recommends a
+    post-quantum replacement for each, and exports the whole thing as a
+    <strong>CBOM</strong> — a Cryptography Bill of Materials, in the international
+    standard format.</p>
+
+    <div class="note">
+      <span class="eyebrow">Why anyone wants this</span>
+      <p>Quantum computers will break RSA and elliptic-curve cryptography, which is what
+      secures essentially all internet traffic. NIST published the replacements in 2024,
+      so the mathematics is solved. Almost nobody has migrated — because migration
+      requires knowing what cryptography you have, and no organisation does. India's
+      national roadmap requires critical-infrastructure operators to produce exactly this
+      inventory by <strong>December 2027</strong>. This tool produces it.</p>
+    </div>
+
+    <p>Everything runs locally. There is no cloud service, no API key and no outbound
+    network call anywhere in the product — which is the point, because the organisations
+    that most need this run classified networks that a cloud tool cannot reach.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Thing</th><th>Number</th></tr></thead>
+        <tbody>
+          <tr><td>Python source</td><td class="num">~5,100 lines across 24 modules</td></tr>
+          <tr><td>Algorithms it knows</td><td class="num">52</td></tr>
+          <tr><td>Source detection rules</td><td class="num">49, across 10 languages</td></tr>
+          <tr><td>Binary signatures</td><td class="num">8 constants, 72 symbols, 9 version banners</td></tr>
+          <tr><td>Sensors</td><td class="num">6</td></tr>
+          <tr><td>HTTP endpoints</td><td class="num">11</td></tr>
+          <tr><td>Third-party runtime dependencies</td><td class="num">3 (FastAPI, uvicorn, cryptography)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="run">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Running it — every command</h2></div>
+  <div class="stack">
+
+    <h3>The one you use before presenting</h3>
+<pre><span class="c"># Start the server AND pre-run a scan so the console opens already populated.
+# Do this WITH network, before you walk in — then the cable-pull is real.</span>
+./.venv/bin/python run.py --seed \
+    --seed-path demo/targets/openssl \
+    --seed-endpoints www.google.com</pre>
+
+    <p>Then open <code>http://127.0.0.1:8000</code>.</p>
+
+    <div class="note crit">
+      <span class="eyebrow">Never skip this</span>
+      <p><code>./.venv/bin/python run.py --preflight</code> — it tests all fifteen things
+      the demo depends on and prints <strong>ALL CLEAR</strong> or exactly what is broken.
+      Run it before you walk in and again on the morning. If something is wrong,
+      <code>--demo-reset</code> rebuilds the exact demo state in one command.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:19rem">Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">run.py</td><td>Start the console on port 8000. Opens onto whatever scan is already in the database.</td></tr>
+          <tr><td class="mono">run.py --seed --seed-path P</td><td>Run a full scan of <code>P</code> first, then start. This is how you avoid a live scan being the thing standing between you and a populated screen.</td></tr>
+          <tr><td class="mono">run.py --seed-endpoints a,b</td><td>Also probe those live TLS endpoints while seeding, so the network sensor has results.</td></tr>
+          <tr><td class="mono">run.py --preflight</td><td>Self-test, then exit. Fifteen checks.</td></tr>
+          <tr><td class="mono">run.py --demo-reset</td><td>Wipe all scans and rebuild the exact demo state. Your undo button.</td></tr>
+          <tr><td class="mono">run.py --port 9000</td><td>Different port, if 8000 is taken.</td></tr>
+          <tr><td class="mono">run.py --open</td><td>Also launch a browser.</td></tr>
+          <tr><td class="mono">python -m app.cli scan P</td><td>Command-line scan, prints a ranked table. Add <code>--cbom out.json</code> to write a CBOM.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:.6rem">If you ever need to rebuild from nothing</h3>
+<pre>python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+<span class="c"># demo repositories (needs network, one time)</span>
+mkdir -p demo/targets &amp;&amp; cd demo/targets
+git clone --depth 1 https://github.com/openssl/openssl.git
+git clone --depth 1 https://github.com/paramiko/paramiko.git</pre>
+  </div>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="tour">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Tour of the screen</h2></div>
+  <div class="stack">
+    <p>Top to bottom, what each thing on the console means and what to say about it.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:12rem">Element</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Scan target</strong></td><td>Any directory path. The <strong>Preset</strong> dropdown beside it lists the cloned repositories in <code>demo/targets/</code> plus your system library folders.</td></tr>
+          <tr><td><strong>Deployment profile</strong></td><td>Changes the <em>advice</em>, not the findings. A constrained IoT device gets a different recommendation from a general server — see section 8.</td></tr>
+          <tr><td><strong>Probe TLS endpoints</strong></td><td>Optional comma-separated hostnames. Leave blank to stay completely offline.</td></tr>
+          <tr><td><strong>Cryptographic assets</strong></td><td>Distinct pieces of cryptography found, after grouping. The subtitle shows the raw detector-hit count it was grouped from — 2,102 hits become 77 assets.</td></tr>
+          <tr><td><strong>Quantum vulnerable</strong></td><td>How many are broken or weakened by a quantum computer.</td></tr>
+          <tr><td><strong>Peak exposure</strong></td><td>The worst Mosca number in the estate: years of data that stay readable after Q-Day.</td></tr>
+          <tr><td><strong>Mosca panel</strong></td><td>The Q-Day slider and the sensitivity dropdown. Moving either re-scores the whole estate live. <strong>This is your demo moment.</strong></td></tr>
+          <tr><td><strong>Estate composition</strong></td><td>Two bar charts: by quantum class, and by severity. Below them, what was actually scanned.</td></tr>
+          <tr><td><strong>Inventory table</strong></td><td>One row per asset, ranked by risk. Coloured stripe on the left is severity. <strong>Uses</strong> is blast radius. <strong>Context</strong> says production, test or vendored.</td></tr>
+          <tr><td><strong>Clicking a row</strong></td><td>Opens the evidence drawer: every file and line, detection technique, confidence, the Mosca arithmetic, every scoring factor, and the recommendation.</td></tr>
+          <tr><td><strong>Executive report</strong></td><td>Opens the human-readable deliverable in a new tab. Prints to PDF.</td></tr>
+          <tr><td><strong>Download CBOM / Validate</strong></td><td>The machine-readable deliverable, and a live conformance check against CycloneDX 1.6.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="choosing">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Choosing what to scan</h2></div>
+  <div class="stack">
+
+    <p>This matters more than it sounds, because the demo is only as convincing as what
+    is on the screen. A good target has three properties: <strong>a name the judges
+    recognise</strong>, <strong>enough findings to look serious but few enough to stay
+    readable</strong>, and <strong>at least one finding dramatic enough to click into</strong>.</p>
+
+    <div class="note">
+      <span class="eyebrow">Use this one</span>
+      <p><code>demo/targets/openssl</code>. Everyone in the room knows what OpenSSL is,
+      the problem statement itself names OpenSSL as an acceptable dataset, and it yields
+      77 assets with a clean severity spread including MD5, DES, RC4, SHA-1 and 260
+      RSA-2048 certificates. It also contains six <em>post-quantum</em> certificates, so
+      you can show that the tool measures migration progress, not only debt.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Target</th><th class="num">Assets</th><th>Character</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">demo/targets/openssl</td><td class="num">77</td><td><strong>The demo target.</strong> C, huge crypto surface, recognisable name, great spread.</td></tr>
+          <tr><td class="mono">demo/targets/paramiko</td><td class="num">~17</td><td>Python SSH library. Small and fast; good for showing the AST analysis specifically.</td></tr>
+          <tr><td class="mono">demo/targets/django</td><td class="num">~28</td><td>Big Python web framework. Slower scan, fewer asymmetric findings.</td></tr>
+          <tr><td class="mono">demo/targets/shiro</td><td class="num">~77</td><td>Java security framework. Useful to show wrapper-class detection.</td></tr>
+          <tr><td class="mono">/usr/local/lib</td><td class="num">9</td><td><strong>The binary beat.</strong> Real compiled libraries, no source at all.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:.6rem">If you want to add a new target</h3>
+    <ol class="steps">
+      <li>Clone it shallow: <code>git clone --depth 1 &lt;url&gt; demo/targets/&lt;name&gt;</code>. It appears in the Preset dropdown automatically — the dropdown is built by listing that directory.</li>
+      <li>Scan it from the command line first: <code>python -m app.cli scan demo/targets/&lt;name&gt; --top 20</code>. Look at the output before you trust it on stage.</li>
+      <li>Reject it if it produces fewer than about fifteen assets, or if the top findings are all in test fixtures — both look weak on a projector.</li>
+    </ol>
+
+    <div class="note warn">
+      <span class="eyebrow">Do not scan on stage without having scanned it first</span>
+      <p>Every target should be scanned in rehearsal. A repository you have never scanned
+      might produce four findings, or take ninety seconds, and you will not know until it
+      is on the projector.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="looking">
+  <div class="sec-head"><span class="sec-num">05</span><h2>What it looks for</h2></div>
+  <div class="stack">
+
+    <p>The tool knows <strong>52 algorithms</strong>. Every finding resolves to one of
+    them, and that entry decides how the finding is classified, scored and remediated.
+    The registry lives in <code>app/knowledge/algorithms.py</code>.</p>
+
+    <p>Everything is sorted into five classes. This is the single most important idea in
+    the whole tool, and it is what makes it more than a grep:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:11rem">Class</th><th class="num">Count</th><th>Meaning</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="pill crit">Broken by Shor</span></td><td class="num">20</td>
+            <td>A quantum computer recovers the private key outright. Key size does not help. Must be replaced.</td>
+            <td class="mono">RSA, ECDSA, ECDH, DH, DSA, Ed25519</td>
+          </tr>
+          <tr>
+            <td><span class="pill warn">Weakened by Grover</span></td><td class="num">12</td>
+            <td>Effective strength halves. Fixed by a bigger parameter set, not a different algorithm.</td>
+            <td class="mono">AES-128, SHA-1, MD5, 3DES, RC4</td>
+          </tr>
+          <tr>
+            <td><span class="pill safe">Quantum-safe</span></td><td class="num">18</td>
+            <td>No known quantum attack beyond generic search. The migration targets.</td>
+            <td class="mono">ML-KEM, ML-DSA, SLH-DSA, AES-256, SHA-384</td>
+          </tr>
+          <tr>
+            <td><span class="pill neutral">Hybrid</span></td><td class="num">1</td>
+            <td>Classical and post-quantum combined; secure if either half holds. The correct default for TLS today.</td>
+            <td class="mono">X25519MLKEM768</td>
+          </tr>
+          <tr>
+            <td><span class="pill neutral">Unresolved</span></td><td class="num">1</td>
+            <td>Detected as cryptographic but not pinned to an algorithm. Reported, never guessed.</td>
+            <td class="mono">unknown</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Each registry entry carries more than a class — classical strength in bits, NIST
+    quantum security level, the OID, the standard it comes from, key and signature sizes
+    in bytes, and the years it becomes deprecated and disallowed under NIST IR 8547.
+    Those fields are what let the tool reason rather than merely label.</p>
+
+    <h3 style="margin-top:.6rem">Beyond quantum: things that are just broken</h3>
+    <p>The tool also flags defects that have nothing to do with quantum computing, because
+    an inventory that ignored them would be strange:</p>
+    <ul class="checks">
+      <li><strong>Hardcoded private keys and secrets</strong> in source — compromised the moment the repository is cloned.</li>
+      <li><strong>ECB mode</strong> — leaks plaintext structure regardless of key size.</li>
+      <li><strong>Non-cryptographic random number generators</strong> — <code>Math.random</code>, <code>java.util.Random</code>, Python's <code>random</code>. A predictable generator defeats every algorithm above it.</li>
+      <li><strong>Expired and weakly-signed certificates</strong> — SHA-1 or MD5 signatures, RSA below 2048 bits.</li>
+      <li><strong>Deprecated protocol versions</strong> — TLS 1.0 and 1.1, removed by RFC 8996.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="sensors">
+  <div class="sec-head"><span class="sec-num">06</span><h2>The six sensors</h2></div>
+  <div class="stack">
+
+    <p>Each sensor is an independent module in <code>app/scanners/</code>. They all return
+    the same shape — a list of <code>Finding</code> objects — so the rest of the pipeline
+    does not care where a finding came from. One sensor failing never takes the scan down;
+    a malformed binary or an unreachable host is a normal condition in a real estate.</p>
+
+    <div class="grid2">
+      <div class="card">
+        <span class="tag">source.py · 362 lines</span>
+        <h4>1 · Source code</h4>
+        <p><strong>Two passes.</strong> For Python it parses the real syntax tree, so a
+        match cannot come from a comment or a string, and <code>key_size=2048</code>
+        resolves to an actual value. For the other nine languages it applies 49 pattern
+        rules, skipping comment lines first. Where both passes see the same line, the
+        syntax-tree result wins.</p>
+        <p><strong>Finds:</strong> algorithm, mode and padding at each call site —
+        <code>Cipher.getInstance("AES/ECB/PKCS5Padding")</code> yields AES <em>and</em> ECB
+        <em>and</em> PKCS#5, not merely "crypto happened here".</p>
+      </div>
+
+      <div class="card">
+        <span class="tag">deps.py · 189 lines</span>
+        <h4>2 · Dependencies</h4>
+        <p>Reads <code>requirements.txt</code>, <code>package.json</code>,
+        <code>pom.xml</code>, <code>build.gradle</code>, <code>go.mod</code>,
+        <code>Cargo.toml</code> and friends, then maps each library to what cryptography it
+        can perform and whether that version has post-quantum support.</p>
+        <p><strong>Finds:</strong> "BouncyCastle 1.68 — below 1.79, so no ML-KEM; here is
+        the upgrade path." Most applications never call crypto directly, so without this
+        you miss most of the real surface.</p>
+      </div>
+
+      <div class="card">
+        <span class="tag">binary.py · 278 lines</span>
+        <h4>3 · Binaries and firmware</h4>
+        <p><strong>The differentiator.</strong> Three techniques in descending confidence.
+        <em>Symbol tables</em>: for ELF we parse the section headers and read
+        <code>.dynstr</code> directly. <em>Constants</em>: AES S-boxes and SHA-256 round
+        constants sit verbatim in read-only data and survive stripping, because they are
+        data rather than code. <em>Version banners</em>: pin the exact library build.</p>
+        <p><strong>Finds:</strong> cryptography inside vendor appliances with no source at
+        all. Every signature was verified by recomputing the table from its defining
+        formula and confirming the match against a real OpenSSL build.</p>
+      </div>
+
+      <div class="card">
+        <span class="tag">certs.py · 323 lines</span>
+        <h4>4 · Certificates and keys</h4>
+        <p>Parses X.509 in PEM and DER, keystores, and bare private keys. Each certificate
+        carries <em>two</em> algorithms — the subject key and the algorithm that signed it
+        — plus an explicit expiry, which makes its exposure directly datable.</p>
+        <p><strong>Finds:</strong> SHA-1 and MD5 signatures, RSA under 2048 bits, expired
+        certificates, and long-dated ones. It also resolves post-quantum certificates from
+        their OIDs even when the underlying library cannot parse the key type.</p>
+      </div>
+
+      <div class="card">
+        <span class="tag">configs.py · 157 lines</span>
+        <h4>5 · Configuration</h4>
+        <p>Reads nginx, Apache, sshd, <code>openssl.cnf</code> and Java security policy for
+        cipher lists, protocol lists and key-exchange groups. Deliberately ignores
+        <em>disable</em>-lists, since those are evidence of good hygiene rather than of
+        weak cryptography in use.</p>
+        <p><strong>Finds:</strong> the cheapest wins in any migration — usually one line
+        and a service reload.</p>
+      </div>
+
+      <div class="card">
+        <span class="tag">network.py · 283 lines</span>
+        <h4>6 · Live network</h4>
+        <p>Actually connects. Determines which TLS versions an endpoint accepts, which
+        cipher it picks, what certificate it presents, and — the important part — whether
+        it can negotiate a <strong>hybrid post-quantum key exchange</strong>.</p>
+        <p><strong>Finds:</strong> ground truth. Source says what was written, config says
+        what was intended, only the wire says what is negotiated. TLS 1.3 over a classical
+        group is still Shor-broken, and the version alone never tells you that.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="eyebrow">A detail worth knowing, because it is a good answer</span>
+      <p>The network sensor has <em>three</em> possible verdicts, not two: supports hybrid
+      PQC, does not support it, or <strong>could not be tested</strong>. Python's TLS
+      library cannot offer these groups, so the tool drives an OpenSSL 3.5+ command-line
+      binary instead — and if neither is available it says "not determined" rather than
+      reporting an absence of support it never actually tested.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="scoring">
+  <div class="sec-head"><span class="sec-num">07</span><h2>How risk is scored</h2></div>
+  <div class="stack">
+
+    <p>Two ideas, both in <code>app/engine/risk.py</code>.</p>
+
+    <h3>Mosca's inequality</h3>
+    <p>Three numbers. <strong>X</strong> is how long the data must stay secret.
+    <strong>Y</strong> is how long migration takes. <strong>Z</strong> is years until a
+    quantum computer exists.</p>
+
+<pre>if X + Y &gt; Z:   the data you seal today is readable by someone recording it now
+exposure     =  X + Y − Z      <span class="c"># in years</span></pre>
+
+    <p>X comes from the data sensitivity setting — restricted 25 years, confidential 10,
+    internal 5, public 1. Y comes from where the finding was found: a config line is half
+    a year to change, a source call site two years, a binary with no source four. Z comes
+    from the Q-Day slider.</p>
+
+    <div class="note">
+      <span class="eyebrow">The part that impresses cryptographers</span>
+      <p>Z is genuinely unknowable, so the tool does not assert it. It is modelled as a
+      triangular distribution over (earliest, likely, latest), and the tool runs a Monte
+      Carlo to report the <em>probability</em> of exposure alongside the exposure at the
+      median. Any tool that hardcodes a Q-Day is bluffing, and saying that out loud is
+      worth more than any feature.</p>
+    </div>
+
+    <h3 style="margin-top:.6rem">The score itself</h3>
+    <p>Deliberately a transparent product of named factors rather than a fitted model,
+    because a judge who can audit the arithmetic will trust the output. Every term below
+    is visible in the evidence drawer beside its input value.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:13rem">Factor</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">base_by_class</td><td>Starting point from the quantum class — 50 for Shor-broken, 30 weakened, 26 unresolved, 12 hybrid, 6 safe. Raised to at least 50 if the algorithm is <em>already</em> disallowed classically, because MD5 is broken today, not in 2034.</td></tr>
+          <tr><td class="mono">algorithm_risk_adjust</td><td>Per-algorithm correction where a class is right but severity is not uniform inside it. TLS 1.3 is technically Shor-broken but plainly less urgent than TLS 1.0, so it carries 0.45.</td></tr>
+          <tr><td class="mono">business_criticality</td><td>Where the evidence lives. Production 1.0, vendored 0.75, <strong>test fixtures 0.4</strong> — inventoried, but never leading the queue.</td></tr>
+          <tr><td class="mono">exposure_multiplier</td><td>Internet-facing assets are recorded by anyone on the path, so network findings weigh more than dependency findings.</td></tr>
+          <tr><td class="mono">mosca_term</td><td>The exposure gap, contributing sub-linearly — ten years exposed is worse than five, but not twice as bad, because both already mean you have lost.</td></tr>
+          <tr><td class="mono">occurrence_term</td><td>Blast radius. An algorithm reached from 200 call sites is a bigger migration than the same algorithm used once.</td></tr>
+          <tr><td class="mono">confidence_term</td><td>Damps the score, so an uncertain finding can never outrank a certain one.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Severity bands are simply: <strong>critical</strong> at 70 and above,
+    <strong>high</strong> at 45, <strong>medium</strong> at 25, <strong>low</strong> below
+    that.</p>
+  </div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="recommend">
+  <div class="sec-head"><span class="sec-num">08</span><h2>How advice is chosen</h2></div>
+  <div class="stack">
+
+    <p>The problem statement asks for alternatives selected "based on risk profile,
+    latency, cost". That is a constrained choice, not a lookup, and the constraint that
+    dominates is <strong>size</strong>.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Replace</th><th>With</th><th class="num">Public key</th><th class="num">Signature / ciphertext</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">RSA / ECDH key exchange</td><td class="mono">X25519MLKEM768 (hybrid)</td><td class="num">1,216 B</td><td class="num">1,120 B</td></tr>
+          <tr><td class="mono">ECDSA P-256 signing</td><td class="mono">ML-DSA-65</td><td class="num">1,952 B</td><td class="num">3,309 B</td></tr>
+          <tr><td class="mono">Firmware signing</td><td class="mono">SLH-DSA-128s</td><td class="num">32 B</td><td class="num">7,856 B</td></tr>
+          <tr><td class="mono">AES-128</td><td class="mono">AES-256</td><td class="num">—</td><td class="num">no change</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <span class="eyebrow">The number to remember</span>
+      <p>An ECDSA signature is <strong>64 bytes</strong>. ML-DSA-65 is
+      <strong>3,309</strong>. That is fifty times larger, and it breaks fixed-size protocol
+      fields, database columns and constrained radio links. This is why post-quantum
+      migration is an engineering problem rather than a mathematics one, and why the tool
+      reports the size delta with every recommendation.</p>
+    </div>
+
+    <p>The <strong>deployment profile</strong> dropdown changes the answer:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:11rem">Profile</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">general</td><td>Hybrid key exchange, ML-DSA-65 signatures. The sensible default.</td></tr>
+          <tr><td class="mono">high-assurance</td><td>Category 5 parameter sets — ML-KEM-1024, ML-DSA-87 — for long-confidentiality material.</td></tr>
+          <tr><td class="mono">constrained</td><td>Smallest parameter sets, and it will tell you plainly when <em>no</em> drop-in replacement fits and the device needs a hardware refresh.</td></tr>
+          <tr><td class="mono">long-lived</td><td>SLH-DSA. Hash-based security is the most conservative assumption available, which is right when a signature must outlive the algorithm's peer review.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Every recommendation also carries a <strong>crypto-agility note</strong>. The
+    highest-value advice for a hardcoded call site is usually not "swap to ML-KEM" but
+    "extract a provider interface so the next transition is a configuration change" — which
+    is the lesson the whole industry learned the hard way.</p>
+  </div>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="cbom">
+  <div class="sec-head"><span class="sec-num">09</span><h2>The CBOM output</h2></div>
+  <div class="stack">
+
+    <p>The problem statement says "in standardised formats". There is exactly one standard:
+    <strong>CycloneDX 1.6</strong>, published as <strong>ECMA-424</strong>, whose CBOM
+    support originated at IBM Research. Emitted by <code>app/cbom.py</code>.</p>
+
+<pre><span class="c">// one cryptographic-asset component, as the tool emits it</span>
+{
+  <span class="k">"type"</span>: <span class="s">"cryptographic-asset"</span>,
+  <span class="k">"bom-ref"</span>: <span class="s">"crypto/algorithm/rsa-2048/1f4c…"</span>,
+  <span class="k">"name"</span>: <span class="s">"RSA-2048"</span>,
+  <span class="k">"cryptoProperties"</span>: {
+    <span class="k">"assetType"</span>: <span class="s">"algorithm"</span>,
+    <span class="k">"algorithmProperties"</span>: {
+      <span class="k">"primitive"</span>: <span class="s">"pke"</span>,
+      <span class="k">"parameterSetIdentifier"</span>: <span class="s">"2048"</span>,
+      <span class="k">"classicalSecurityLevel"</span>: 112,
+      <span class="k">"nistQuantumSecurityLevel"</span>: 0
+    },
+    <span class="k">"oid"</span>: <span class="s">"1.2.840.113549.1.1.1"</span>
+  },
+  <span class="k">"evidence"</span>: {
+    <span class="k">"identity"</span>:    [{ <span class="k">"confidence"</span>: 0.94, <span class="k">"methods"</span>: [...] }],
+    <span class="k">"occurrences"</span>: [{ <span class="k">"location"</span>: <span class="s">"crypto/rsa/rsa_lib.c"</span>, <span class="k">"line"</span>: 88 }]
+  }
+}</pre>
+
+    <p>The <strong>Validate</strong> button checks required fields, enum membership,
+    <code>bom-ref</code> uniqueness and confidence ranges, then reports PASS with the
+    component count. It is a structural conformance check rather than full JSON-Schema
+    validation, and the tool says so in its own output rather than overclaiming.</p>
+
+    <p>There is a second deliverable: the <strong>executive report</strong>
+    (<code>app/report.py</code>), a self-contained HTML page with exposure, the migration
+    programme grouped by target algorithm, and a stated limitations section. The CBOM is
+    for compliance systems; the report is for the person who signs the budget.</p>
+  </div>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="stack">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Stack, and why each choice</h2></div>
+  <div class="stack">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:11rem">Layer</th><th>Choice</th><th>Why this and not the obvious alternative</th></tr></thead>
+        <tbody>
+          <tr><td>Language</td><td class="mono">Python 3.14</td><td>The certificate, TLS and binary-parsing libraries are all first-class here, and no build step means nothing to break at 3am.</td></tr>
+          <tr><td>Web framework</td><td class="mono">FastAPI + uvicorn</td><td>Typed request models for free, and async-capable so a long scan never blocks the interface.</td></tr>
+          <tr><td>Storage</td><td class="mono">SQLite</td><td>A single file, no server, no setup. Postgres would need a running service the demo could lose.</td></tr>
+          <tr><td>Front end</td><td class="mono">Vanilla JS</td><td><strong>Deliberate.</strong> No npm, no bundler, no build. React would add a toolchain that can fail on the morning for a UI this size.</td></tr>
+          <tr><td>Charts</td><td class="mono">Hand-built CSS</td><td>The bar charts are divs. A charting library would be a dependency, and would break the air-gap guarantee if loaded from a CDN.</td></tr>
+          <tr><td>X.509</td><td class="mono">cryptography</td><td>The one place where writing it myself would be genuinely wrong.</td></tr>
+          <tr><td>Source parsing</td><td class="mono">ast + regex</td><td>Python's own parser for Python; curated pattern rules elsewhere. tree-sitter would be more precise but is a multi-hour install risk — see the limitations section, we say this openly.</td></tr>
+          <tr><td>Binary parsing</td><td class="mono">struct, pure Python</td><td>Avoids LIEF and YARA as dependencies. Cryptographic constants are just byte arrays; you do not need a framework to find them.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="eyebrow">The rule behind all of it</span>
+      <p><strong>Three runtime dependencies, zero outbound calls.</strong> Every asset the
+      interface loads is served from the same machine. That is checked automatically by
+      the preflight, because the air-gap claim is the product's main advantage and a single
+      CDN font would destroy it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="flow">
+  <div class="sec-head"><span class="sec-num">11</span><h2>End-to-end data flow</h2></div>
+  <div class="stack">
+    <p>What happens between clicking <em>Run scan</em> and seeing results.</p>
+
+    <div class="pipe">
+      <div class="pipe-inner">
+        <div class="pipe-col">
+          <span class="eyebrow">1 · Sensors</span>
+          <div class="node"><b>source</b><span>AST + rules</span></div>
+          <div class="node"><b>dependency</b><span>manifests</span></div>
+          <div class="node"><b>binary</b><span>symbols, constants</span></div>
+          <div class="node"><b>certificate</b><span>X.509</span></div>
+          <div class="node"><b>config</b><span>cipher policy</span></div>
+          <div class="node"><b>network</b><span>live TLS</span></div>
+          <div class="node hi"><b>→ Finding[]</b><span>2,102 raw hits</span></div>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="pipe-col">
+          <span class="eyebrow">2 · Normalise</span>
+          <div class="node hi"><b>group</b><span>by algorithm+mode+padding</span></div>
+          <div class="node"><b>merge evidence</b><span>union of locations</span></div>
+          <div class="node"><b>classify path</b><span>production / test / vendored</span></div>
+          <div class="node"><b>→ 77 assets</b><span>the inventory unit</span></div>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="pipe-col">
+          <span class="eyebrow">3 · Score</span>
+          <div class="node hi"><b>Mosca</b><span>X + Y − Z, Monte Carlo</span></div>
+          <div class="node"><b>risk score</b><span>seven named factors</span></div>
+          <div class="node"><b>severity band</b><span>70 / 45 / 25</span></div>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="pipe-col">
+          <span class="eyebrow">4 · Advise</span>
+          <div class="node hi"><b>recommender</b><span>profile-constrained</span></div>
+          <div class="node"><b>size delta</b><span>bytes per operation</span></div>
+          <div class="node"><b>library support</b><span>can you actually do it</span></div>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="pipe-col">
+          <span class="eyebrow">5 · Deliver</span>
+          <div class="node hi"><b>SQLite</b><span>persisted</span></div>
+          <div class="node"><b>console</b><span>JSON to the browser</span></div>
+          <div class="node"><b>CBOM</b><span>CycloneDX 1.6</span></div>
+          <div class="node"><b>report</b><span>executive HTML</span></div>
+        </div>
+      </div>
+    </div>
+
+    <ol class="steps" style="margin-top:.4rem">
+      <li>The browser <code>POST</code>s to <code>/api/scan</code> and immediately gets back a scan id.</li>
+      <li>The server starts a <strong>background thread</strong> and returns. The request does not wait — this is why the interface stays responsive during a ten-second scan.</li>
+      <li>The browser polls <code>/api/scan/&lt;id&gt;/status</code> every 400 ms and drives the progress bar from what that returns.</li>
+      <li>The orchestrator runs each sensor in turn, catching exceptions per sensor so one failure cannot kill the scan.</li>
+      <li>When the thread finishes it writes to SQLite and marks the job done; the browser sees <code>state: done</code> and fetches the full result.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= 12 ================= -->
+<section id="backend">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Backend</h2></div>
+  <div class="stack">
+
+    <h3>The one data structure that matters</h3>
+    <p>Everything in the system is a <code>Finding</code> (<code>app/models.py</code>). A
+    Finding is <em>one cryptographic artefact</em> plus every place it was observed:</p>
+
+<pre>Finding
+  algorithm      <span class="c"># key into the registry, e.g. "rsa-2048"</span>
+  asset_type     <span class="c"># algorithm | certificate | protocol | key material | library</span>
+  scanner        <span class="c"># which sensor produced it</span>
+  evidence[]     <span class="c"># Evidence: location, line, symbol, snippet, technique, confidence</span>
+  key_size, mode, padding
+  quantum_class  <span class="c"># filled in by the risk engine</span>
+  risk_score, exposure_years, confidence
+  recommendation <span class="c"># filled in by the recommender</span>
+  extra{}        <span class="c"># mosca breakdown, scoring factors, path breakdown</span></pre>
+
+    <p>Sensors produce them, the normaliser merges them, the risk engine scores them, the
+    recommender annotates them, and the CBOM emitter serialises them. Nothing else is
+    passed between stages.</p>
+
+    <h3 style="margin-top:.6rem">The endpoints</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th class="mono" style="width:17rem">Route</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">POST /api/scan</td><td>Start a scan. Returns a scan id immediately; work happens in a thread.</td></tr>
+          <tr><td class="mono">GET /api/scan/{id}/status</td><td>Progress percentage and current phase. Polled by the browser.</td></tr>
+          <tr><td class="mono">GET /api/scans</td><td>List past scans. The console opens onto the most recent.</td></tr>
+          <tr><td class="mono">GET /api/scan/{id}</td><td>Full result — summary plus every finding. Supports filters.</td></tr>
+          <tr><td class="mono">POST /api/qday</td><td>Re-score under a different Q-Day assumption. <strong>The slider.</strong></td></tr>
+          <tr><td class="mono">GET /api/scan/{id}/cbom</td><td>The CycloneDX 1.6 document. <code>?download=true</code> to save it.</td></tr>
+          <tr><td class="mono">GET /api/scan/{id}/cbom/validate</td><td>Structural conformance check. Powers the Validate button.</td></tr>
+          <tr><td class="mono">GET /api/scan/{id}/report</td><td>The executive HTML report.</td></tr>
+          <tr><td class="mono">GET /api/knowledge/algorithms</td><td>The whole algorithm registry as JSON.</td></tr>
+          <tr><td class="mono">GET /api/meta</td><td>Product name, profiles, Q-Day defaults, scan presets.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="eyebrow">One optimisation worth being able to explain</span>
+      <p>The Q-Day endpoint originally returned every finding with its full evidence —
+      516 KB on <em>every tick</em> of the slider, which made it take up to 1.8 seconds and
+      feel broken. It now returns only what changed: the scores and their Mosca terms, and
+      the browser merges them into the findings it already holds. <strong>35 ms, 40 KB.</strong>
+      It also only writes to the database when you release the slider, not while you drag.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 13 ================= -->
+<section id="frontend">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Frontend</h2></div>
+  <div class="stack">
+
+    <p>Three files, no build step, no framework, no dependencies:
+    <code>app/web/index.html</code>, <code>app.js</code> (≈600 lines) and
+    <code>style.css</code>. The server serves them as static files.</p>
+
+    <h3>How it is organised</h3>
+    <ul class="checks">
+      <li><strong>One state object.</strong> <code>state</code> holds the current scan id, findings, summary, Q-Day settings and sensitivity. Nothing else is stateful.</li>
+      <li><strong>Render functions read state and rewrite the DOM.</strong> <code>renderTiles</code>, <code>renderDistributions</code>, <code>renderMoscaFigure</code>, <code>renderTable</code>. <code>renderAll</code> calls all four. There is no virtual DOM and none is needed at this size.</li>
+      <li><strong>Filtering is client-side.</strong> The search box and the class and context dropdowns filter the findings already in memory, so they are instant and involve no request.</li>
+      <li><strong>The drawer is built by DOM construction, not string concatenation</strong>, so a file path containing angle brackets cannot break the page.</li>
+      <li><strong>Colours come from CSS custom properties</strong>, so the severity colour of a table row and of a chart bar are guaranteed to be the same value.</li>
+    </ul>
+
+    <h3 style="margin-top:.6rem">Why not React</h3>
+    <p>A deliberate call, and a defensible one if asked. This interface has four screens and
+    one interactive control. React would add npm, a bundler, a build step and a
+    <code>node_modules</code> directory — every one of which is something that can fail on
+    the morning of a presentation, in exchange for ergonomics this size of interface does
+    not need. The same reasoning removed every charting library: the bars are styled divs.</p>
+  </div>
+</section>
+
+<!-- ================= 14 ================= -->
+<section id="files">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Every file explained</h2></div>
+  <div class="stack">
+
+    <div class="filetree">run.py                      <span class="cm">entry point: serve, --seed, --preflight, --demo-reset</span>
+<span class="d">app/</span>
+  config.py                 <span class="cm">product name, paths, limits, Q-Day + shelf-life defaults</span>
+  models.py                 <span class="cm">Finding, Evidence, ScanResult — the shared vocabulary</span>
+  orchestrator.py           <span class="cm">runs every sensor, catches per-sensor failures</span>
+  api.py                    <span class="cm">FastAPI routes, background scan threads</span>
+  store.py                  <span class="cm">SQLite persistence</span>
+  cbom.py                   <span class="cm">CycloneDX 1.6 emitter + structural validator</span>
+  report.py                 <span class="cm">executive HTML report</span>
+  preflight.py              <span class="cm">the fifteen-check self test</span>
+  cli.py                    <span class="cm">command-line scanning</span>
+  <span class="d">knowledge/</span>
+    algorithms.py           <span class="cm">52 algorithms: class, bits, OID, sizes, deadlines</span>
+    rules_source.py         <span class="cm">49 source detection rules + resolvers</span>
+    rules_binary.py         <span class="cm">8 constants, 72 symbols, 9 version banners</span>
+  <span class="d">scanners/</span>
+    source.py               <span class="cm">AST pass + pattern pass</span>
+    deps.py                 <span class="cm">dependency manifests</span>
+    binary.py               <span class="cm">ELF parsing, constants, version strings</span>
+    certs.py                <span class="cm">X.509, keystores, private keys, PQC OIDs</span>
+    configs.py              <span class="cm">nginx / sshd / Apache / Java policy</span>
+    network.py              <span class="cm">live TLS probing, hybrid PQC detection</span>
+  <span class="d">engine/</span>
+    normalize.py            <span class="cm">grouping into assets, production/test weighting</span>
+    risk.py                 <span class="cm">Mosca, scoring, portfolio summary</span>
+    recommend.py            <span class="cm">profile-constrained PQC selection</span>
+  <span class="d">web/</span>
+    index.html app.js style.css   <span class="cm">the console</span>
+<span class="d">deck/</span>index.html            <span class="cm">the slide deck — arrow keys, F fullscreen, P notes</span>
+<span class="d">presenter/</span>script.md qa.md  <span class="cm">timed script and Q&amp;A sheet</span>
+<span class="d">demo/targets/</span>             <span class="cm">cloned repositories to scan</span>
+<span class="d">data/</span>scans.sqlite3       <span class="cm">the scan database (safe to delete)</span></div>
+
+    <div class="note">
+      <span class="eyebrow">If someone asks "where does X happen?"</span>
+      <p>Detection lives in <code>scanners/</code>. What things <em>mean</em> lives in
+      <code>knowledge/</code>. Judgement — scoring and advice — lives in
+      <code>engine/</code>. Delivery lives in <code>api.py</code>, <code>cbom.py</code> and
+      <code>report.py</code>. That separation is the whole architecture in one sentence.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 15 ================= -->
+<section id="limits">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Honest limitations</h2></div>
+  <div class="stack">
+
+    <p>Say these <em>before</em> a judge finds them. Volunteering a limitation reads as
+    rigour; being caught in one reads as overclaiming.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:15rem">Limitation</th><th>What to say</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Non-Python source uses pattern rules</strong></td><td>"Python gets a real syntax tree. The other nine languages use a curated rule pack with per-rule confidence and comment stripping. Less precise, and that is exactly why every finding carries a confidence score. Full parsing is on the roadmap."</td></tr>
+          <tr><td><strong>Symbol tables are ELF-only</strong></td><td>"For ELF we parse the section headers properly. Mach-O and PE fall back to scanning printable strings, which is reported as a different technique at reduced confidence — we do not claim we parsed a symbol table when we did not."</td></tr>
+          <tr><td><strong>No measured accuracy</strong></td><td>"We have not measured precision and recall, and I will not invent a number. Building a hand-labelled benchmark corpus is the top roadmap item."</td></tr>
+          <tr><td><strong>No container scanning</strong></td><td>"Not shipped. It is a roadmap item for the Grand Finale, along with the cryptographic asset graph."</td></tr>
+          <tr><td><strong>No HSM or cloud KMS enumeration</strong></td><td>"Also roadmap. The honest position is that you can only enumerate at the boundary — key specs and mechanism lists — and pretending to see inside an HSM would be dishonest."</td></tr>
+          <tr><td><strong>Test fixtures still appear</strong></td><td>"Deliberately. They are inventoried but weighted to 0.4 so they never lead the queue, and you can filter to production-only in one click."</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 16 ================= -->
+<section id="change">
+  <div class="sec-head"><span class="sec-num">16</span><h2>How to change things</h2></div>
+  <div class="stack">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:16rem">You want to…</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>Rename the product</td><td>Change <code>PRODUCT_NAME</code> in <code>app/config.py</code>. One line; it propagates to the console, the CBOM metadata and the reports.</td></tr>
+          <tr><td>Add a new algorithm</td><td>Add a <code>_register(_a(...))</code> entry in <code>app/knowledge/algorithms.py</code>.</td></tr>
+          <tr><td>Add a detection rule</td><td>Add a <code>R(...)</code> entry in <code>app/knowledge/rules_source.py</code>. Give it a realistic confidence.</td></tr>
+          <tr><td>Change the default Q-Day range</td><td><code>QDAY_EARLIEST / LIKELY / LATEST</code> in <code>app/config.py</code>.</td></tr>
+          <tr><td>Change data shelf lives</td><td><code>SHELF_LIFE_BY_SENSITIVITY</code> in <code>app/config.py</code>.</td></tr>
+          <tr><td>Retune the scoring</td><td><code>CLASS_BASE</code>, <code>EXPOSURE_MULTIPLIER</code> and <code>MIGRATION_EFFORT_YEARS</code> in <code>app/engine/risk.py</code>.</td></tr>
+          <tr><td>Add a scan preset</td><td>Clone a repository into <code>demo/targets/</code>. It appears in the dropdown automatically.</td></tr>
+          <tr><td>Speed up a large scan</td><td><code>MAX_FILES</code> and <code>SCAN_WORKERS</code> in <code>app/config.py</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 17 ================= -->
+<section id="trouble">
+  <div class="sec-head"><span class="sec-num">17</span><h2>Troubleshooting</h2></div>
+  <div class="stack">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:15rem">Symptom</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td>Console loads but is empty</td><td>No scan in the database. Run <code>run.py --demo-reset</code>.</td></tr>
+          <tr><td>Scan spins forever</td><td>Do not wait on stage — the seeded scan is already there, click it and keep talking. Afterwards, check the terminal for a traceback.</td></tr>
+          <tr><td>"Address already in use"</td><td>An old server is running. <code>pkill -f run.py</code>, then start again.</td></tr>
+          <tr><td>Certificate scanner finds nothing</td><td>The <code>cryptography</code> package is missing. <code>./.venv/bin/pip install cryptography</code>.</td></tr>
+          <tr><td>Network sensor says "not determined"</td><td>Expected without OpenSSL 3.5+. It is being honest, not failing. The demo does not depend on it.</td></tr>
+          <tr><td>Everything is broken and you have ten minutes</td><td><code>run.py --demo-reset</code>, then <code>run.py --preflight</code>. If preflight is ALL CLEAR you are fine.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note crit">
+      <span class="eyebrow">The two things you must never cut</span>
+      <p>If you run out of time on stage, drop the binary beat and the live-endpoint beat.
+      <strong>Never</strong> drop the Q-Day slider or the CBOM validating as PASS — those
+      two are what separate this from a list of grep results.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Playbook for problem statement SIH26164 · National Technical Research Organisation.
+  Companion documents: <code>presenter/script.md</code> (timed to 8:00) and
+  <code>presenter/qa.md</code> (drilled answers). Run
+  <code>run.py --preflight</code> before you present.
+</footer>
+
+</main>
+</div>

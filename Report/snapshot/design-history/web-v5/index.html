@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ══ toolbar ═══════════════════════════════════════════════════════ -->
+<header class="toolbar">
+  <div class="tb-group tb-brand">
+    <span class="app" id="product-name">CryptoDrishti</span>
+    <span class="ps mono" id="ps-badge">SIH26164</span>
+  </div>
+
+  <div class="tb-group tb-scan">
+    <input id="scan-path" type="text" spellcheck="false" placeholder="/path/to/target" aria-label="Scan target">
+    <select id="target-preset" aria-label="Preset"><option value="">Preset…</option></select>
+    <select id="profile" aria-label="Deployment profile"></select>
+    <input id="scan-endpoints" type="text" spellcheck="false" placeholder="probe host" aria-label="TLS endpoints">
+    <button id="run-scan" class="btn">Scan</button>
+  </div>
+
+  <div class="tb-group tb-actions">
+    <button id="btn-report" class="btn ghost">Report</button>
+    <button id="btn-cbom" class="btn ghost">CBOM</button>
+    <button id="btn-validate" class="btn ghost">Validate</button>
+    <span class="tb-sep"></span>
+    <button id="explain-toggle" class="btn ghost" aria-pressed="false">Explain</button>
+    <button id="theme-toggle" class="btn ghost">Dark</button>
+  </div>
+</header>
+
+<div class="scanbar" id="scan-progress" hidden>
+  <div class="sensors" id="sensors"></div>
+  <div class="pbar"><i id="progress-fill"></i></div>
+  <span class="mono phase" id="progress-phase">Queued</span>
+</div>
+
+<!-- ══ workspace ═════════════════════════════════════════════════════ -->
+<div class="workspace">
+
+  <!-- ── rail ──────────────────────────────────────────────────────── -->
+  <aside class="rail" aria-label="Model and filters">
+
+    <section class="rblock">
+      <h2 class="rh">Exposure model</h2>
+      <div class="qrow">
+        <label for="qday-likely">Q-Day</label>
+        <output class="mono qval" id="qday-out">2034</output>
+      </div>
+      <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+      <div class="qrow">
+        <label for="sensitivity">Sensitivity</label>
+      </div>
+      <select id="sensitivity" aria-label="Data sensitivity"></select>
+
+      <svg id="mosca-svg" viewBox="0 0 240 66" preserveAspectRatio="none"
+           role="img" aria-label="Mosca exposure bars"></svg>
+      <p class="rnote mono" id="formula"></p>
+      <p class="rverdict" id="mosca-verdict"></p>
+      <p class="note" data-explain>
+        X is how long the data must stay secret, Y how long migration takes, Z the years
+        until a quantum computer exists. If X + Y exceeds Z, data sealed today is already
+        readable by an adversary recording it now.
+      </p>
+    </section>
+
+    <section class="rblock">
+      <h2 class="rh">Quantum class</h2>
+      <div class="facet" id="facet-class"></div>
+    </section>
+
+    <section class="rblock">
+      <h2 class="rh">Severity</h2>
+      <div class="facet" id="facet-sev"></div>
+    </section>
+
+    <section class="rblock">
+      <h2 class="rh">Sensor</h2>
+      <div class="facet" id="facet-sensor"></div>
+    </section>
+
+    <section class="rblock">
+      <h2 class="rh">Code context</h2>
+      <div class="facet" id="facet-ctx"></div>
+      <p class="note" data-explain>
+        Test fixtures are inventoried but weighted down so they never lead the queue.
+      </p>
+    </section>
+  </aside>
+
+  <!-- ── table ─────────────────────────────────────────────────────── -->
+  <main class="grid" aria-label="Cryptographic inventory">
+    <div class="gridhead">
+      <input id="filter-q" type="search" placeholder="Filter assets…" aria-label="Filter">
+      <span class="gcount mono" id="findings-hint">—</span>
+      <button id="clear-filters" class="btn ghost sm" hidden>Clear filters</button>
+      <span class="spacer"></span>
+      <span class="mono hintkeys">↑↓ move · ⏎ open</span>
+    </div>
+
+    <div id="validate-result" class="banner" hidden></div>
+
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="num sortable" data-sort="risk_score">Risk</th>
+            <th class="sortable" data-sort="algorithm">Algorithm</th>
+            <th class="sortable" data-sort="quantum_class">Class</th>
+            <th class="sortable" data-sort="title">Finding</th>
+            <th class="num sortable" data-sort="occurrences">Uses</th>
+            <th class="sortable" data-sort="scanner">Sensor</th>
+            <th>Location</th>
+            <th class="sortable" data-sort="target">Migrate to</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body">
+          <tr class="empty"><td colspan="8">No scan loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- ── detail ────────────────────────────────────────────────────── -->
+  <aside class="detail" id="detail" aria-label="Asset detail">
+    <div class="dempty" id="detail-empty">
+      <p>Select an asset to inspect its evidence, score composition and recommended
+         replacement.</p>
+    </div>
+    <div id="detail-body" hidden></div>
+  </aside>
+
+</div>
+
+<!-- ══ status ════════════════════════════════════════════════════════ -->
+<footer class="status">
+  <span class="st mono" id="st-target">no scan</span>
+  <span class="st mono" id="st-assets"></span>
+  <span class="st mono" id="st-vuln"></span>
+  <span class="st mono" id="st-crit"></span>
+  <span class="st mono" id="st-exposure"></span>
+  <span class="spacer"></span>
+  <span class="st mono" id="st-scan"></span>
+  <span class="st mono" id="foot-meta">SIH26164</span>
+  <span class="st mono">CycloneDX 1.6</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+v12 — the instrument.
+
+Rebuilt from the premise that the product is a scanner, not a report layout.
+
+Landing
+  · The page opens as a console occupying the full viewport: what the tool is,
+    a large target field with an inverted primary action, presets, and the
+    six-sensor array with what each sensor actually reads stated beside it.
+    The array doubles as the explanation of the tool's depth before it runs.
+  · Running a scan drives the array: sensors move queued -> reading -> the
+    count they returned, a fill line tracks progress under the array, and an
+    elapsed clock runs. On completion the page moves to the record.
+  · The record's chrome only appears once you leave the console.
+
+Colour
+  · Achromatic chrome — bone and graphite. Primary actions are inverted ink
+    rather than a tinted accent, so the interface spends no colour at all and
+    any colour on the page means exactly one thing: quantum exposure class.
+  · Class palettes revalidated (rust / brass / slate / plum / pine):
+      light  11.4 deutan · 11.4 tritan · 19.3 normal
+      dark   14.8 deutan · 18.2 tritan · 21.0 normal · contrast PASS
+
+Section 02 — a squarified treemap replaces the beeswarm. Area is call sites,
+  so the blocks carrying the most migration work are the largest on screen.
+
+Section 03 — the probability curve is gone. A plain-language sentence states
+  the finding, then two spans on one ruler: how long secrecy must hold, and
+  when the machine is expected. The overlap is the exposure.
+
+Section 05 — the inventory is a register: fixed-width score, a class-coloured
+  spine, the algorithm in mono carrying the weight, location under the finding.
+  No meters, no bars.
+
+Section 06 — new. CBOM download and validation moved out of the inventory
+  toolbar into a machine-readable output block, where conformance belongs.
+  Report kept, alongside it.
+
+?compact=1 collapses the console so the whole document prints as one page.
+
+Zero external requests. No hex colours in app.js.

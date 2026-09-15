@@ -1,0 +1,23 @@
+V5 — the instrument.  (internally v12; this is the current, shipped design)
+
+Premise: the product is a scanner, so the page opens as one.
+
+  · Console landing at full viewport — target field with the run action fused
+    to it, presets, and the six-sensor array stating what each sensor reads.
+    Running a scan drives the array (queued -> reading -> count returned),
+    a fill line tracks progress, an elapsed clock runs, then it moves to the
+    record. The record's nav bar does not exist until you leave the console.
+  · Achromatic chrome, bone and graphite. Primary actions are inverted ink,
+    not a tinted accent, so the interface spends no colour at all and any
+    colour on the page means exactly one thing: quantum exposure class.
+      light  11.4 deutan · 11.4 tritan · 19.3 normal
+      dark   14.8 deutan · 18.2 tritan · 21.0 normal · contrast PASS
+  · 02 Where the weight sits — squarified treemap, area is call sites.
+  · 03 Exposure window — a plain sentence, then two spans on one ruler;
+    the overlap is the exposure. No probability curve.
+  · 05 Inventory — a register. Class-coloured spine, mono algorithm,
+    location under the finding. No meters.
+  · 06 Machine-readable output — CBOM download + validation, and the report.
+
+?compact=1 collapses the console so the whole document prints as one page.
+Zero external requests. No hex colours in app.js.

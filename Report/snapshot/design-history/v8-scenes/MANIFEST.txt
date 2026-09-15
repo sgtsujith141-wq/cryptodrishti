@@ -1,0 +1,9 @@
+CHECKPOINT v8 — "scenes"  (a from-scratch frontend, not a repaint of v6/v7)
+Five full-viewport scenes you move through, with a position rail:
+  01 Verdict — one colossal number
+  02 Estate  — beeswarm across a real risk axis (replaces the dial)
+  03 Clock   — Mosca timeline
+  04 Plan    — migration workstreams grouped by replacement algorithm (NEW)
+  05 Record  — the inventory table
+Keeps every accessibility and correctness fix from the v7 audit.
+Restore with:  ./.backup/restore.sh v8

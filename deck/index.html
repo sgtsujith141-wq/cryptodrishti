@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIH26164 — Presentation</title>
+<style>
+/* Offline deck. No web fonts, no external assets, no dependencies.
+   Arrow keys / space to advance, F for fullscreen, P for presenter notes. */
+
+:root {
+  --bg:     #0B0D12;
+  --panel:  #12151D;
+  --line:   #232838;
+  --ink:    #EDEFF6;
+  --ink-2:  #B4B9CC;
+  --muted:  #7F859C;
+  --accent: #7C8CFF;
+  --crit:   #FF6155;
+  --warn:   #FF9F45;
+  --safe:   #34D399;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--sans); overflow: hidden;
+}
+
+.slide {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  padding: 4.5vh 6vw 8vh;
+  opacity: 0;
+}
+.slide.active { display: flex; opacity: 1; }
+
+.eyebrow {
+  font-family: var(--mono); font-size: clamp(0.6rem, 1.1vw, 0.8rem);
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 1.6vh;
+}
+
+h1 {
+  font-size: clamp(1.9rem, 5.2vw, 4rem); line-height: 1.05;
+  letter-spacing: -0.025em; margin: 0 0 2vh; font-weight: 700; max-width: 20ch;
+}
+h2 {
+  font-size: clamp(1.4rem, 3.4vw, 2.6rem); line-height: 1.12;
+  letter-spacing: -0.02em; margin: 0 0 2.5vh; font-weight: 650; max-width: 22ch;
+}
+.lede {
+  font-size: clamp(1rem, 1.9vw, 1.5rem); color: var(--ink-2);
+  max-width: 46ch; line-height: 1.45;
+}
+.big {
+  font-family: var(--mono); font-size: clamp(2.6rem, 9vw, 7rem);
+  font-weight: 700; line-height: 1; letter-spacing: -0.04em;
+}
+.big.crit { color: var(--crit); }
+
+strong { color: var(--ink); font-weight: 650; }
+em { font-style: normal; color: var(--accent); }
+
+ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1.6vh; }
+li {
+  font-size: clamp(0.92rem, 1.65vw, 1.3rem); color: var(--ink-2);
+  padding-left: 1.6em; position: relative; max-width: 52ch; line-height: 1.4;
+}
+li::before {
+  content: "▸"; position: absolute; left: 0; color: var(--accent);
+}
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4vw; align-items: start; flex: 1; }
+.cols.wide { grid-template-columns: 1.25fr 1fr; }
+
+table { border-collapse: collapse; width: 100%; font-size: clamp(0.7rem, 1.25vw, 1rem); }
+th, td { text-align: left; padding: 1.1vh 1vw; border-bottom: 1px solid var(--line); vertical-align: top; }
+th {
+  font-family: var(--mono); font-size: clamp(0.58rem, 0.95vw, 0.76rem);
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+}
+td.no { color: var(--crit); font-family: var(--mono); }
+td.yes { color: var(--safe); font-family: var(--mono); }
+td strong { color: var(--ink); }
+
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 2vw; margin-top: 2vh; }
+.stat { display: flex; flex-direction: column; gap: 0.4vh; }
+.stat .v { font-family: var(--mono); font-size: clamp(1.6rem, 3.6vw, 3rem); font-weight: 700; line-height: 1; }
+.stat .k { font-size: clamp(0.7rem, 1.1vw, 0.9rem); color: var(--muted); }
+.stat.crit .v { color: var(--crit); }
+.stat.safe .v { color: var(--safe); }
+
+.pipeline { display: flex; align-items: stretch; gap: 0.7vw; margin-top: 2vh; flex-wrap: wrap; }
+.stage {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+  padding: 1.4vh 1vw; flex: 1; min-width: 120px;
+}
+.stage h4 {
+  margin: 0 0 0.8vh; font-family: var(--mono); font-size: clamp(0.55rem, 0.9vw, 0.72rem);
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); font-weight: 500;
+}
+.stage p { margin: 0.35vh 0; font-size: clamp(0.66rem, 1.05vw, 0.86rem); color: var(--ink-2); }
+
+.timeline { display: flex; flex-direction: column; gap: 1.4vh; margin-top: 1vh; }
+.tl { display: grid; grid-template-columns: 8.5em 1fr; gap: 1.4vw; align-items: baseline; }
+.tl .when { font-family: var(--mono); font-size: clamp(0.68rem, 1.15vw, 0.92rem); color: var(--accent); }
+.tl .what { font-size: clamp(0.78rem, 1.35vw, 1.05rem); color: var(--ink-2); }
+.tl.hot .when { color: var(--crit); }
+.tl.hot .what { color: var(--ink); }
+.tl.hot .what strong { color: var(--crit); }
+
+.demo-marker {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; gap: 2vh;
+}
+.demo-marker .big { color: var(--accent); }
+
+.chip {
+  display: inline-block; font-family: var(--mono);
+  font-size: clamp(0.6rem, 1vw, 0.8rem); padding: 0.4vh 0.7vw;
+  border: 1px solid var(--line); border-radius: 4px; color: var(--ink-2);
+}
+.chip.hot { color: var(--crit); border-color: #58231D; background: #2A1412; }
+.chip.ok  { color: var(--safe); border-color: #22553F; background: #10281F; }
+
+.foot {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1.6vh 6vw; font-family: var(--mono);
+  font-size: clamp(0.58rem, 0.95vw, 0.74rem); color: var(--muted);
+  border-top: 1px solid var(--line); background: var(--bg);
+}
+.progress { position: fixed; top: 0; left: 0; height: 2px; background: var(--accent); transition: width 0.2s; }
+
+.notes {
+  position: fixed; right: 2vw; bottom: 7vh; width: min(420px, 34vw);
+  background: #171B25; border: 1px solid var(--line); border-left: 3px solid var(--warn);
+  border-radius: 5px; padding: 1.4vh 1.2vw; font-size: 0.82rem; color: var(--ink-2);
+  line-height: 1.45; display: none; z-index: 20;
+}
+.notes.show { display: block; }
+.notes b { color: var(--warn); font-family: var(--mono); font-size: 0.68rem;
+           letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.5vh; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1 ------------------------------------------------------------------ -->
+<section class="slide active" data-notes="Do NOT introduce yourself yet. Deliver the hook cold, then pause for one beat before 'We built the list.' Target: 50 seconds.">
+  <div class="eyebrow">Smart India Hackathon 2026 · SIH26164 · NTRO</div>
+  <h1>Every encrypted message India sends today is being recorded by someone who plans to read it in 2035.</h1>
+  <p class="lede">And not one organisation in this country can tell you which of their systems are at risk — because nobody has a list.</p>
+  <p class="lede" style="margin-top:3vh;color:var(--ink)"><strong>We built the list.</strong></p>
+</section>
+
+<!-- 2 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="Shor breaks public key crypto completely - not weakens, breaks. Grover only halves symmetric. The asymmetry IS the problem shape. 50 seconds.">
+  <div class="eyebrow">The threat</div>
+  <h2>Harvest now, decrypt later</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>Shor's algorithm</strong> breaks RSA, Diffie-Hellman, ECDH and ECDSA outright on a large quantum computer. Key size gives no protection.</li>
+        <li><strong>Grover's algorithm</strong> only halves symmetric strength — AES-256 survives.</li>
+        <li>So <em>all public-key cryptography falls</em>, and that is what secures every TLS session, VPN, signature and PKI in the country.</li>
+        <li>An adversary records encrypted traffic <strong>today</strong> and decrypts it the day a quantum computer arrives. Long-lived secrets are <em>already</em> lost.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="stat-row" style="grid-template-columns:1fr">
+        <div class="stat crit">
+          <span class="v">2024</span>
+          <span class="k">NIST published the replacements — FIPS 203, 204, 205. The mathematics is solved.</span>
+        </div>
+        <div class="stat crit" style="margin-top:3vh">
+          <span class="v">~0%</span>
+          <span class="k">Of Indian critical infrastructure has migrated. Not because it is hard — because nobody knows what cryptography they have.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="This is the pivot from 'scary problem' to 'our problem'. Migration is an INVENTORY problem before it is a maths problem. Say that sentence exactly. 35 seconds.">
+  <div class="eyebrow">Why nobody has migrated</div>
+  <h2>Cryptographic migration is an inventory problem before it is a mathematics problem.</h2>
+  <p class="lede">Cryptography is not a product you buy. It is a substance smeared through everything:</p>
+  <div class="pipeline" style="margin-top:3vh">
+    <div class="stage"><h4>Source</h4><p>A hardcoded RSA call in a 2011 service</p></div>
+    <div class="stage"><h4>Binaries</h4><p>A statically linked OpenSSL inside vendor firmware</p></div>
+    <div class="stage"><h4>Certificates</h4><p>A signing key whose owner left the organisation</p></div>
+    <div class="stage"><h4>Config</h4><p>A cipher list nobody has opened in six years</p></div>
+    <div class="stage"><h4>The wire</h4><p>What is actually negotiated, which differs from all of the above</p></div>
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="THE MOST IMPORTANT SLIDE. This is a dated government requirement, not a student idea. Land Dec 2027 hard and pause. 45 seconds.">
+  <div class="eyebrow">This is already mandated</div>
+  <h2>India's national quantum-safe roadmap</h2>
+  <p class="lede">Published February 2026 by the Department of Science &amp; Technology under the National Quantum Mission, jointly with CERT-In.</p>
+  <div class="timeline" style="margin-top:3vh">
+    <div class="tl"><span class="when">Dec 2026</span><span class="what">PQC certification labs operational under the TEC framework</span></div>
+    <div class="tl hot"><span class="when">Dec 2027</span><span class="what"><strong>Cryptographic inventories completed across defence, power, telecom and BFSI</strong></span></div>
+    <div class="tl"><span class="when">Dec 2028</span><span class="what">High-priority systems migrated</span></div>
+    <div class="tl"><span class="when">Dec 2029</span><span class="what">Full post-quantum adoption — six years ahead of NIST's 2035 deadline</span></div>
+  </div>
+  <p class="lede" style="margin-top:3.5vh;color:var(--ink)">Every operator must produce a cryptographic inventory in <strong>fifteen months</strong>. There is no sovereign tool to produce one.</p>
+</section>
+
+<!-- 5 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="Thirty seconds only. Do not explain the architecture - you are about to SHOW it. Name the six sensors fast and move.">
+  <div class="eyebrow">What we built</div>
+  <h2>Six sensors, one cryptographic inventory</h2>
+  <div class="pipeline">
+    <div class="stage"><h4>Source</h4><p>AST analysis, 9 languages</p></div>
+    <div class="stage"><h4>Dependencies</h4><p>Manifest → capability</p></div>
+    <div class="stage"><h4>Binaries</h4><p>ELF symbols, crypto constants</p></div>
+    <div class="stage"><h4>Certificates</h4><p>X.509, keys, keystores</p></div>
+    <div class="stage"><h4>Config</h4><p>Cipher and protocol policy</p></div>
+    <div class="stage"><h4>Network</h4><p>Live TLS, hybrid PQC probe</p></div>
+  </div>
+  <div class="pipeline" style="margin-top:2.5vh">
+    <div class="stage" style="border-color:#39406B"><h4>Normalise</h4><p>Detector hits grouped into distinct cryptographic assets</p></div>
+    <div class="stage" style="border-color:#39406B"><h4>Score</h4><p>Mosca exposure, weighted by sensitivity and blast radius</p></div>
+    <div class="stage" style="border-color:#39406B"><h4>Recommend</h4><p>PQC target chosen against real size and latency constraints</p></div>
+    <div class="stage" style="border-color:#39406B"><h4>Emit</h4><p><strong>CycloneDX 1.6 CBOM</strong> — the international standard, ECMA-424</p></div>
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="SWITCH TO THE CONSOLE NOW. Unplug the ethernet cable first, physically, and say the line. 3 minutes 30 seconds. Follow presenter/script.md.">
+  <div class="demo-marker">
+    <div class="eyebrow">Live demonstration</div>
+    <div class="big">DEMO</div>
+    <p class="lede" style="text-align:center;max-width:40ch">
+      Scanning a real open-source codebase, offline, with the network cable out.
+    </p>
+  </div>
+</section>
+
+<!-- 7 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="Do not disparage IBM - they wrote the CBOM standard and we conform to it. The point is the four things they do not do. 55 seconds.">
+  <div class="eyebrow">Why not the existing tools</div>
+  <h2>The incumbents cannot be deployed where India needs them</h2>
+  <div style="overflow:auto">
+  <table>
+    <thead><tr><th>Capability</th><th>IBM CBOMkit</th><th>SandboxAQ</th><th>Keyfactor</th><th>Ours</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Air-gapped deployment</strong></td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
+      <tr><td><strong>Binaries &amp; firmware</strong></td><td class="no">limited</td><td class="yes">yes</td><td class="yes">agent</td><td class="yes">yes</td></tr>
+      <tr><td><strong>Mosca risk prioritisation</strong></td><td class="no">no</td><td class="no">partial</td><td class="no">no</td><td class="yes">yes</td></tr>
+      <tr><td><strong>Migration plan, not just inventory</strong></td><td class="no">no</td><td class="no">partial</td><td class="no">no</td><td class="yes">yes</td></tr>
+      <tr><td><strong>Indian regulatory mapping</strong></td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
+      <tr><td><strong>Cost</strong></td><td>free</td><td class="no">enterprise</td><td class="no">enterprise</td><td class="yes">free</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="lede" style="margin-top:2.5vh">We <em>conform to</em> IBM's CBOM standard — it is the right standard. We build the four layers above it that no one has built for India.</p>
+</section>
+
+<!-- 8 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="If a cryptographer is on the panel, this slide is for them. The honesty about Z being unknowable is the credibility move. 40 seconds.">
+  <div class="eyebrow">The risk model</div>
+  <h2>Mosca's inequality, implemented honestly</h2>
+  <div class="cols wide">
+    <div>
+      <p class="lede" style="margin-bottom:2.5vh">
+        <span class="chip">X</span> data confidentiality lifetime &nbsp;
+        <span class="chip">Y</span> migration time &nbsp;
+        <span class="chip hot">Z</span> years to Q-Day
+      </p>
+      <div class="big crit" style="font-size:clamp(1.6rem,4.2vw,3rem)">X + Y &gt; Z</div>
+      <p class="lede" style="margin-top:2vh">Data sealed today is readable by an adversary recording it now. Exposure = X + Y − Z years.</p>
+    </div>
+    <div>
+      <ul>
+        <li><strong>Z is genuinely unknown.</strong> We model it as a distribution and report a probability, never a date. Any tool that hardcodes Q-Day is bluffing.</li>
+        <li>Every score is a <strong>transparent product of named factors</strong>, each visible in the interface with its input value. No black box.</li>
+        <li>Findings we cannot resolve are reported as <em>unknown</em>, never guessed.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ------------------------------------------------------------------ -->
+<section class="slide" data-notes="Convert the gaps into a roadmap. Shows we know what is missing, which reads as maturity rather than as holes. 45 seconds.">
+  <div class="eyebrow">Impact and what comes next</div>
+  <h2>From fifteen months of manual audit to a ninety-second scan</h2>
+  <div class="cols">
+    <div>
+      <div class="stat-row" style="grid-template-columns:1fr 1fr">
+        <div class="stat"><span class="v">4</span><span class="k">Sectors under the Dec 2027 mandate: defence, power, telecom, BFSI</span></div>
+        <div class="stat safe"><span class="v">₹0</span><span class="k">Licence cost. Open, sovereign, deployable inside a classified network</span></div>
+      </div>
+      <p class="lede" style="margin-top:3vh">The inventory is the gate every other migration step waits behind. Removing it moves the whole national timeline.</p>
+    </div>
+    <div>
+      <ul>
+        <li><strong>By the Grand Finale:</strong> container image scanning, the cryptographic asset graph for blast-radius analysis, and hardware module enumeration over PKCS#11.</li>
+        <li><strong>Measured accuracy:</strong> a hand-labelled benchmark corpus with published precision and recall per detector.</li>
+        <li><strong>Pilot:</strong> deployment against a live campus network.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ----------------------------------------------------------------- -->
+<section class="slide" data-notes="Close on the standards. It tells an NTRO panel you read the actual specifications. Then stop talking and take questions.">
+  <div class="eyebrow">References</div>
+  <h2>Built against the standards, not around them</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>FIPS 203 / 204 / 205</strong> — ML-KEM, ML-DSA, SLH-DSA</li>
+        <li><strong>NIST IR 8547</strong> — transition schedule; RSA-2048 and ECC P-256 disallowed after 2035</li>
+        <li><strong>CycloneDX 1.6 / ECMA-424</strong> — the CBOM specification we emit and validate against</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><strong>DST / National Quantum Mission</strong> — <em>Implementation of a Quantum Safe Ecosystem in India</em>, February 2026</li>
+        <li><strong>TEC</strong> — draft framework for testing and certification of PQC products</li>
+        <li><strong>Mosca (2015)</strong> — the risk timeline framework</li>
+      </ul>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:auto;padding-top:3vh;color:var(--ink)">
+    Problem statement <strong>SIH26164</strong> · National Technical Research Organisation
+  </p>
+</section>
+
+<div class="notes" id="notes"></div>
+
+<div class="foot">
+  <span id="foot-left">SIH26164 · Cryptographic Discovery &amp; Quantum Risk</span>
+  <span><span id="slide-num">1</span> / <span id="slide-total">10</span> &nbsp;·&nbsp; ← → navigate &nbsp; F fullscreen &nbsp; P notes</span>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var index = 0;
+  var notesOn = false;
+  var notesEl = document.getElementById("notes");
+
+  document.getElementById("slide-total").textContent = slides.length;
+
+  function show(next) {
+    index = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach(function (s, i) { s.classList.toggle("active", i === index); });
+    document.getElementById("slide-num").textContent = index + 1;
+    document.getElementById("progress").style.width =
+      ((index + 1) / slides.length * 100) + "%";
+    renderNotes();
+    try { location.hash = String(index + 1); } catch (e) {}
+  }
+
+  function renderNotes() {
+    var text = slides[index].getAttribute("data-notes") || "";
+    notesEl.innerHTML = "";
+    if (notesOn && text) {
+      var b = document.createElement("b");
+      b.textContent = "Presenter note";
+      notesEl.appendChild(b);
+      notesEl.appendChild(document.createTextNode(text));
+      notesEl.classList.add("show");
+    } else {
+      notesEl.classList.remove("show");
+    }
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+      e.preventDefault(); show(index + 1);
+    } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      e.preventDefault(); show(index - 1);
+    } else if (e.key === "Home") { show(0); }
+    else if (e.key === "End") { show(slides.length - 1); }
+    else if (e.key === "f" || e.key === "F") {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen(); }
+    } else if (e.key === "p" || e.key === "P") {
+      notesOn = !notesOn; renderNotes();
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".notes")) return;
+    show(index + (e.clientX < window.innerWidth * 0.25 ? -1 : 1));
+  });
+
+  var start = parseInt((location.hash || "").slice(1), 10);
+  show(isNaN(start) ? 0 : start - 1);
+})();
+</script>
+</body>
+</html>

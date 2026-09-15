@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti — Cryptographic Discovery &amp; Quantum Risk</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ============================ top bar ============================ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+    <div class="brand-text">
+      <h1 id="product-name">CryptoDrishti</h1>
+      <p class="tagline" id="product-tagline">Cryptographic discovery and quantum risk analysis</p>
+    </div>
+  </div>
+
+  <div class="topbar-meta">
+    <button id="explain-toggle" class="toggle" aria-pressed="false"
+            title="Annotate the interface with what each element means">
+      <span class="dot"></span> Explain
+    </button>
+    <span class="badge mono" id="ps-badge">SIH26164</span>
+    <span class="badge ghost mono" title="This console makes no outbound network requests.">
+      <span class="live-dot"></span> AIR-GAPPED
+    </span>
+  </div>
+</header>
+
+<!-- ============================ scan bar ============================ -->
+<section class="scanbar">
+  <div class="scan-inputs">
+    <label class="field grow">
+      <span>Scan target <em>— any folder with code, binaries or certificates in it</em></span>
+      <input id="scan-path" type="text" spellcheck="false" placeholder="/path/to/anything">
+    </label>
+    <label class="field">
+      <span>Preset</span>
+      <select id="target-preset"><option value="">Choose…</option></select>
+    </label>
+    <label class="field">
+      <span>Deployment profile</span>
+      <select id="profile"></select>
+    </label>
+    <label class="field">
+      <span>Probe live TLS <em>optional</em></span>
+      <input id="scan-endpoints" type="text" spellcheck="false" placeholder="host, host:port">
+    </label>
+    <button id="run-scan" class="primary">Run scan</button>
+  </div>
+
+  <div class="sensorstrip" id="scan-progress" hidden>
+    <div class="sensors" id="sensors"></div>
+    <div class="scanline"><div class="fill" id="progress-fill"></div></div>
+    <span class="phase mono" id="progress-phase">Queued</span>
+  </div>
+
+  <p class="explain" data-explain>
+    Point this at a directory. Six independent sensors read the source code, compiled
+    binaries, certificates, dependency manifests and configuration inside it. The tool is
+    <strong>not</strong> looking for bugs — it is building an inventory of every piece of
+    cryptography present, then working out which of it survives a quantum computer.
+  </p>
+</section>
+
+<main>
+
+  <!-- ============================ posture ============================ -->
+  <section class="posture">
+    <div class="posture-head">
+      <span class="eyebrow">Cryptographic posture</span>
+      <span class="posture-target mono" id="posture-target">no scan loaded</span>
+    </div>
+    <p class="posture-verdict" id="posture-verdict">Run a scan to assess an estate.</p>
+    <div class="segbar" id="segbar" role="img" aria-label="Composition by quantum exposure"></div>
+    <div class="seglegend" id="seglegend"></div>
+    <p class="explain" data-explain>
+      Every asset sits in exactly one class. <strong>Broken by Shor</strong> means a quantum
+      computer recovers the private key outright and a bigger key does not help.
+      <strong>Weakened by Grover</strong> means effective strength halves, which a larger
+      parameter set fixes. <strong>Quantum-safe</strong> assets need nothing done to them —
+      they are how the inventory shows progress rather than only debt.
+    </p>
+  </section>
+
+  <!-- ============================ tiles ============================ -->
+  <section class="tiles">
+    <article class="tile">
+      <span class="k">Cryptographic assets</span>
+      <span class="v mono" id="t-total">—</span>
+      <span class="s" id="t-total-sub">grouped from — detector hits</span>
+    </article>
+    <article class="tile danger">
+      <span class="k">Quantum vulnerable</span>
+      <span class="v mono" id="t-vuln">—</span>
+      <span class="s" id="t-vuln-sub">— of the estate</span>
+    </article>
+    <article class="tile">
+      <span class="k">Critical findings</span>
+      <span class="v mono" id="t-crit">—</span>
+      <span class="s" id="t-crit-sub">score 70 and above</span>
+    </article>
+    <article class="tile accent">
+      <span class="k">Peak exposure</span>
+      <span class="v mono"><span id="t-exposure">—</span><small>yrs</small></span>
+      <span class="s">of data readable after Q-Day</span>
+    </article>
+  </section>
+
+  <div class="split">
+
+    <!-- ============================ mosca ============================ -->
+    <section class="panel" id="mosca-panel">
+      <header class="panel-head">
+        <div>
+          <h2>Mosca exposure model</h2>
+          <p class="hint">X + Y &gt; Z &nbsp;→&nbsp; data sealed today is readable later.</p>
+        </div>
+        <span class="formula mono" id="formula"></span>
+      </header>
+
+      <div class="panel-body">
+        <figure class="timeline">
+          <svg id="mosca-svg" viewBox="0 0 760 178" preserveAspectRatio="xMidYMid meet"
+               role="img" aria-label="Mosca exposure timeline"></svg>
+          <figcaption class="mosca-verdict" id="mosca-verdict"></figcaption>
+        </figure>
+
+        <div class="controls">
+          <div class="ctl">
+            <label for="qday-likely">
+              Q-Day — median arrival of a quantum computer able to break RSA
+            </label>
+            <div class="slider-wrap">
+              <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+              <output id="qday-out" class="mono">2034</output>
+            </div>
+          </div>
+          <div class="ctl">
+            <label for="sensitivity">Data sensitivity — sets the confidentiality lifetime X</label>
+            <select id="sensitivity"></select>
+          </div>
+        </div>
+
+        <p class="explain" data-explain>
+          <strong>X</strong> is how long the data must stay secret. <strong>Y</strong> is how
+          long migration takes. <strong>Z</strong> is years until a quantum computer exists.
+          If X + Y is greater than Z, data sealed today is already readable by an adversary
+          recording it now. Nobody knows Z, so it is modelled as a distribution and reported
+          as a probability rather than asserted as a date.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================ composition ============================ -->
+    <section class="panel">
+      <header class="panel-head">
+        <div>
+          <h2>Estate composition</h2>
+          <p class="hint">Where the risk sits, and what was searched.</p>
+        </div>
+      </header>
+      <div class="panel-body">
+        <h3 class="subhead">By severity</h3>
+        <div class="dist" id="sev-dist"></div>
+
+        <h3 class="subhead">By sensor</h3>
+        <div class="dist" id="scanner-dist"></div>
+
+        <div class="scanfacts mono" id="lang-summary"></div>
+
+        <p class="explain" data-explain>
+          Severity combines the quantum class with data sensitivity, blast radius, whether
+          the code is production or test, and how confident the detector was. Every one of
+          those terms is visible when you open a finding — the score is auditable, not a
+          black box.
+        </p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============================ inventory ============================ -->
+  <section class="panel">
+    <header class="panel-head row">
+      <div>
+        <h2>Cryptographic inventory</h2>
+        <p class="hint" id="findings-hint">Detector hits are grouped into distinct assets.</p>
+      </div>
+      <div class="filters">
+        <input id="filter-q" type="search" placeholder="Filter…" spellcheck="false">
+        <select id="filter-class"><option value="">All classes</option></select>
+        <select id="filter-context">
+          <option value="">All code</option>
+          <option value="production">Production only</option>
+          <option value="test">Test fixtures</option>
+          <option value="vendored">Vendored</option>
+        </select>
+        <button id="btn-report" class="ghost-btn">Executive report</button>
+        <button id="btn-cbom" class="ghost-btn">Download CBOM</button>
+        <button id="btn-validate" class="ghost-btn accent-btn">Validate CBOM</button>
+      </div>
+    </header>
+
+    <div id="validate-result" class="validate" hidden></div>
+
+    <p class="explain" data-explain>
+      One row per distinct cryptographic asset, not per occurrence — thousands of raw
+      detector hits become a few dozen assets. <strong>Uses</strong> is blast radius: how
+      many call sites a migration has to touch. <strong>Context</strong> separates production
+      code from test fixtures, which are inventoried but weighted down so they never lead the
+      queue. Click any row for file-and-line evidence and the recommended replacement.
+    </p>
+
+    <div class="tablewrap">
+      <table id="findings-table">
+        <thead>
+          <tr>
+            <th class="num">Risk</th>
+            <th>Algorithm</th>
+            <th>Quantum class</th>
+            <th>What was found</th>
+            <th class="num">Uses</th>
+            <th>Context</th>
+            <th>First location</th>
+            <th>Migrate to</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body">
+          <tr class="empty"><td colspan="8">No scan loaded. Choose a target above and run a scan.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================ drawer ============================ -->
+<aside id="drawer" class="drawer" hidden aria-label="Finding detail">
+  <button id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<footer class="foot">
+  <span id="foot-meta">Problem statement SIH26164 · National Technical Research Organisation</span>
+  <span class="mono">CBOM conforms to CycloneDX 1.6 · ECMA-424</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

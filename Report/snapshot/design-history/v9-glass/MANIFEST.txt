@@ -1,0 +1,18 @@
+v9 — the scene deck in glass over aurora.
+Structure identical to v8; the visual layer is new.
+
+  · Aurora ground: two counter-drifting layers of radial light (38s / 46s),
+    so the frosted panels have something to refract.
+  · Frosted panels: .scene-in, .hud, .scanline, .rail, .tip, .drawer and the
+    sticky table head all carry backdrop-filter with a -webkit- pair, plus an
+    @supports fallback to a solid tint where blur is unavailable.
+  · Class palettes revalidated with the dataviz checker:
+      light  #E8443C #F5C63F #8792AE #8B4DF0 #00997A
+             adjacent-pair 18.5 deutan · 10.3 tritan · 20.9 normal
+      dark   #FF5C5C #FFD24A #7F89AD #C77DFF #25E5A0
+             adjacent-pair 12.0 deutan · 12.3 tritan · 17.4 normal
+  · 13 keyframe animations. All entrance motion is gated on body.anim, which
+    JS withholds under ?still=1 and prefers-reduced-motion, and a 1.5s
+    failsafe reveals every panel even if the observer never fires.
+
+Still zero external requests. Still no hex colours in app.js.

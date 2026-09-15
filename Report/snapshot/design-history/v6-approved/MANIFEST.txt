@@ -1,0 +1,9 @@
+CHECKPOINT v6 — "approved"
+The console design the user approved: soft light/dark surfaces, radial dial hero
+(every asset a spoke; length = risk, colour = quantum class), Mosca timeline,
+inventory table, drawer detail.
+
+Palette validated on this surface: adjacent-pair separation 18.0 (protan),
+8.6 (tritan), 19.6 (normal vision). All class inks clear AA as text.
+
+Restore with:   ./.backup/restore.sh v6

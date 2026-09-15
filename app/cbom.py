@@ -1,0 +1,298 @@
+"""CycloneDX 1.6 CBOM emitter.
+
+The problem statement asks for a report "in standardised formats". There is
+exactly one standard for a cryptographic inventory: CycloneDX 1.6, published
+as ECMA-424, whose CBOM support originated at IBM Research.
+
+We emit components of type ``cryptographic-asset`` carrying a
+``cryptoProperties`` object, with detection evidence in ``evidence.occurrences``
+and per-finding confidence in ``evidence.identity`` -- the fields CycloneDX 1.6
+added specifically so a scanner can say *where* it saw something and *how sure*
+it is.
+
+``validate()`` performs structural checks against the specification's required
+shapes. It is not a full JSON-Schema validation (we ship no schema file to
+keep the tool dependency-free and offline), and it says so plainly rather than
+overclaiming.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import time
+import uuid
+from typing import Any, Iterable, Optional
+
+from . import config
+from .knowledge import algorithms as K
+from .models import (
+    ASSET_ALGORITHM, ASSET_CERTIFICATE, ASSET_MATERIAL, ASSET_PROTOCOL,
+    Finding, ScanResult,
+)
+
+SPEC_VERSION = "1.6"
+BOM_FORMAT = "CycloneDX"
+
+# Map our internal asset types onto the CycloneDX cryptoProperties.assetType
+# enum. CycloneDX has exactly four; our ASSET_LIBRARY is our own grouping and
+# is emitted as a plain library component rather than a crypto asset.
+_ASSET_TYPE = {
+    ASSET_ALGORITHM: "algorithm",
+    ASSET_CERTIFICATE: "certificate",
+    ASSET_PROTOCOL: "protocol",
+    ASSET_MATERIAL: "related-crypto-material",
+}
+
+# Our internal primitive names onto the CycloneDX primitive enum.
+_PRIMITIVE = {
+    K.PRIM_KEM: "kem", K.PRIM_KEY_AGREE: "key-agree",
+    K.PRIM_SIGNATURE: "signature", K.PRIM_PKE: "pke",
+    K.PRIM_BLOCK_CIPHER: "block-cipher", K.PRIM_STREAM_CIPHER: "stream-cipher",
+    K.PRIM_HASH: "hash", K.PRIM_MAC: "mac", K.PRIM_KDF: "key-derive",
+    K.PRIM_DRBG: "drbg", K.PRIM_AE: "ae",
+}
+
+_TECHNIQUE = {
+    "source-ast-analysis": "source-code-analysis",
+    "source-pattern-match": "source-code-analysis",
+    "dependency-manifest": "manifest-analysis",
+    "binary-symbol-analysis": "binary-analysis",
+    "binary-constant-match": "binary-analysis",
+    "binary-string-match": "binary-analysis",
+    "certificate-parse": "other",
+    "network-probe": "dynamic-analysis",
+    "config-parse": "other",
+    "container-layer-analysis": "binary-analysis",
+}
+
+
+def _bom_ref(f: Finding) -> str:
+    return f"crypto/{f.asset_type}/{f.algorithm}/{f.id}"
+
+
+def _crypto_properties(f: Finding) -> dict[str, Any]:
+    alg = K.get(f.algorithm)
+    asset_type = _ASSET_TYPE.get(f.asset_type, "algorithm")
+    props: dict[str, Any] = {"assetType": asset_type}
+
+    if asset_type == "algorithm":
+        ap: dict[str, Any] = {"primitive": _PRIMITIVE.get(alg.primitive, "other")}
+        if f.key_size or alg.classical_bits:
+            ap["parameterSetIdentifier"] = str(f.key_size or alg.classical_bits)
+        if f.mode:
+            ap["mode"] = f.mode
+        if f.padding:
+            ap["padding"] = f.padding
+        if alg.classical_bits is not None:
+            ap["classicalSecurityLevel"] = alg.classical_bits
+        if alg.nist_level is not None:
+            ap["nistQuantumSecurityLevel"] = alg.nist_level
+        ap["executionEnvironment"] = "software-plain-ram"
+        props["algorithmProperties"] = ap
+
+    elif asset_type == "certificate":
+        cp: dict[str, Any] = {}
+        for src, dst in (("subject", "subjectName"), ("issuer", "issuerName"),
+                         ("not_before", "notValidBefore"), ("not_after", "notValidAfter"),
+                         ("signature_algorithm", "signatureAlgorithmRef")):
+            if f.extra.get(src):
+                cp[dst] = str(f.extra[src])
+        cp["certificateFormat"] = f.extra.get("format", "X.509")
+        props["certificateProperties"] = cp
+
+    elif asset_type == "related-crypto-material":
+        rp: dict[str, Any] = {"type": f.extra.get("material_type", "private-key")}
+        if f.key_size:
+            rp["size"] = f.key_size
+        if f.extra.get("format"):
+            rp["format"] = f.extra["format"]
+        props["relatedCryptoMaterialProperties"] = rp
+
+    elif asset_type == "protocol":
+        pp: dict[str, Any] = {"type": f.extra.get("protocol_type", "tls")}
+        if f.extra.get("version"):
+            pp["version"] = str(f.extra["version"])
+        if f.extra.get("cipher_suites"):
+            pp["cipherSuites"] = [{"name": c} for c in f.extra["cipher_suites"]]
+        props["protocolProperties"] = pp
+
+    if alg.oid:
+        props["oid"] = alg.oid
+    return props
+
+
+def _evidence(f: Finding) -> dict[str, Any]:
+    occurrences = []
+    for e in f.evidence[:50]:          # cap; the full set stays in our own store
+        occ: dict[str, Any] = {"location": e.location}
+        if e.line:
+            occ["line"] = e.line
+        if e.symbol:
+            occ["symbol"] = e.symbol
+        if e.context or e.snippet:
+            occ["additionalContext"] = (e.context or e.snippet)[:240]
+        occurrences.append(occ)
+
+    techniques = sorted({_TECHNIQUE.get(e.technique, "other") for e in f.evidence})
+    identity = {
+        "field": "name",
+        "confidence": round(f.confidence, 2),
+        "methods": [
+            {"technique": t, "confidence": round(f.confidence, 2), "value": f.rule_id}
+            for t in techniques
+        ],
+    }
+    return {"identity": [identity], "occurrences": occurrences}
+
+
+def component_for(f: Finding) -> dict[str, Any]:
+    alg = K.get(f.algorithm)
+    comp: dict[str, Any] = {
+        "type": "cryptographic-asset",
+        "bom-ref": _bom_ref(f),
+        "name": alg.name,
+        "cryptoProperties": _crypto_properties(f),
+        "evidence": _evidence(f),
+    }
+    if alg.standard:
+        comp["description"] = f"{alg.name} ({alg.standard}). {alg.note}".strip()
+    elif alg.note:
+        comp["description"] = alg.note
+
+    # Non-standard analysis carried as properties, which is the CycloneDX
+    # sanctioned way to add data the spec has no field for.
+    comp["properties"] = [
+        {"name": "quantum:class", "value": alg.quantum_class},
+        {"name": "quantum:riskScore", "value": str(f.risk_score)},
+        {"name": "quantum:exposureYears", "value": str(f.exposure_years)},
+        {"name": "detection:scanner", "value": f.scanner},
+        {"name": "detection:ruleId", "value": f.rule_id},
+        {"name": "detection:occurrences", "value": str(f.occurrences)},
+    ]
+    if f.recommendation:
+        comp["properties"].append(
+            {"name": "migration:recommendation",
+             "value": str(f.recommendation.get("target_name", ""))})
+    return comp
+
+
+def build(result: ScanResult, findings: Optional[Iterable[Finding]] = None) -> dict[str, Any]:
+    """Produce a complete CycloneDX 1.6 CBOM document."""
+    findings = list(findings if findings is not None else result.findings)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    serial = "urn:uuid:" + str(uuid.UUID(
+        hashlib.sha256(f"{result.id}{result.target.value}".encode()).hexdigest()[:32]))
+
+    doc: dict[str, Any] = {
+        "bomFormat": BOM_FORMAT,
+        "specVersion": SPEC_VERSION,
+        "serialNumber": serial,
+        "version": 1,
+        "metadata": {
+            "timestamp": now,
+            "tools": {
+                "components": [{
+                    "type": "application",
+                    "name": config.PRODUCT_NAME,
+                    "version": config.PRODUCT_VERSION,
+                    "description": config.PRODUCT_TAGLINE,
+                }]
+            },
+            "component": {
+                "type": "application",
+                "bom-ref": f"target/{result.id}",
+                "name": result.target.label or result.target.value,
+                "description": f"{result.target.kind}: {result.target.value}",
+            },
+            "properties": [
+                {"name": "sih:problemStatement", "value": config.PS_ID},
+                {"name": "sih:organisation", "value": config.PS_ORG},
+                {"name": "scan:durationSeconds", "value": str(round(result.duration, 2))},
+                {"name": "scan:findings", "value": str(len(findings))},
+            ],
+        },
+        "components": [component_for(f) for f in findings],
+    }
+    return doc
+
+
+def to_json(result: ScanResult, findings: Optional[Iterable[Finding]] = None,
+            indent: int = 2) -> str:
+    return json.dumps(build(result, findings), indent=indent)
+
+
+# --------------------------------------------------------------------------
+# Structural validation
+# --------------------------------------------------------------------------
+
+_VALID_ASSET_TYPES = {"algorithm", "certificate", "protocol", "related-crypto-material"}
+_VALID_PRIMITIVES = {
+    "drbg", "mac", "block-cipher", "stream-cipher", "signature", "hash", "pke",
+    "xof", "kdf", "key-agree", "kem", "ae", "combiner", "other", "unknown",
+}
+
+
+def validate(doc: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Structural conformance check against the CycloneDX 1.6 CBOM shape.
+
+    Returns (ok, problems). This checks required fields, enum membership and
+    reference integrity. It is not a full JSON-Schema validation -- we state
+    that explicitly rather than implying more coverage than we have.
+    """
+    problems: list[str] = []
+
+    if doc.get("bomFormat") != "CycloneDX":
+        problems.append("bomFormat must be 'CycloneDX'")
+    if doc.get("specVersion") != SPEC_VERSION:
+        problems.append(f"specVersion must be '{SPEC_VERSION}'")
+    if not isinstance(doc.get("version"), int):
+        problems.append("version must be an integer")
+    serial = doc.get("serialNumber", "")
+    if not serial.startswith("urn:uuid:"):
+        problems.append("serialNumber must be a urn:uuid")
+    if "timestamp" not in doc.get("metadata", {}):
+        problems.append("metadata.timestamp is required")
+
+    refs: set[str] = set()
+    for i, comp in enumerate(doc.get("components", [])):
+        where = f"components[{i}]"
+        if comp.get("type") != "cryptographic-asset":
+            problems.append(f"{where}.type must be 'cryptographic-asset'")
+        if not comp.get("name"):
+            problems.append(f"{where}.name is required")
+
+        ref = comp.get("bom-ref")
+        if not ref:
+            problems.append(f"{where}.bom-ref is required")
+        elif ref in refs:
+            problems.append(f"{where}.bom-ref '{ref}' is not unique")
+        else:
+            refs.add(ref)
+
+        cp = comp.get("cryptoProperties")
+        if not isinstance(cp, dict):
+            problems.append(f"{where}.cryptoProperties is required for a cryptographic-asset")
+            continue
+
+        at = cp.get("assetType")
+        if at not in _VALID_ASSET_TYPES:
+            problems.append(f"{where}.cryptoProperties.assetType '{at}' is not a valid enum value")
+
+        if at == "algorithm":
+            ap = cp.get("algorithmProperties", {})
+            prim = ap.get("primitive")
+            if prim and prim not in _VALID_PRIMITIVES:
+                problems.append(f"{where}.algorithmProperties.primitive '{prim}' is invalid")
+            nl = ap.get("nistQuantumSecurityLevel")
+            if nl is not None and not (0 <= nl <= 6):
+                problems.append(f"{where}.nistQuantumSecurityLevel {nl} out of range 0-6")
+
+        ev = comp.get("evidence", {})
+        for j, ident in enumerate(ev.get("identity", [])):
+            c = ident.get("confidence")
+            if c is not None and not (0.0 <= c <= 1.0):
+                problems.append(f"{where}.evidence.identity[{j}].confidence {c} out of range 0-1")
+
+    return (not problems), problems

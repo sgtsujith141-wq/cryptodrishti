@@ -1,0 +1,374 @@
+"""Source code scanner.
+
+Two passes:
+
+1. **AST pass** (Python only). Parses the file and inspects real call nodes, so
+   a match cannot come from a comment, a docstring or a string literal, and
+   keyword arguments such as ``key_size=2048`` resolve to actual values. High
+   confidence.
+
+2. **Pattern pass** (every language). Applies the rule pack from
+   ``knowledge.rules_source``. Lines that are obviously comments are skipped
+   first, which removes the bulk of false positives in C and Java codebases
+   where licence headers and design notes mention algorithms by name.
+
+Where both passes see the same line, the AST result wins.
+"""
+
+from __future__ import annotations
+
+import ast
+import os
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Iterable, Iterator, Optional
+
+from .. import config
+from ..knowledge import rules_source as rs
+from ..models import (
+    ASSET_ALGORITHM, ASSET_PROTOCOL, Evidence, Finding,
+    TECH_AST, TECH_PATTERN,
+)
+
+SCANNER = "source"
+
+# Lines starting with these are treated as comments and skipped by the
+# pattern pass. Cheap, and it removes most licence-header noise.
+_COMMENT_PREFIXES = ("//", "/*", "*", "#", "--", ";", "<!--")
+
+
+def _is_comment(line: str) -> bool:
+    s = line.lstrip()
+    if not s:
+        return True
+    return s.startswith(_COMMENT_PREFIXES)
+
+
+def iter_source_files(root: Path, max_files: int = config.MAX_FILES) -> Iterator[Path]:
+    """Walk a tree, yielding files we know how to read."""
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in config.SKIP_DIRS]
+        for name in filenames:
+            if rs.language_for(name) is None:
+                continue
+            p = Path(dirpath) / name
+            try:
+                if p.stat().st_size > config.MAX_FILE_BYTES:
+                    continue
+            except OSError:
+                continue
+            yield p
+            count += 1
+            if count >= max_files:
+                return
+
+
+# --------------------------------------------------------------------------
+# Python AST pass
+# --------------------------------------------------------------------------
+
+_PY_HASH_WEAK = {"md5": "md5", "sha1": "sha1", "sha224": "sha224",
+                 "new": None}  # hashlib.new("md5") handled separately
+
+_PY_CURVES = {
+    "SECP256R1": "ecdsa-p-256", "SECP384R1": "ecdsa-p-384",
+    "SECP521R1": "ecdsa-p-521", "SECP256K1": "ecdsa-secp256k1",
+}
+
+_PY_SSL_PROTO = {
+    "PROTOCOL_TLSv1": "tls1.0", "PROTOCOL_TLSv1_1": "tls1.1",
+    "PROTOCOL_TLSv1_2": "tls1.2", "PROTOCOL_SSLv3": "tls1.0",
+    "PROTOCOL_SSLv23": "tls1.2",
+}
+
+# pyca/cryptography hazmat primitives, referenced as attributes.
+_PY_CIPHERS = {
+    "AES": "aes", "AES128": "aes-128", "AES256": "aes-256",
+    "TripleDES": "3des", "ARC4": "rc4", "Blowfish": "unknown",
+    "CAST5": "unknown", "IDEA": "unknown", "SEED": "unknown",
+    "ChaCha20": "chacha20", "Camellia": "unknown",
+}
+
+_PY_MODES = {"ECB", "CBC", "CTR", "GCM", "OFB", "CFB", "CFB8", "XTS", "CCM"}
+
+_PY_HASHES = {
+    "MD5": "md5", "SHA1": "sha1", "SHA224": "sha224", "SHA256": "sha256",
+    "SHA384": "sha384", "SHA512": "sha512", "SHA3_256": "sha3-256",
+    "SHA3_512": "sha3-256", "BLAKE2b": "sha512", "BLAKE2s": "sha256",
+}
+
+_PY_PADDINGS = {"PKCS1v15": "rsa", "OAEP": "rsa", "PSS": "rsa", "MGF1": "rsa"}
+
+
+def _dotted(node: ast.AST) -> str:
+    """Render ``a.b.c`` from an Attribute/Name chain."""
+    parts: list[str] = []
+    cur = node
+    while isinstance(cur, ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        parts.append(cur.id)
+    return ".".join(reversed(parts))
+
+
+def _const_int(node: ast.AST) -> Optional[int]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        return node.value
+    return None
+
+
+def _scan_python_ast(path: Path, text: str, rel: str) -> list[Finding]:
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError, RecursionError):
+        return []
+
+    out: list[Finding] = []
+
+    def emit(alg: str, line: int, symbol: str, title: str, detail: str = "",
+             conf: float = 0.95, asset: str = ASSET_ALGORITHM, **extra) -> None:
+        snippet = text.splitlines()[line - 1].strip()[:200] if 0 < line <= text.count("\n") + 1 else ""
+        out.append(Finding(
+            algorithm=alg, asset_type=asset, scanner=SCANNER,
+            title=title, detail=detail, rule_id="py.ast." + symbol,
+            key_size=extra.pop("key_size", None),
+            mode=extra.pop("mode", None),
+            evidence=[Evidence(location=rel, line=line, symbol=symbol,
+                               snippet=snippet, technique=TECH_AST,
+                               confidence=conf, context=extra.pop("context", ""))],
+            extra=extra,
+        ))
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = _dotted(node.func)
+        if not name:
+            continue
+        tail = name.rsplit(".", 1)[-1]
+        line = getattr(node, "lineno", 0)
+
+        # hashlib.md5() / hashlib.sha1() / hashlib.new("md5")
+        if name.startswith("hashlib."):
+            if tail in ("md5", "sha1", "sha224"):
+                emit(tail if tail != "sha1" else "sha1", line, name,
+                     "Weak hash function",
+                     "MD5 and SHA-1 are collision-broken classically and unacceptable "
+                     "for any signature or integrity purpose.")
+            elif tail == "new" and node.args:
+                a0 = node.args[0]
+                if isinstance(a0, ast.Constant) and isinstance(a0.value, str):
+                    emit(rs._norm_alg(a0.value), line, name, "Hash function selected",
+                         context=a0.value)
+
+        # cryptography: rsa.generate_private_key(public_exponent=..., key_size=N)
+        elif tail == "generate_private_key" and "rsa" in name:
+            size = None
+            for kw in node.keywords:
+                if kw.arg == "key_size":
+                    size = _const_int(kw.value)
+            emit(f"rsa-{size}" if size else "rsa", line, name,
+                 "RSA key pair generated",
+                 "Key generation is where a quantum-vulnerable key enters the system.",
+                 key_size=size)
+
+        # ec.SECP256R1()
+        elif tail in _PY_CURVES:
+            emit(_PY_CURVES[tail], line, name, "Elliptic curve selected",
+                 "Elliptic-curve discrete log is polynomial-time under Shor.",
+                 context=tail)
+
+        # Crypto.Cipher.AES.new(...) / DES3.new(...)
+        elif tail == "new" and any(
+                f".{fam}." in "." + name + "." for fam in ("AES", "DES", "DES3", "ARC4", "Blowfish")):
+            fam = next(f for f in ("AES", "DES3", "DES", "ARC4", "Blowfish")
+                       if f".{f}." in "." + name + ".")
+            emit(rs._norm_alg(fam), line, name, "Block cipher instantiated", context=fam)
+
+        # random.random(), random.randint(...)
+        elif name.startswith("random.") and tail in (
+                "random", "randint", "choice", "randrange", "getrandbits", "shuffle"):
+            emit("weak-rng", line, name, "Non-cryptographic random number generator",
+                 "Python's random module is a Mersenne Twister; observing a few "
+                 "outputs recovers its internal state. Use secrets or os.urandom.",
+                 conf=0.85)
+
+    # ---- pyca/cryptography hazmat idioms -------------------------------
+    #
+    # These are attribute references, not calls -- `algorithms.AES` is passed
+    # *into* Cipher(...) rather than invoked on its own -- so they need their
+    # own pass. This is the dominant crypto library in modern Python and
+    # missing it means missing most real findings.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        full = _dotted(node)
+        if not full:
+            continue
+        head, _, attr = full.rpartition(".")
+        head = head.rsplit(".", 1)[-1]
+        line = getattr(node, "lineno", 0)
+        snippet = (text.splitlines()[line - 1].strip()[:200]
+                   if 0 < line <= text.count("\n") + 1 else "")
+
+        alg = title = None
+        detail = ""
+        mode = None
+
+        if head == "algorithms" and attr in _PY_CIPHERS:
+            alg, title = _PY_CIPHERS[attr], "Block cipher selected"
+        elif head == "modes" and attr in _PY_MODES:
+            alg, title = "aes", "Cipher mode of operation"
+            mode = attr.lower()
+            if attr == "ECB":
+                detail = ("ECB leaks plaintext structure: identical blocks encrypt "
+                          "identically. A defect regardless of key size.")
+        elif head == "hashes" and attr in _PY_HASHES:
+            alg, title = _PY_HASHES[attr], "Hash function selected"
+        elif head == "padding" and attr in _PY_PADDINGS:
+            alg, title = _PY_PADDINGS[attr], "Asymmetric padding scheme"
+            if attr == "PKCS1v15":
+                detail = ("PKCS#1 v1.5 encryption padding is vulnerable to Bleichenbacher "
+                          "oracle attacks. Prefer OAEP.")
+
+        if alg and title:
+            out.append(Finding(
+                algorithm=alg, asset_type=ASSET_ALGORITHM, scanner=SCANNER,
+                title=title, detail=detail, rule_id=f"py.ast.hazmat.{head}",
+                mode=mode,
+                evidence=[Evidence(location=rel, line=line, symbol=full,
+                                   snippet=snippet, technique=TECH_AST,
+                                   confidence=0.92, context=attr)],
+            ))
+
+    # ssl.PROTOCOL_* referenced as attributes rather than calls
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in _PY_SSL_PROTO:
+            full = _dotted(node)
+            if full.startswith("ssl."):
+                out.append(Finding(
+                    algorithm=_PY_SSL_PROTO[node.attr], asset_type=ASSET_PROTOCOL,
+                    scanner=SCANNER, title="Legacy TLS protocol constant",
+                    rule_id="py.ast.ssl_proto",
+                    evidence=[Evidence(location=rel, line=node.lineno, symbol=full,
+                                       technique=TECH_AST, confidence=0.9,
+                                       context=node.attr)],
+                ))
+
+    return out
+
+
+# --------------------------------------------------------------------------
+# Pattern pass
+# --------------------------------------------------------------------------
+
+def _scan_patterns(text: str, lang: str, rel: str,
+                   skip_lines: set[int]) -> list[Finding]:
+    out: list[Finding] = []
+    rules = rs.rules_for(lang)
+    if not rules:
+        return out
+
+    lines = text.splitlines()
+    for rule in rules:
+        pat = rule.compiled()
+        for m in pat.finditer(text):
+            line_no = text.count("\n", 0, m.start()) + 1
+            if line_no in skip_lines:
+                continue
+            raw_line = lines[line_no - 1] if line_no <= len(lines) else ""
+            if _is_comment(raw_line):
+                continue
+            try:
+                res = rule.resolve(m)
+            except Exception:
+                continue
+            alg = res.get("algorithm") or "unknown"
+            out.append(Finding(
+                algorithm=alg,
+                asset_type=rule.asset_type,
+                scanner=SCANNER,
+                title=rule.title,
+                detail=rule.detail,
+                rule_id=rule.id,
+                key_size=res.get("key_size"),
+                mode=res.get("mode"),
+                padding=res.get("padding"),
+                evidence=[Evidence(
+                    location=rel, line=line_no,
+                    symbol=m.group(0)[:80].strip(),
+                    snippet=raw_line.strip()[:200],
+                    technique=TECH_PATTERN,
+                    confidence=rule.confidence,
+                    context=res.get("context", ""),
+                )],
+                extra=res.get("extra", {}) or {},
+            ))
+    return out
+
+
+def scan_file(path: Path, root: Path) -> list[Finding]:
+    lang = rs.language_for(path.name)
+    if lang is None:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    if not text.strip():
+        return []
+
+    try:
+        rel = str(path.relative_to(root))
+    except ValueError:
+        rel = str(path)
+
+    findings: list[Finding] = []
+    skip: set[int] = set()
+
+    if lang == "python":
+        ast_findings = _scan_python_ast(path, text, rel)
+        findings.extend(ast_findings)
+        skip = {e.line for f in ast_findings for e in f.evidence if e.line}
+
+    findings.extend(_scan_patterns(text, lang, rel, skip))
+    return findings
+
+
+def scan(root: str | Path, max_files: int = config.MAX_FILES,
+         workers: int = config.SCAN_WORKERS,
+         on_progress=None) -> tuple[list[Finding], dict]:
+    """Scan a directory tree. Returns (findings, stats).
+
+    `on_progress(done, total, noun)` is called as files complete. Without it a
+    large tree reports nothing for a minute and is indistinguishable from a
+    hang, which is the single most common thing to go wrong on stage.
+    """
+    root = Path(root).resolve()
+    files = list(iter_source_files(root, max_files))
+    findings: list[Finding] = []
+
+    if not files:
+        return findings, {"files_scanned": 0, "languages": {}}
+
+    langs: dict[str, int] = {}
+    for f in files:
+        lang = rs.language_for(f.name) or "other"
+        langs[lang] = langs.get(lang, 0) + 1
+
+    total = len(files)
+    if on_progress:
+        on_progress(0, total, "files")
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for i, result in enumerate(pool.map(lambda p: scan_file(p, root), files), 1):
+            findings.extend(result)
+            # Often enough to look alive, rarely enough to stay cheap.
+            if on_progress and (i % 25 == 0 or i == total):
+                on_progress(i, total, "files")
+
+    return findings, {
+        "files_scanned": len(files),
+        "languages": dict(sorted(langs.items(), key=lambda kv: -kv[1])),
+    }

@@ -1,0 +1,8 @@
+CHECKPOINT v7 — "polished"
+v6 plus the fixes from the ten-lens audit: focus rings restored, keyboard paths
+for table rows and dial spokes, drawer given dialog semantics with focus trap
+and restore, theme-aware scrim/shadow/thumb, CTA contrast fixed in dark, honest
+butt-capped spokes, pitch-aware spoke width, empty states that tell the truth,
+cancelled tweens, sequenced Q-Day requests, memoised token lookups.
+
+Restore with:   ./.backup/restore.sh v7

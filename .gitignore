@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Runtime data (scan database is regenerated on first run)
+data/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Demonstration targets: large third-party repositories cloned locally.
+# See README for how to fetch them.
+demo/targets/
+
+# Local working snapshots of earlier UI iterations
+.backup/
+
+# Test / tooling output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.log
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+
+# Node (the web console is dependency-free, but keep this defensive)
+node_modules/
+dist/

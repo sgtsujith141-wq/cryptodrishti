@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="mh-left">
+    <span class="wordmark" id="product-name">CryptoDrishti</span>
+    <span class="rule" aria-hidden="true"></span>
+    <span class="mh-target mono" id="posture-target">no scan loaded</span>
+  </div>
+  <div class="mh-right">
+    <button id="explain-toggle" class="link-btn" aria-pressed="false">Explain</button>
+    <button id="theme-toggle" class="link-btn" title="Switch between light and dark">Dark</button>
+    <span class="mh-ps mono" id="ps-badge">SIH26164</span>
+  </div>
+</header>
+
+<!-- ── controls ─────────────────────────────────────────────────────── -->
+<section class="controls" aria-label="Scan controls">
+  <div class="ctl-grid">
+    <label class="f f-wide">
+      <span class="f-label">Target</span>
+      <input id="scan-path" type="text" spellcheck="false" placeholder="/path/to/a/repository">
+    </label>
+    <label class="f">
+      <span class="f-label">Preset</span>
+      <select id="target-preset"><option value="">Choose…</option></select>
+    </label>
+    <label class="f">
+      <span class="f-label">Profile</span>
+      <select id="profile"></select>
+    </label>
+    <label class="f">
+      <span class="f-label">Probe TLS</span>
+      <input id="scan-endpoints" type="text" spellcheck="false" placeholder="optional host">
+    </label>
+    <button id="run-scan" class="btn-primary">Scan</button>
+  </div>
+
+  <div class="progress" id="scan-progress" hidden>
+    <div class="sensors" id="sensors"></div>
+    <div class="pbar"><i id="progress-fill"></i></div>
+    <span class="mono pphase" id="progress-phase">Queued</span>
+  </div>
+
+  <p class="note" data-explain>
+    Point this at any directory. Six sensors read the source, compiled binaries,
+    certificates, dependency manifests and configuration inside it. It is not looking for
+    bugs — it builds an inventory of every piece of cryptography present, then determines
+    which of it survives a quantum computer.
+  </p>
+</section>
+
+<main>
+
+  <!-- ── §1 finding ─────────────────────────────────────────────────── -->
+  <section class="chapter" id="ch-finding">
+    <p class="statement" id="posture-verdict">Run a scan to assess an estate.</p>
+
+    <dl class="figures">
+      <div class="fig">
+        <dt>Cryptographic assets</dt>
+        <dd class="mono" id="t-total">—</dd>
+        <p class="fig-note" id="t-total-sub"></p>
+      </div>
+      <div class="fig fig-alert">
+        <dt>Quantum vulnerable</dt>
+        <dd class="mono" id="t-vuln">—</dd>
+        <p class="fig-note" id="t-vuln-sub"></p>
+      </div>
+      <div class="fig">
+        <dt>Critical</dt>
+        <dd class="mono" id="t-crit">—</dd>
+        <p class="fig-note" id="t-crit-sub"></p>
+      </div>
+      <div class="fig">
+        <dt>Peak exposure</dt>
+        <dd class="mono"><span id="t-exposure">—</span><span class="unit">years</span></dd>
+        <p class="fig-note">readable after Q-Day</p>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ── §2 estate ──────────────────────────────────────────────────── -->
+  <section class="chapter" id="ch-estate">
+    <div class="ch-head">
+      <h2><span class="sec mono">§1</span> The estate</h2>
+      <p class="dek">Every asset found, sized by the number of call sites a migration
+        would have to touch.</p>
+    </div>
+
+    <figure class="plate">
+      <div class="map" id="treemap" role="img"
+           aria-label="Treemap of cryptographic assets, sized by call sites and coloured by quantum exposure"></div>
+      <figcaption class="key" id="seglegend"></figcaption>
+    </figure>
+
+    <p class="scanfacts mono" id="lang-summary"></p>
+
+    <p class="note" data-explain>
+      Each rectangle is one distinct asset; its <b>area</b> is blast radius. Colour is its
+      behaviour under quantum attack. Because area is blast radius, the largest red block is
+      literally the biggest piece of migration work here. Hover any cell.
+    </p>
+  </section>
+
+  <!-- ── §3 clock ───────────────────────────────────────────────────── -->
+  <section class="chapter" id="ch-clock">
+    <div class="ch-head">
+      <h2><span class="sec mono">§2</span> The clock</h2>
+      <p class="dek">Mosca's inequality. Move the estimate and the estate re-ranks against it.</p>
+      <span class="eq mono" id="formula"></span>
+    </div>
+
+    <figure class="plate plate-quiet">
+      <svg id="mosca-svg" viewBox="0 0 1000 176" preserveAspectRatio="xMidYMid meet"
+           role="img" aria-label="Mosca exposure timeline"></svg>
+    </figure>
+
+    <div class="clock-controls">
+      <div class="slider">
+        <div class="slider-head">
+          <label for="qday-likely">Q-Day — median arrival of a quantum computer able to break RSA</label>
+          <output class="mono" id="qday-out">2034</output>
+        </div>
+        <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+      </div>
+      <label class="f f-sens">
+        <span class="f-label">Data sensitivity</span>
+        <select id="sensitivity"></select>
+      </label>
+    </div>
+
+    <p class="readout" id="mosca-verdict"></p>
+
+    <p class="note" data-explain>
+      <b>X</b> is how long the data must stay secret, <b>Y</b> how long migration takes,
+      <b>Z</b> the years until a quantum computer exists. If X + Y exceeds Z, data sealed
+      today is already readable by an adversary recording it now. Nobody knows Z, so it is
+      modelled as a distribution and reported as a probability — never asserted as a date.
+    </p>
+  </section>
+
+  <!-- ── §4 inventory ───────────────────────────────────────────────── -->
+  <section class="chapter" id="ch-queue">
+    <div class="ch-head">
+      <h2><span class="sec mono">§3</span> The inventory</h2>
+      <p class="dek" id="findings-hint">Detector hits grouped into distinct assets, ranked by risk.</p>
+    </div>
+
+    <div class="toolbar">
+      <div class="dists">
+        <div class="distcol"><h3>Severity</h3><div class="dist" id="sev-dist"></div></div>
+        <div class="distcol"><h3>Sensor</h3><div class="dist" id="scanner-dist"></div></div>
+      </div>
+      <div class="tools">
+        <input id="filter-q" type="search" placeholder="Filter">
+        <select id="filter-class"><option value="">All classes</option></select>
+        <select id="filter-context">
+          <option value="">All code</option>
+          <option value="production">Production</option>
+          <option value="test">Test fixtures</option>
+          <option value="vendored">Vendored</option>
+        </select>
+        <button id="btn-report" class="link-btn">Report</button>
+        <button id="btn-cbom" class="link-btn">CBOM</button>
+        <button id="btn-validate" class="link-btn strong">Validate</button>
+      </div>
+    </div>
+
+    <p id="validate-result" class="validate" hidden></p>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">Risk</th>
+            <th>Algorithm</th>
+            <th>Class</th>
+            <th>Finding</th>
+            <th class="num">Uses</th>
+            <th>Context</th>
+            <th>Location</th>
+            <th>Migrate to</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body">
+          <tr class="empty"><td colspan="8">No scan loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note" data-explain>
+      One row per distinct asset, not per occurrence. <b>Uses</b> is blast radius.
+      <b>Context</b> separates production code from test fixtures, which are inventoried but
+      weighted down so they never lead the queue. Click any row for evidence, the full score
+      breakdown, and the recommended replacement.
+    </p>
+  </section>
+
+</main>
+
+<div id="tip" class="tip" hidden></div>
+
+<aside id="drawer" class="drawer" hidden aria-label="Asset detail">
+  <button id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<footer class="colophon">
+  <span id="foot-meta">Problem statement SIH26164 · National Technical Research Organisation</span>
+  <span class="mono">CycloneDX 1.6 · ECMA-424</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

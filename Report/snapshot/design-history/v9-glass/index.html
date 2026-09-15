@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoDrishti</title>
+<script>
+/* Resolve the theme before the stylesheet parses, or the browser commits form
+   controls to its own colour scheme and they render dark on a light page. */
+(function(){try{var q=new URLSearchParams(location.search).get("theme"),
+s=localStorage.getItem("cd-theme"),t=(q==="dark"||q==="light")?q:s;
+if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- the drifting aurora the glass refracts -->
+<div class="sky" aria-hidden="true"></div>
+
+<!-- ══ heads-up bar ═════════════════════════════════════════════════ -->
+<header class="hud">
+  <div class="hud-l">
+    <span class="glyph" aria-hidden="true"></span>
+    <span class="wm" id="product-name">CryptoDrishti</span>
+    <span class="tgt" id="posture-target">no scan</span>
+  </div>
+  <div class="hud-c">
+    <input id="scan-path" type="text" spellcheck="false" placeholder="/path/to/target" aria-label="Scan target">
+    <select id="target-preset" aria-label="Preset"><option value="">Preset</option></select>
+    <select id="profile" aria-label="Deployment profile"></select>
+    <input id="scan-endpoints" type="text" spellcheck="false" placeholder="probe host" aria-label="TLS endpoint to probe">
+    <button id="run-scan" class="go">Scan</button>
+  </div>
+  <div class="hud-r">
+    <button id="explain-toggle" class="ghost" aria-pressed="false">Explain</button>
+    <button id="theme-toggle" class="ghost">Dark</button>
+  </div>
+</header>
+
+<div class="scanline" id="scan-progress" hidden>
+  <div class="sensors" id="sensors"></div>
+  <div class="track"><i id="progress-fill"></i></div>
+  <span class="phase" id="progress-phase">Queued</span>
+</div>
+
+<!-- ══ scene rail ═══════════════════════════════════════════════════ -->
+<nav class="rail" aria-label="Sections">
+  <ol id="rail-list"></ol>
+</nav>
+
+<!-- ══ the deck ═════════════════════════════════════════════════════ -->
+<main class="deck" id="deck">
+
+  <!-- 1 · VERDICT ------------------------------------------------------- -->
+  <section class="scene" id="sc-verdict" data-scene="Verdict" tabindex="-1">
+    <div class="scene-in">
+      <p class="kicker">01 — The verdict</p>
+      <h1 class="colossus"><span id="v-pct">—</span><em>%</em></h1>
+      <p class="lede" id="v-line">Run a scan to assess an estate.</p>
+      <ul class="figs">
+        <li><b class="mono" id="t-total">—</b><span>assets<i id="t-total-sub"></i></span></li>
+        <li class="hot"><b class="mono" id="t-vuln">—</b><span>vulnerable<i id="t-vuln-sub"></i></span></li>
+        <li><b class="mono" id="t-crit">—</b><span>critical<i id="t-crit-sub"></i></span></li>
+        <li><b class="mono" id="t-exposure">—</b><span>years exposed<i>past Q-Day</i></span></li>
+      </ul>
+      <p class="facts" id="lang-summary"></p>
+      <p class="note" data-explain>
+        Six sensors read the source, compiled binaries, certificates, dependency manifests and
+        configuration in the target. This is not a bug hunt — it is an inventory of every piece
+        of cryptography present, classified by what a quantum computer does to it.
+      </p>
+    </div>
+  </section>
+
+  <!-- 2 · ESTATE -------------------------------------------------------- -->
+  <section class="scene" id="sc-estate" data-scene="Estate" tabindex="-1">
+    <div class="scene-in wide">
+      <p class="kicker">02 — The estate</p>
+      <h2 class="title">Every asset, placed by risk.</h2>
+      <p class="sub">One dot per cryptographic asset. Position is its risk score; colour is what
+        happens to it under quantum attack.</p>
+      <figure class="swarm">
+        <svg id="beeswarm" role="img"
+             aria-label="Every cryptographic asset plotted against its risk score"></svg>
+      </figure>
+      <div class="chips" id="legend"></div>
+      <p class="note" data-explain>
+        A distribution, not a ranking: you can see at a glance whether the estate has a few bad
+        assets or is uniformly poor. Dots cluster where scores repeat. Hover one for detail,
+        click to open its evidence.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3 · CLOCK --------------------------------------------------------- -->
+  <section class="scene" id="sc-clock" data-scene="Clock" tabindex="-1">
+    <div class="scene-in wide">
+      <p class="kicker">03 — The clock</p>
+      <h2 class="title">If <em>X + Y &gt; Z</em>, the data is already lost.</h2>
+      <p class="sub">Move the estimate. The whole estate re-ranks against it.</p>
+      <figure class="tl">
+        <svg id="mosca-svg" viewBox="0 0 1000 150" preserveAspectRatio="xMidYMid meet"
+             role="img" aria-label="Mosca exposure timeline"></svg>
+      </figure>
+      <div class="dials">
+        <div class="dl">
+          <label for="qday-likely">Q-Day — median arrival of a quantum computer able to break RSA</label>
+          <div class="dl-row">
+            <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
+            <output class="mono" id="qday-out">2034</output>
+          </div>
+        </div>
+        <div class="dl narrow">
+          <label for="sensitivity">Data sensitivity</label>
+          <select id="sensitivity"></select>
+        </div>
+      </div>
+      <p class="verdict" id="mosca-verdict"></p>
+      <p class="note" data-explain>
+        <b>X</b> is how long the data must stay secret, <b>Y</b> how long migration takes,
+        <b>Z</b> the years until a quantum computer exists. Nobody knows Z, so it is modelled as
+        a distribution and reported as a probability — never asserted as a date.
+      </p>
+    </div>
+  </section>
+
+  <!-- 4 · PLAN ---------------------------------------------------------- -->
+  <section class="scene" id="sc-plan" data-scene="Plan" tabindex="-1">
+    <div class="scene-in wide">
+      <p class="kicker">04 — The plan</p>
+      <h2 class="title">Grouped into workstreams, not a list of problems.</h2>
+      <p class="sub">One row per replacement algorithm — how a migration is actually staffed.</p>
+      <div class="streams" id="streams"></div>
+      <p class="note" data-explain>
+        A migration is resourced per target algorithm, not per finding. <b>Sites</b> is the total
+        number of call sites that workstream has to touch; the size delta is what the replacement
+        costs per operation, which is what breaks fixed-width protocol fields.
+      </p>
+    </div>
+  </section>
+
+  <!-- 5 · RECORD -------------------------------------------------------- -->
+  <section class="scene" id="sc-record" data-scene="Record" tabindex="-1">
+    <div class="scene-in wide">
+      <p class="kicker">05 — The record</p>
+      <div class="rec-head">
+        <div>
+          <h2 class="title">The inventory.</h2>
+          <p class="sub" id="findings-hint">Detector hits grouped into distinct assets.</p>
+        </div>
+        <div class="tools">
+          <input id="filter-q" type="search" placeholder="Filter" aria-label="Filter assets">
+          <select id="filter-class" aria-label="Filter by quantum class"><option value="">All classes</option></select>
+          <select id="filter-context" aria-label="Filter by code context">
+            <option value="">All code</option><option value="production">Production</option>
+            <option value="test">Test fixtures</option><option value="vendored">Vendored</option>
+          </select>
+          <button id="btn-report" class="ghost">Report</button>
+          <button id="btn-cbom" class="ghost">CBOM</button>
+          <button id="btn-validate" class="ghost go-ghost">Validate</button>
+        </div>
+      </div>
+      <p id="validate-result" class="banner" hidden></p>
+      <div class="grid">
+        <table>
+          <thead><tr>
+            <th class="num">Risk</th><th>Algorithm</th><th>Class</th><th>Finding</th>
+            <th class="num">Sites</th><th>Context</th><th>Location</th><th>Migrate to</th>
+          </tr></thead>
+          <tbody id="findings-body"><tr class="empty"><td colspan="8">No scan loaded.</td></tr></tbody>
+        </table>
+      </div>
+      <p class="foot"><span id="foot-meta">SIH26164 · NTRO</span><span class="mono">CycloneDX 1.6 · ECMA-424</span></p>
+    </div>
+  </section>
+
+</main>
+
+<div id="tip" class="tip" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Asset detail">
+  <button id="drawer-close" class="dclose" aria-label="Close">&times;</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
