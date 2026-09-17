@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run the test suite
+        run: pytest
+
+  smoke:
+    name: CLI scan and CBOM conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Scan this repository and emit a CBOM
+        run: python -m app.cli scan app --cbom cbom.json
+
+      - name: Assert the CBOM is a conforming CycloneDX 1.6 document
+        run: |
+          python - <<'PY'
+          import json, sys
+          from app import cbom
+
+          doc = json.load(open("cbom.json"))
+          assert doc["bomFormat"] == "CycloneDX", doc.get("bomFormat")
+          assert doc["specVersion"] == "1.6", doc.get("specVersion")
+
+          valid, problems = cbom.validate(doc)
+          if not valid:
+              print("CBOM failed structural validation:", *problems, sep="\n  ")
+              sys.exit(1)
+          print(f"CBOM OK: {len(doc['components'])} components, CycloneDX 1.6")
+          PY
+
+      - name: Upload the CBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbom
+          path: cbom.json

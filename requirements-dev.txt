@@ -1,0 +1,5 @@
+# Development and CI dependencies, on top of requirements.txt.
+-r requirements.txt
+
+pytest>=8.0
+httpx           # required by fastapi.testclient
