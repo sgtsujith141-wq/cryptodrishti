@@ -90,16 +90,15 @@ def test_a_completed_scan_appears_in_the_history(client, completed_scan):
     assert any(s["id"] == completed_scan for s in scans)
 
 
-def test_scanning_a_nonexistent_path_reports_an_error_rather_than_hanging(client):
-    scan_id = client.post("/api/scan", json={"path": "/no/such/path/xyz"}).json()["scan_id"]
-    for _ in range(60):
-        status = client.get(f"/api/scan/{scan_id}/status").json()
-        if status["state"] in ("done", "error"):
-            break
-        time.sleep(0.1)
-    assert status["state"] in ("done", "error")
-    if status["state"] == "done":
-        assert status["findings"] == 0
+def test_scanning_a_nonexistent_path_is_refused_before_a_job_is_started(client):
+    """A bad target fails at the request, not a second later in a background job.
+
+    The root is vetted synchronously so the operator gets the reason straight
+    away instead of watching a progress bar that was never going to finish.
+    """
+    response = client.post("/api/scan", json={"path": "/no/such/path/xyz"})
+    assert response.status_code == 400
+    assert "resolve" in response.json()["detail"].lower()
 
 
 # --------------------------------------------------------------------------

@@ -48,6 +48,25 @@ MAX_FILE_BYTES = 2_000_000          # skip anything larger; crypto lives in norm
 MAX_BINARY_BYTES = 64_000_000       # binaries can legitimately be large
 SCAN_WORKERS = int(os.environ.get("CD_WORKERS", 8))
 
+# Directory entries a single scan may visit. MAX_FILES bounds what is *read*;
+# this bounds what is *walked*, which is the term that runs away when someone
+# points the tool at a home directory or a mounted volume.
+MAX_ENTRIES = int(os.environ.get("CD_MAX_ENTRIES", 400_000))
+
+# Wall-clock budget for one scan, in seconds. Neither a file count nor a byte
+# count bounds a walk over a filesystem where stat() is slow, so the only
+# honest bound is time. 0 disables it. When it expires the scan ends cleanly
+# and is reported as incomplete rather than being killed.
+SCAN_TIME_BUDGET = float(os.environ.get("CD_SCAN_SECONDS", 600))
+
+# Scans that may run at once. Each one is a thread pool over a filesystem
+# walk, so an unbounded number of them is a denial-of-service primitive
+# against the machine the console runs on.
+MAX_CONCURRENT_SCANS = int(os.environ.get("CD_MAX_CONCURRENT_SCANS", 2))
+
+# In-memory scan job records retained for progress polling.
+MAX_TRACKED_JOBS = int(os.environ.get("CD_MAX_TRACKED_JOBS", 200))
+
 # Directories that never contain first-party source worth reporting.
 SKIP_DIRS = {
     ".git", ".hg", ".svn", ".tox", ".venv", "venv", "node_modules",

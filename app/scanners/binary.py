@@ -26,7 +26,8 @@ import struct
 from pathlib import Path
 from typing import Iterator, Optional
 
-from .. import config
+from .. import config, fspolicy
+from ..fspolicy import FsPolicy
 from ..knowledge import rules_binary as rb
 from ..models import (
     ASSET_ALGORITHM, ASSET_LIBRARY, Evidence, Finding,
@@ -66,14 +67,21 @@ def file_kind(head: bytes, path: Path) -> Optional[str]:
     return None
 
 
-def iter_binaries(root: Path, max_files: int = 4000) -> Iterator[tuple[Path, str]]:
+def iter_binaries(root: Path, max_files: int = 4000,
+                  policy: Optional[FsPolicy] = None) -> Iterator[tuple[Path, str]]:
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
+        if policy and policy.exhausted():
+            return
         # Deliberately *not* config.SKIP_DIRS: shipped binaries live inside
         # site-packages, vendor and node_modules, which the source walker skips.
-        dirnames[:] = [d for d in dirnames if d not in BINARY_SKIP_DIRS]
+        fspolicy.filter_dirnames(dirpath, dirnames, BINARY_SKIP_DIRS, root, policy)
         for name in filenames:
+            if policy and not policy.count_entry():
+                return
             p = Path(dirpath) / name
+            if policy and not fspolicy.readable(p, root, policy):
+                continue
             try:
                 st = p.stat()
                 if st.st_size < 512 or st.st_size > config.MAX_BINARY_BYTES:
@@ -267,13 +275,14 @@ def scan_binary(path: Path, root: Path, kind: str) -> list[Finding]:
 
 
 def scan(root: str | Path, max_files: int = 4000,
-         on_progress=None) -> tuple[list[Finding], dict]:
+         on_progress=None,
+         policy: Optional[FsPolicy] = None) -> tuple[list[Finding], dict]:
     root = Path(root).resolve()
     findings: list[Finding] = []
     counts: dict[str, int] = {}
     # Materialised so there is a real denominator to report against; the walk
     # itself is cheap next to reading and pattern-matching each binary.
-    targets = list(iter_binaries(root, max_files))
+    targets = list(iter_binaries(root, max_files, policy))
     total = len(targets)
     if on_progress:
         on_progress(0, total, "binaries")
@@ -282,4 +291,10 @@ def scan(root: str | Path, max_files: int = 4000,
         findings.extend(scan_binary(path, root, kind))
         if on_progress and (n % 5 == 0 or n == total):
             on_progress(n, total, "binaries")
+        if policy and policy.expired():
+            return findings, {
+                "binaries_scanned": n, "binary_kinds": counts,
+                "binary_incomplete": (f"stopped after {n:,} of {total:,} binaries: "
+                                      f"scan deadline reached"),
+            }
     return findings, {"binaries_scanned": total, "binary_kinds": counts}

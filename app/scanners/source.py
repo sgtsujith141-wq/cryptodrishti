@@ -23,7 +23,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
-from .. import config
+from .. import config, fspolicy
+from ..fspolicy import FsPolicy
 from ..knowledge import rules_source as rs
 from ..models import (
     ASSET_ALGORITHM, ASSET_PROTOCOL, Evidence, Finding,
@@ -44,15 +45,28 @@ def _is_comment(line: str) -> bool:
     return s.startswith(_COMMENT_PREFIXES)
 
 
-def iter_source_files(root: Path, max_files: int = config.MAX_FILES) -> Iterator[Path]:
-    """Walk a tree, yielding files we know how to read."""
+def iter_source_files(root: Path, max_files: int = config.MAX_FILES,
+                      policy: Optional[FsPolicy] = None) -> Iterator[Path]:
+    """Walk a tree, yielding files we know how to read.
+
+    ``policy`` enforces the scan boundary. Without it the walk is unbounded and
+    a symlinked file pointing outside the root would be read and its contents
+    carried into ``evidence.snippet``; with it, such a file is skipped and
+    counted so the operator sees the inventory is partial.
+    """
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in config.SKIP_DIRS]
+        if policy and policy.exhausted():
+            return
+        fspolicy.filter_dirnames(dirpath, dirnames, config.SKIP_DIRS, root, policy)
         for name in filenames:
+            if policy and not policy.count_entry():
+                return
             if rs.language_for(name) is None:
                 continue
             p = Path(dirpath) / name
+            if policy and not fspolicy.readable(p, root, policy):
+                continue
             try:
                 if p.stat().st_size > config.MAX_FILE_BYTES:
                     continue
@@ -62,6 +76,8 @@ def iter_source_files(root: Path, max_files: int = config.MAX_FILES) -> Iterator
             count += 1
             if count >= max_files:
                 return
+        if policy and policy.expired():
+            return
 
 
 # --------------------------------------------------------------------------
@@ -339,7 +355,8 @@ def scan_file(path: Path, root: Path) -> list[Finding]:
 
 def scan(root: str | Path, max_files: int = config.MAX_FILES,
          workers: int = config.SCAN_WORKERS,
-         on_progress=None) -> tuple[list[Finding], dict]:
+         on_progress=None,
+         policy: Optional[FsPolicy] = None) -> tuple[list[Finding], dict]:
     """Scan a directory tree. Returns (findings, stats).
 
     `on_progress(done, total, noun)` is called as files complete. Without it a
@@ -347,7 +364,7 @@ def scan(root: str | Path, max_files: int = config.MAX_FILES,
     hang, which is the single most common thing to go wrong on stage.
     """
     root = Path(root).resolve()
-    files = list(iter_source_files(root, max_files))
+    files = list(iter_source_files(root, max_files, policy))
     findings: list[Finding] = []
 
     if not files:
@@ -361,14 +378,25 @@ def scan(root: str | Path, max_files: int = config.MAX_FILES,
     total = len(files)
     if on_progress:
         on_progress(0, total, "files")
+    read = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for i, result in enumerate(pool.map(lambda p: scan_file(p, root), files), 1):
             findings.extend(result)
+            read = i
             # Often enough to look alive, rarely enough to stay cheap.
             if on_progress and (i % 25 == 0 or i == total):
                 on_progress(i, total, "files")
+            if policy and policy.expired():
+                # Stop consuming results rather than letting a deadline pass
+                # silently; the partial state is reported below.
+                break
 
-    return findings, {
-        "files_scanned": len(files),
+    stats: dict = {
+        "files_scanned": read,
+        "files_enumerated": len(files),
         "languages": dict(sorted(langs.items(), key=lambda kv: -kv[1])),
     }
+    if policy and read < len(files):
+        stats["source_incomplete"] = (
+            f"stopped after {read:,} of {len(files):,} files: scan deadline reached")
+    return findings, stats

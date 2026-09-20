@@ -19,7 +19,8 @@ import re
 from pathlib import Path
 from typing import Iterator, Optional
 
-from .. import config
+from .. import config, fspolicy
+from ..fspolicy import FsPolicy
 from ..models import ASSET_LIBRARY, Evidence, Finding, TECH_MANIFEST
 
 SCANNER = "dependency"
@@ -76,14 +77,22 @@ _CARGO = re.compile(r'^\s*([A-Za-z0-9_\-]+)\s*=\s*["{]?\s*(?:version\s*=\s*)?"?(
                     re.M)
 
 
-def iter_manifests(root: Path, max_files: int = 500) -> Iterator[tuple[Path, str]]:
+def iter_manifests(root: Path, max_files: int = 500,
+                   policy: Optional[FsPolicy] = None) -> Iterator[tuple[Path, str]]:
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in config.SKIP_DIRS]
+        if policy and policy.exhausted():
+            return
+        fspolicy.filter_dirnames(dirpath, dirnames, config.SKIP_DIRS, root, policy)
         for name in filenames:
+            if policy and not policy.count_entry():
+                return
             kind = MANIFESTS.get(name)
             if kind:
-                yield Path(dirpath) / name, kind
+                p = Path(dirpath) / name
+                if policy and not fspolicy.readable(p, root, policy):
+                    continue
+                yield p, kind
                 count += 1
                 if count >= max_files:
                     return
@@ -121,12 +130,13 @@ def _version_tuple(v: str) -> tuple[int, ...]:
     return tuple(int(p) for p in parts) if parts else (0,)
 
 
-def scan(root: str | Path, max_files: int = 500) -> tuple[list[Finding], dict]:
+def scan(root: str | Path, max_files: int = 500,
+         policy: Optional[FsPolicy] = None) -> tuple[list[Finding], dict]:
     root = Path(root).resolve()
     findings: list[Finding] = []
     n = 0
 
-    for path, kind in iter_manifests(root, max_files):
+    for path, kind in iter_manifests(root, max_files, policy):
         n += 1
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")

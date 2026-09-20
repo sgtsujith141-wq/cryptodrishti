@@ -13,7 +13,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from app import config
+from app import auth, config
 
 
 def seed(path: str, label: str, endpoints: list[str] | None = None) -> None:
@@ -85,6 +85,17 @@ def main() -> int:
 
     config.ensure_dirs()
 
+    # Refuse to expose the console beyond this machine without an access
+    # control. The API can enumerate directories, carry file contents into
+    # scan evidence and open outbound connections on request; none of that
+    # should be reachable from the network because someone set CD_HOST to
+    # demonstrate the tool on a projector.
+    try:
+        auth.check_binding(args.host)
+    except auth.InsecureBinding as exc:
+        print(f"\n  {exc}\n", file=sys.stderr)
+        return 2
+
     if args.preflight:
         from app.preflight import run as preflight_run
         return preflight_run(f"http://{args.host}:{args.port}")
@@ -105,8 +116,12 @@ def main() -> int:
 
     import uvicorn
     url = f"http://{args.host}:{args.port}"
+    token = auth.configured_token()
+    if token:
+        url += f"/?token={token}"
     print(f"\n  {config.PRODUCT_NAME} {config.PRODUCT_VERSION}")
-    print(f"  {url}\n")
+    print(f"  {url}")
+    print(f"  access control: {'token (CD_TOKEN)' if token else 'none — bound to localhost'}\n")
     if args.open:
         webbrowser.open(url)
     uvicorn.run("app.api:app", host=args.host, port=args.port, log_level="warning")

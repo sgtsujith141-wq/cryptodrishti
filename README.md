@@ -13,7 +13,7 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6](https://img.shields.io/badge/CBOM-CycloneDX%201.6-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-226%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-317%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -59,7 +59,8 @@ A single-operator tool that answers that question end to end:
 
 It runs **fully air-gapped**. There are no outbound network requests, no CDN
 assets and no telemetry. The single exception is the network sensor, which
-connects to exactly the endpoints you name.
+connects only to endpoints you name **and** that pass the destination policy
+described under [Security](#security).
 
 ## Architecture
 
@@ -345,6 +346,89 @@ dependency, both of which conflict with running air-gapped. So `validate()`
 does a thorough structural check and its output states exactly what it did and
 did not verify.
 
+## Security
+
+The tool takes a filesystem path and a list of hosts over HTTP and acts on
+both. That is a server-side request forgery primitive and an arbitrary file
+read unless something stands between the two, so three policy modules do.
+
+### Destination policy — `app/netpolicy.py`
+
+Every endpoint is parsed, resolved, and checked **address by address** before
+a socket is opened, and the connection is then made to the vetted literal
+address with the hostname carried only as SNI. Checking a name and then
+connecting to that name leaves a window in which DNS can answer differently
+the second time; this closes it.
+
+Addresses are judged by what they *are*, not what they look like, so
+`2130706433`, `::ffff:127.0.0.1` and `2002:7f00:1::1` are all refused as
+loopback. Denied: loopback, private, carrier-grade NAT, link-local (including
+`169.254.169.254`), multicast, reserved, unspecified, and every IPv4-mapped,
+6to4, Teredo or NAT64 wrapping of them. A name resolving to both a public and
+an internal address is refused **entirely**, because that is the shape of DNS
+rebinding.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `CD_ALLOWED_HOSTS` | *(empty)* | When set, **only** these hosts may be probed |
+| `CD_ALLOWED_PORTS` | `22 443 465 587 636 993 995 3306 5432 8443` | An endpoint list must not double as a port scanner |
+| `CD_MAX_ENDPOINTS` | `16` | Per scan |
+| `CD_ALLOW_PRIVATE_TARGETS` | off | Lab use. Every finding produced under it is **marked as such**, because an inventory that quietly mixes internet and lab results is worse than one that refused |
+
+Refusals are returned with a reason, not swallowed: one disallowed entry does
+not discard the rest of the scan, and the operator is told about each one.
+
+### Filesystem policy — `app/fspolicy.py`
+
+The scan root is the boundary. `os.walk` does not follow directory symlinks,
+but it does hand back symlinked **files** — a link named `config.py` pointing
+at `~/.ssh/id_rsa` was previously read and its contents landed in
+`evidence.snippet`. Every file a sensor opens now resolves inside the root or
+is skipped and counted. Credential stores (`shadow`, `.netrc`,
+`.git-credentials`, `.npmrc`, keychains) are never read; synthetic
+filesystems (`/proc`, `/sys`, `/dev`) are never walked.
+
+### Access control — `app/auth.py`
+
+Bound to loopback with no token, the console is open, which is the honest
+default for a single operator on their own machine. Set `CD_TOKEN` and every
+`/api` route requires it. **Bind anywhere else without a token and the server
+refuses to start** — a tool that becomes remotely exploitable because someone
+set `CD_HOST=0.0.0.0` to demo it on a projector is the failure mode worth
+engineering against.
+
+```bash
+export CD_TOKEN=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+python run.py --host 0.0.0.0        # then open /?token=$CD_TOKEN
+```
+
+### Bounds
+
+| Variable | Default | Bounds |
+|---|---|---|
+| `CD_SCAN_SECONDS` | `600` | Wall clock per scan. Neither a file count nor a byte count bounds a walk over a filesystem where `stat` is slow |
+| `CD_MAX_ENTRIES` | `400000` | Directory entries *walked*, as distinct from files *read* |
+| `CD_MAX_CONCURRENT_SCANS` | `2` | Each scan is a thread pool over a filesystem walk |
+| `CD_MAX_FILES` | `25000` | Files read per sensor |
+
+When a bound is reached the scan **ends cleanly and says so**. Every scan
+carries `complete: true|false` and a list of warnings — skipped paths, failed
+sensors, refused endpoints — into the status endpoint, the scan payload and
+the console. An inventory the reader believes is complete when it is not is
+the most damaging thing this tool could produce.
+
+Scan failures return an error class, a message and an 8-character reference;
+the traceback goes to the server log. Shipping internal paths and stack frames
+to an HTTP client is an information leak with no operational value.
+
+### Threat model, stated plainly
+
+This is a single-operator tool. It is **not** hardened for multi-tenant or
+untrusted-user deployment: there is no rate limiting, no per-user
+authorization, no audit log and no sandbox around the sensors. The token is an
+access control, not a user system. Run it on your own machine, or behind a
+reverse proxy that terminates TLS and that you control.
+
 ## Known limitations
 
 Stated plainly, because a security tool that overstates its coverage is
@@ -365,8 +449,9 @@ actively harmful.
   that can do RSA is not evidence that RSA is used.
 - **The network sensor reports what was negotiated with it**, which is not
   necessarily what the server supports or prefers for other clients.
-- **No authentication, no multi-user support, no migrations.** Scan history is
-  a local SQLite file. This is a single-operator tool.
+- **Token access control, not a user system.** There is one shared token, no
+  per-user authorization and no audit log. Scan history is a local SQLite file
+  with no migrations. This is a single-operator tool.
 - **Not packaged for distribution.** Run it from the source tree.
 - **`app/api.py` uses the deprecated FastAPI `on_event` startup hook**, which
   emits two warnings. Harmless today; needs migrating to lifespan handlers.
@@ -402,7 +487,7 @@ app/
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      226 tests
+tests/                      317 tests
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots

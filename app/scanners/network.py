@@ -11,6 +11,11 @@ post-quantum key exchange group.
 
 That last check is the one that matters. TLS 1.3 with a classical group is
 still Shor-broken; the protocol version tells you almost nothing on its own.
+
+Every destination reaching this module has already been through
+``netpolicy.vet``: parsed, resolved, and checked address by address. We
+connect to the vetted literal address and pass the hostname only as SNI, so
+the destination cannot change between the check and the connection.
 """
 
 from __future__ import annotations
@@ -22,6 +27,8 @@ import socket
 import ssl
 from typing import Optional
 
+from .. import netpolicy
+from ..netpolicy import Destination, DestinationRefused, NetPolicy
 from ..models import ASSET_CERTIFICATE, ASSET_PROTOCOL, Evidence, Finding, TECH_NETWORK
 
 SCANNER = "network"
@@ -33,8 +40,22 @@ _VERSIONS = [
     ("TLSv1", getattr(ssl, "TLSVersion", None) and ssl.TLSVersion.TLSv1, "tls1.0"),
 ]
 
-# Hybrid post-quantum groups, in the names OpenSSL 3.5+ uses.
-PQ_GROUPS = ["X25519MLKEM768", "SecP256r1MLKEM768", "X25519Kyber768Draft00"]
+# Hybrid post-quantum groups we offer, in the names OpenSSL 3.5+ uses. These
+# are the standardised ML-KEM hybrids; the pre-standard Kyber draft groups are
+# deliberately not offered, because negotiating one would record an obsolete
+# identifier in the inventory as though it were a current posture.
+PQ_GROUPS = ["X25519MLKEM768", "SecP256r1MLKEM768"]
+
+# Draft groups we recognise if a server names one, so the finding can say the
+# endpoint is on a superseded identifier rather than reporting it as current.
+OBSOLETE_PQ_GROUPS = {
+    "X25519Kyber768Draft00": "pre-standard CRYSTALS-Kyber draft, superseded by "
+                             "X25519MLKEM768 (FIPS 203)",
+    "X25519Kyber512Draft00": "pre-standard CRYSTALS-Kyber draft, superseded by "
+                             "X25519MLKEM768 (FIPS 203)",
+    "P256Kyber768Draft00": "pre-standard CRYSTALS-Kyber draft, superseded by "
+                           "SecP256r1MLKEM768 (FIPS 203)",
+}
 
 
 def _base_context() -> ssl.SSLContext:
@@ -44,7 +65,7 @@ def _base_context() -> ssl.SSLContext:
     return ctx
 
 
-def _probe_version(host: str, port: int, version, timeout: float) -> Optional[dict]:
+def _probe_version(dest: Destination, version, timeout: float) -> Optional[dict]:
     """Try to complete a handshake pinned to one TLS version."""
     ctx = _base_context()
     try:
@@ -53,8 +74,8 @@ def _probe_version(host: str, port: int, version, timeout: float) -> Optional[di
     except (ValueError, AttributeError):
         return None
     try:
-        with socket.create_connection((host, port), timeout=timeout) as sock:
-            with ctx.wrap_socket(sock, server_hostname=host) as tls:
+        with netpolicy.connect(dest, timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=dest.host) as tls:
                 cipher = tls.cipher() or ("", "", 0)
                 return {
                     "version": tls.version(),
@@ -103,7 +124,7 @@ def openssl_bin() -> Optional[str]:
     return _OPENSSL_BIN
 
 
-def _probe_pq_group(host: str, port: int, timeout: float) -> tuple[Optional[bool], str]:
+def _probe_pq_group(dest: Destination, timeout: float) -> tuple[Optional[bool], str]:
     """Does this endpoint negotiate a hybrid post-quantum key exchange?
 
     Returns (supported, note) where ``supported`` is None when we could not
@@ -121,25 +142,30 @@ def _probe_pq_group(host: str, port: int, timeout: float) -> tuple[Optional[bool
             except (ValueError, AttributeError, ssl.SSLError):
                 continue
             try:
-                with socket.create_connection((host, port), timeout=timeout) as sock:
-                    with ctx.wrap_socket(sock, server_hostname=host):
+                with netpolicy.connect(dest, timeout) as sock:
+                    with ctx.wrap_socket(sock, server_hostname=dest.host):
                         return True, group
             except (ssl.SSLError, OSError):
                 continue
         return False, "no hybrid group accepted"
 
-    # Fallback: drive an OpenSSL 3.5+ CLI, which can offer the groups.
+    # Fallback: drive an OpenSSL 3.5+ CLI, which can offer the groups. The CLI
+    # is given the vetted literal address with the hostname carried separately
+    # as SNI, so it cannot re-resolve the name to somewhere we refused.
     binary = openssl_bin()
     if not binary:
         return None, ("not tested: no OpenSSL 3.5+ available locally to offer a "
                       "hybrid group")
 
     import subprocess
+    address = dest.addresses[0]
+    connect_arg = (f"[{address}]:{dest.port}" if ":" in address
+                   else f"{address}:{dest.port}")
     for group in PQ_GROUPS:
         try:
             proc = subprocess.run(
-                [binary, "s_client", "-connect", f"{host}:{port}",
-                 "-groups", group, "-brief"],
+                [binary, "s_client", "-connect", connect_arg,
+                 "-servername", dest.host, "-groups", group, "-brief"],
                 capture_output=True, text=True, timeout=timeout + 8,
                 stdin=subprocess.DEVNULL,
             )
@@ -186,16 +212,27 @@ def _cert_findings(der: bytes, endpoint: str) -> list[Finding]:
     )]
 
 
-def scan_endpoint(host: str, port: int = 443, timeout: float = 4.0) -> list[Finding]:
-    endpoint = f"{host}:{port}"
+def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
+    """Probe one vetted destination."""
+    endpoint = dest.label
     findings: list[Finding] = []
     accepted: list[str] = []
     best: Optional[dict] = None
 
+    # A destination reached only because the private-network relaxation was
+    # enabled is annotated on every finding it produces. An inventory that
+    # quietly mixes internet-facing and lab results is worse than one that
+    # refused, because the reader cannot tell which is which.
+    relaxation = (" Probed under CD_ALLOW_PRIVATE_TARGETS, which permits internal "
+                  "addresses; treat this as a lab observation."
+                  if dest.private_allowed else "")
+    probe_extra = {"probed_address": dest.addresses[0],
+                   "private_target": dest.private_allowed}
+
     for label, version, alg_key in _VERSIONS:
         if version is None:
             continue
-        res = _probe_version(host, port, version, timeout)
+        res = _probe_version(dest, version, timeout)
         if not res:
             continue
         accepted.append(label)
@@ -208,28 +245,40 @@ def scan_endpoint(host: str, port: int = 443, timeout: float = 4.0) -> list[Find
             title=f"{label} accepted",
             detail=("Deprecated by RFC 8996 and should be disabled." if legacy else
                     "Key exchange for this version is classical unless a hybrid "
-                    "post-quantum group is negotiated."),
+                    "post-quantum group is negotiated.") + relaxation,
             rule_id="net.tlsversion",
             evidence=[Evidence(location=endpoint, symbol=res["cipher"],
                                technique=TECH_NETWORK, confidence=0.99,
                                context=f"{label}, {res['cipher']}, {res['bits']} bits")],
             extra={"protocol_type": "tls", "version": label,
-                   "cipher_suites": [res["cipher"]] if res["cipher"] else []},
+                   "cipher_suites": [res["cipher"]] if res["cipher"] else [],
+                   **probe_extra},
         ))
 
     if not accepted:
         return [Finding(
             algorithm="unknown", asset_type=ASSET_PROTOCOL, scanner=SCANNER,
             title="No TLS handshake completed",
-            detail="The endpoint did not complete a handshake on any tested version.",
+            detail="The endpoint did not complete a handshake on any tested version."
+                   + relaxation,
             rule_id="net.unreachable",
             evidence=[Evidence(location=endpoint, technique=TECH_NETWORK,
                                confidence=0.9)],
+            extra=dict(probe_extra),
         )]
 
-    supports_pq, pq_note = _probe_pq_group(host, port, timeout)
+    supports_pq, pq_note = _probe_pq_group(dest, timeout)
 
-    if supports_pq is True:
+    obsolete = OBSOLETE_PQ_GROUPS.get(pq_note)
+    if supports_pq is True and obsolete:
+        # Negotiating a pre-standard draft group is not the same posture as
+        # negotiating the standardised one, and recording it as though it were
+        # would overstate the endpoint's readiness.
+        algorithm, title, confidence = "unknown", \
+            "Pre-standard post-quantum group negotiated", 0.9
+        detail = (f"Negotiated {pq_note}, a {obsolete}. This is not the standardised "
+                  f"hybrid group and should be migrated to X25519MLKEM768.")
+    elif supports_pq is True:
         algorithm, title, confidence = "x25519-ml-kem-768", \
             "Hybrid post-quantum key exchange negotiated", 0.97
         detail = (f"Negotiated {pq_note}. Traffic to this endpoint is already "
@@ -249,35 +298,52 @@ def scan_endpoint(host: str, port: int = 443, timeout: float = 4.0) -> list[Find
 
     findings.append(Finding(
         algorithm=algorithm, asset_type=ASSET_PROTOCOL, scanner=SCANNER,
-        title=title, detail=detail, rule_id="net.pqgroup",
+        title=title, detail=detail + relaxation, rule_id="net.pqgroup",
         evidence=[Evidence(location=endpoint, symbol=pq_note,
                            technique=TECH_NETWORK, confidence=confidence,
                            context=pq_note)],
-        extra={"protocol_type": "tls", "pq_supported": supports_pq},
+        extra={"protocol_type": "tls", "pq_supported": supports_pq,
+               "pq_group": pq_note if supports_pq else None,
+               "pq_group_obsolete": bool(obsolete), **probe_extra},
     ))
 
     if best and best.get("peercert_der"):
-        findings.extend(_cert_findings(best["peercert_der"], endpoint))
+        for finding in _cert_findings(best["peercert_der"], endpoint):
+            finding.extra.update(probe_extra)
+            findings.append(finding)
 
     return findings
 
 
-def scan(targets: list[str], timeout: float = 4.0) -> tuple[list[Finding], dict]:
-    """Probe a list of ``host`` or ``host:port`` targets."""
+def scan(targets: list[str], timeout: float = 4.0,
+         policy: Optional[NetPolicy] = None) -> tuple[list[Finding], dict]:
+    """Probe a list of operator-supplied destinations.
+
+    Every destination is vetted before a socket is opened. Refusals are
+    returned in the stats rather than raised, so one disallowed entry does not
+    discard the rest of the scan -- and so the operator is told about each one
+    instead of wondering why a host produced no findings.
+    """
+    policy = policy or NetPolicy.from_env()
+    accepted, refused = netpolicy.vet_all(targets, policy)
+
     findings: list[Finding] = []
     ok = 0
-    for raw in targets:
-        raw = raw.strip()
-        if not raw:
-            continue
-        if raw.startswith("https://"):
-            raw = raw[len("https://"):].rstrip("/")
-        host, _, port_s = raw.partition(":")
-        port = int(port_s) if port_s.isdigit() else 443
+    errors: list[dict[str, str]] = []
+    for dest in accepted:
         try:
-            found = scan_endpoint(host, port, timeout)
-            findings.extend(found)
+            findings.extend(scan_endpoint(dest, timeout))
             ok += 1
-        except Exception:
-            continue
-    return findings, {"endpoints_probed": ok}
+        except Exception as exc:
+            errors.append({"destination": dest.label, "error": str(exc)})
+
+    stats: dict = {
+        "endpoints_requested": len([t for t in targets if t and t.strip()]),
+        "endpoints_probed": ok,
+        "network_policy": policy.describe(),
+    }
+    if refused:
+        stats["endpoints_refused"] = refused
+    if errors:
+        stats["endpoint_errors"] = errors
+    return findings, stats

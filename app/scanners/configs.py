@@ -12,9 +12,10 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
-from .. import config
+from .. import config, fspolicy
+from ..fspolicy import FsPolicy
 from ..knowledge.rules_source import _norm_alg
 from ..models import ASSET_ALGORITHM, ASSET_PROTOCOL, Evidence, Finding, TECH_CONFIG
 
@@ -54,17 +55,24 @@ _DIRECTIVES = re.compile(
 )
 
 
-def iter_config_files(root: Path, max_files: int = 800) -> Iterator[tuple[Path, str]]:
+def iter_config_files(root: Path, max_files: int = 800,
+                      policy: Optional[FsPolicy] = None) -> Iterator[tuple[Path, str]]:
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in config.SKIP_DIRS]
+        if policy and policy.exhausted():
+            return
+        fspolicy.filter_dirnames(dirpath, dirnames, config.SKIP_DIRS, root, policy)
         for name in filenames:
+            if policy and not policy.count_entry():
+                return
             kind = CONFIG_FILES.get(name)
             if kind is None and Path(name).suffix.lower() in CONFIG_SUFFIXES:
                 kind = "generic"
             if kind is None:
                 continue
             p = Path(dirpath) / name
+            if policy and not fspolicy.readable(p, root, policy):
+                continue
             try:
                 if p.stat().st_size > 500_000:
                     continue
@@ -147,11 +155,12 @@ def scan_file(path: Path, root: Path, kind: str) -> list[Finding]:
     return findings
 
 
-def scan(root: str | Path, max_files: int = 800) -> tuple[list[Finding], dict]:
+def scan(root: str | Path, max_files: int = 800,
+         policy: Optional[FsPolicy] = None) -> tuple[list[Finding], dict]:
     root = Path(root).resolve()
     findings: list[Finding] = []
     n = 0
-    for path, kind in iter_config_files(root, max_files):
+    for path, kind in iter_config_files(root, max_files, policy):
         n += 1
         findings.extend(scan_file(path, root, kind))
     return findings, {"config_files_scanned": n}

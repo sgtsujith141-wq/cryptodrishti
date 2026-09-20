@@ -18,7 +18,8 @@ import warnings
 from pathlib import Path
 from typing import Iterator, Optional
 
-from .. import config
+from .. import config, fspolicy
+from ..fspolicy import FsPolicy
 from ..models import (
     ASSET_CERTIFICATE, ASSET_MATERIAL, Evidence, Finding, TECH_CERT_PARSE,
 )
@@ -66,16 +67,26 @@ def _import_x509():
         return None
 
 
-def iter_cert_files(root: Path, max_files: int = 4000) -> Iterator[Path]:
+def iter_cert_files(root: Path, max_files: int = 4000,
+                    policy: Optional[FsPolicy] = None) -> Iterator[Path]:
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d in ("certs", "pki", "ssl", "tls")
-                       or d not in config.SKIP_DIRS]
+        if policy and policy.exhausted():
+            return
+        # Certificate directories are worth descending into even when the
+        # generic skip list would prune them.
+        always = {d for d in dirnames if d in ("certs", "pki", "ssl", "tls")}
+        fspolicy.filter_dirnames(dirpath, dirnames, config.SKIP_DIRS - always,
+                                 root, policy)
         for name in filenames:
+            if policy and not policy.count_entry():
+                return
             low = name.lower()
             p = Path(dirpath) / name
             if (Path(low).suffix in CERT_EXTS or Path(low).suffix in KEY_EXTS
                     or low in KEY_NAMES):
+                if policy and not fspolicy.readable(p, root, policy):
+                    continue
                 try:
                     if p.stat().st_size > 4_000_000:
                         continue
@@ -314,7 +325,8 @@ def scan_file(path: Path, root: Path, mods) -> list[Finding]:
     return findings
 
 
-def scan(root: str | Path, max_files: int = 4000) -> tuple[list[Finding], dict]:
+def scan(root: str | Path, max_files: int = 4000,
+         policy: Optional[FsPolicy] = None) -> tuple[list[Finding], dict]:
     mods = _import_x509()
     if mods is None:
         return [], {"certificates_scanned": 0,
@@ -323,7 +335,7 @@ def scan(root: str | Path, max_files: int = 4000) -> tuple[list[Finding], dict]:
     root = Path(root).resolve()
     findings: list[Finding] = []
     n = 0
-    for path in iter_cert_files(root, max_files):
+    for path in iter_cert_files(root, max_files, policy):
         n += 1
         findings.extend(scan_file(path, root, mods))
     return findings, {"certificate_files_scanned": n}

@@ -102,17 +102,33 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 
 ## R8 — Security of the tool itself
 
-| ID | Requirement | Baseline |
-|---|---|---|
-| R8.1 | SSRF-resistant destination validation | **GAP (S1)** |
-| R8.2 | Correct IPv4 / IPv6 / URL parsing | **DEFECT (S5)** |
-| R8.3 | Explicit authorized destinations | **GAP** |
-| R8.4 | Filesystem boundaries and symlink handling | **GAP (S3, S8)** |
-| R8.5 | AuthN/AuthZ when not local-only | **GAP (S2)** |
-| R8.6 | Secure localhost-only default | PARTIAL — default is correct, nothing enforces it |
-| R8.7 | Bounded scanning (concurrency, memory, files, endpoints, time) | PARTIAL — files/bytes bounded; concurrency, endpoints, wall-clock **not** |
-| R8.8 | Safe handling of malformed input and incomplete scans | PARTIAL — sensors isolate errors; results not surfaced |
-| R8.9 | Security failures visible to the operator | **GAP** |
+Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
+`tests/test_security.py` that fails against the code at `90f4da3`.
+
+| ID | Requirement | Implementation | Tests | Baseline | Now |
+|---|---|---|---|---|---|
+| R8.1 | SSRF-resistant destination validation | `app/netpolicy.py` — resolve, vet every returned address by property, connect to the vetted literal | 24 | GAP (S1) | **DONE** |
+| R8.2 | Correct IPv4 / IPv6 / URL parsing | `netpolicy.parse_destination` — brackets, bare v6, schemes, trailing dot | 18 | DEFECT (S5) | **DONE** |
+| R8.3 | Explicit authorized destinations | `CD_ALLOWED_HOSTS` allowlist, `CD_ALLOWED_PORTS`, `CD_MAX_ENDPOINTS` | 3 | GAP | **DONE** |
+| R8.4 | Filesystem boundaries and symlink handling | `app/fspolicy.py` — root boundary, symlink escape, credential-store denylist, synthetic filesystems | 10 | GAP (S3, S8) | **DONE** |
+| R8.5 | AuthN/AuthZ when not local-only | `app/auth.py` + middleware — bearer, custom header or cookie | 8 | GAP (S2) | **DONE** |
+| R8.6 | Secure localhost-only default | `auth.check_binding` — the server **refuses to start** on a non-loopback bind with no token | 6 | PARTIAL | **DONE** |
+| R8.7 | Bounded scanning | scan semaphore, wall-clock budget, entry budget, endpoint cap, job eviction | 5 | PARTIAL | **DONE** |
+| R8.8 | Safe handling of malformed input and incomplete scans | schema bounds, per-sensor isolation, clean deadline stop, `stats["complete"]` | 4 | PARTIAL | **DONE** |
+| R8.9 | Security failures visible to the operator | `_scan_warnings` on every status and scan payload; `/api/meta` publishes the active policy | 3 | GAP | **DONE** |
+
+### What M1 deliberately did not do
+
+- **Rate limiting.** A single-operator local tool with a concurrency cap does
+  not need it, and adding one would imply a multi-tenant threat model we do
+  not have.
+- **TLS on the console itself.** Loopback by default; behind a reverse proxy
+  when it is not. Terminating TLS here would be a second, worse copy of what
+  the proxy already does.
+- **Sandboxing the sensors.** They are pure-Python readers with no `exec` and
+  one subprocess call (an OpenSSL CLI given a vetted literal address). The
+  boundary is the filesystem policy, not a sandbox, and that is stated rather
+  than implied.
 
 ## R9 — Measurement
 
@@ -142,9 +158,14 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 
 ## Summary at baseline
 
-| Status | Count |
-|---|---|
-| DONE | 26 |
-| PARTIAL | 25 |
-| GAP | 17 |
-| DEFECT | 5 |
+| Status | At 90f4da3 | After M1 |
+|---|---|---|
+| DONE | 26 | 35 |
+| PARTIAL | 25 | 22 |
+| GAP | 17 | 12 |
+| DEFECT | 5 | 4 |
+
+M1 closed all nine R8 rows and one detection defect (D7, the obsolete Kyber
+draft group, which lived in the network sensor and was corrected while that
+file was being reworked for the destination policy). Test count rose from
+226 to 317.

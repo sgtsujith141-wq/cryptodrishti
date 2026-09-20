@@ -11,29 +11,63 @@ except when a scan explicitly probes a host the operator named.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 import traceback
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response,
 )
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from . import cbom, config, orchestrator, report, store
+from . import auth, cbom, config, fspolicy, netpolicy, orchestrator, report, store
 from .engine import recommend, risk
+from .fspolicy import PathRefused
 from .knowledge import algorithms as K
 from .models import ScanResult, ScanTarget
+
+log = logging.getLogger(__name__)
 
 app = FastAPI(title=config.PRODUCT_NAME, version=config.PRODUCT_VERSION)
 
 # In-flight scan progress, keyed by scan id.
 _JOBS: dict[str, dict[str, Any]] = {}
 _JOBS_LOCK = threading.Lock()
+
+# Scans that may run at once. Each is a thread pool over a filesystem walk;
+# without this, N requests is N walks and the machine running the console is
+# the thing that falls over.
+_SCAN_SLOTS = threading.Semaphore(config.MAX_CONCURRENT_SCANS)
+
+
+# --------------------------------------------------------------------------
+# Access control
+# --------------------------------------------------------------------------
+
+@app.middleware("http")
+async def _require_token(request: Request, call_next):
+    """Gate every API route when an access token is configured.
+
+    Silent when no token is set, which is the single-operator localhost case.
+    ``run.py`` refuses to start on a non-loopback bind without one, so "no
+    token" and "not reachable from the network" stay the same condition.
+    """
+    path = request.url.path
+    if auth.configured_token() and path.startswith("/api") and not auth.path_is_open(path):
+        supplied = auth.token_from_request(
+            request.headers, request.cookies, request.query_params)
+        if not auth.token_matches(supplied):
+            return JSONResponse(
+                {"detail": "Access token required. Open the console once as "
+                           "/?token=YOUR_TOKEN, or send an Authorization: Bearer header."},
+                status_code=401)
+    return await call_next(request)
 
 
 # --------------------------------------------------------------------------
@@ -42,11 +76,13 @@ _JOBS_LOCK = threading.Lock()
 
 class ScanRequest(BaseModel):
     path: str
-    label: str = ""
+    label: str = Field("", max_length=200)
     profile: str = recommend.PROFILE_GENERAL
-    max_files: int = 0
+    max_files: int = Field(0, ge=0, le=config.MAX_FILES)
     sensors: list[str] | None = None
-    endpoints: list[str] = []
+    # Bounded at the schema so an oversized list is rejected before it reaches
+    # the policy layer; the policy then vets each entry that survives.
+    endpoints: list[str] = Field(default_factory=list, max_length=64)
 
 
 class QDayRequest(BaseModel):
@@ -68,15 +104,23 @@ class QDayRequest(BaseModel):
 def _set_job(scan_id: str, **fields: Any) -> None:
     with _JOBS_LOCK:
         _JOBS.setdefault(scan_id, {}).update(fields)
+        # Evict the oldest finished jobs. Without this the map is a slow leak
+        # for a process that is expected to stay up across a whole working day.
+        if len(_JOBS) > config.MAX_TRACKED_JOBS:
+            finished = [k for k, v in _JOBS.items()
+                        if v.get("state") in ("done", "error", "refused")]
+            for k in finished[:len(_JOBS) - config.MAX_TRACKED_JOBS]:
+                _JOBS.pop(k, None)
 
 
 def _run_scan(scan_id: str, req: ScanRequest) -> None:
+    acquired = _SCAN_SLOTS.acquire(timeout=1.0)
+    if not acquired:
+        _set_job(scan_id, state="refused", progress=0, phase="Refused",
+                 error=(f"{config.MAX_CONCURRENT_SCANS} scans are already running. "
+                        f"Wait for one to finish, or raise CD_MAX_CONCURRENT_SCANS."))
+        return
     try:
-        root = Path(req.path).expanduser().resolve()
-        if not root.exists():
-            _set_job(scan_id, state="error", error=f"Path not found: {root}")
-            return
-
         _set_job(scan_id, state="running", phase="Starting sensors", progress=3,
                  detail="", tick=0)
 
@@ -90,7 +134,7 @@ def _run_scan(scan_id: str, req: ScanRequest) -> None:
                      tick=counter["n"])
 
         result = orchestrator.scan_target(
-            root,
+            req.path,
             label=req.label,
             endpoints=req.endpoints,
             sensors=req.sensors,
@@ -105,18 +149,58 @@ def _run_scan(scan_id: str, req: ScanRequest) -> None:
 
         _set_job(scan_id, state="done", progress=100, phase="Complete", detail="",
                  tick=counter["n"] + 1,
-                 findings=len(result.findings), duration=round(result.duration, 2))
-    except Exception as exc:                      # surface the real error
-        _set_job(scan_id, state="error", error=str(exc),
-                 trace=traceback.format_exc()[-2000:])
+                 findings=len(result.findings), duration=round(result.duration, 2),
+                 complete=result.stats.get("complete", True),
+                 warnings=_scan_warnings(result.stats))
+    except PathRefused as exc:
+        # A policy refusal is the operator's problem to fix, so it is reported
+        # verbatim rather than flattened into a generic error.
+        _set_job(scan_id, state="error", error=str(exc), refused=True)
+    except Exception as exc:
+        # The operator gets the error class, the message and a reference; the
+        # traceback goes to the server log. Shipping internal paths and frames
+        # to an HTTP client is an information leak with no operational value.
+        ref = uuid.uuid4().hex[:8]
+        log.exception("scan %s failed (ref %s)", scan_id, ref)
+        _set_job(scan_id, state="error", error=f"{type(exc).__name__}: {exc}",
+                 error_ref=ref,
+                 hint="Full traceback is in the server log under this reference.")
+    finally:
+        _SCAN_SLOTS.release()
+
+
+def _scan_warnings(stats: dict[str, Any]) -> list[str]:
+    """Everything the operator must know before trusting this inventory.
+
+    A scan that silently declined to read part of the tree, skipped a sensor or
+    refused an endpoint has produced a partial estate. Reporting it as complete
+    is the most damaging thing this tool could do, so the warnings travel with
+    the result rather than being left in the stats for someone to find.
+    """
+    out: list[str] = list(stats.get("incomplete_reasons") or [])
+    for name, message in (stats.get("sensor_errors") or {}).items():
+        out.append(f"sensor '{name}' failed: {message}")
+    for refusal in (stats.get("endpoints_refused") or []):
+        out.append(f"endpoint refused: {refusal['destination']} — {refusal['reason']}")
+    fs = stats.get("filesystem_policy") or {}
+    for reason, count in (fs.get("skipped") or {}).items():
+        out.append(f"{count} path(s) skipped: {reason}")
+    return out
 
 
 @app.post("/api/scan")
 def start_scan(req: ScanRequest) -> dict[str, Any]:
-    result = ScanResult(target=ScanTarget(kind="repository", value=req.path))
+    # Vet the root synchronously so a bad target is a 400 the operator sees
+    # immediately, not a background job that fails a second later.
+    try:
+        root = fspolicy.resolve_root(req.path)
+    except PathRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    result = ScanResult(target=ScanTarget(kind="repository", value=str(root)))
     scan_id = result.id
     _set_job(scan_id, state="queued", progress=0, phase="Queued",
-             label=req.label or Path(req.path).name)
+             label=req.label or root.name)
     threading.Thread(target=_run_scan, args=(scan_id, req), daemon=True).start()
     return {"scan_id": scan_id}
 
@@ -185,12 +269,18 @@ def scan_payload(scan_id: str, min_score: float = 0.0, quantum_class: str = "",
         return True
 
     filtered = [f for f in findings if keep(f)]
+    stats = meta_row.get("stats") or {}
     return {
         "scan": meta_row,
         "summary": risk.portfolio_summary(findings),
         "filtered_summary": risk.portfolio_summary(filtered),
         "findings": [f.to_dict() for f in filtered],
         "severity_of": {f.id: risk.severity(f.risk_score) for f in filtered},
+        # Completeness travels with every view of the scan. An inventory the
+        # reader believes is complete when it is not is the worst output this
+        # tool can produce, so it is never something you have to go looking for.
+        "complete": stats.get("complete", True),
+        "warnings": _scan_warnings(stats),
     }
 
 
@@ -346,8 +436,14 @@ def _describe(d: Path) -> dict[str, Any]:
 
 
 @app.get("/api/browse")
-def browse(path: str = Query("")) -> dict[str, Any]:
-    """List the directories inside `path`, for the console's folder picker."""
+def browse(path: str = Query("", max_length=4096)) -> dict[str, Any]:
+    """List the directories inside `path`, for the console's folder picker.
+
+    This walks the operator's own filesystem, which is exactly what a local
+    tool should do and exactly what must not be reachable from the network.
+    The access-control middleware is what makes that distinction; here we only
+    decline to enumerate synthetic filesystems, which would be meaningless.
+    """
     base = Path(path).expanduser() if path else Path.home()
     try:
         base = base.resolve()
@@ -357,10 +453,15 @@ def browse(path: str = Query("")) -> dict[str, Any]:
         raise HTTPException(404, f"No such directory: {base}")
     if not base.is_dir():
         base = base.parent
+    if not fspolicy.should_traverse(str(base)):
+        raise HTTPException(
+            400, f"{base} is a synthetic or system filesystem this tool will not walk.")
 
     try:
         kids = sorted(
-            (e for e in base.iterdir() if e.is_dir() and not e.name.startswith(".")),
+            (e for e in base.iterdir()
+             if e.is_dir() and not e.name.startswith(".")
+             and fspolicy.should_traverse(str(e))),
             key=lambda e: e.name.lower(),
         )[:250]
     except PermissionError:
@@ -416,6 +517,16 @@ def meta() -> dict[str, Any]:
         "sensitivities": config.SHELF_LIFE_BY_SENSITIVITY,
         "suggested_targets": _suggested_targets(),
         "sensors": {name: label for name, (_, _, label) in orchestrator.SENSORS.items()},
+        # The operator should be able to read the rules the tool is running
+        # under without going to the source or the environment.
+        "policy": {
+            "network": netpolicy.NetPolicy.from_env().describe(),
+            "scan_time_budget_seconds": config.SCAN_TIME_BUDGET,
+            "max_concurrent_scans": config.MAX_CONCURRENT_SCANS,
+            "max_files": config.MAX_FILES,
+            "max_entries": config.MAX_ENTRIES,
+            "access_control": "token" if auth.configured_token() else "none (localhost only)",
+        },
     }
 
 
@@ -442,8 +553,15 @@ def _suggested_targets() -> list[dict[str, str]]:
 # Static console
 # --------------------------------------------------------------------------
 
+@app.get("/healthz")
+def healthz() -> dict[str, Any]:
+    """Liveness only. Carries no estate data, so it stays open."""
+    return {"status": "ok", "product": config.PRODUCT_NAME,
+            "version": config.PRODUCT_VERSION}
+
+
 @app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
+def index(token: str = Query("")) -> HTMLResponse:
     """Serve the console with the latest scan already inlined.
 
     Without this the page paints an empty shell -- blank dropdowns, an empty
@@ -451,6 +569,22 @@ def index() -> HTMLResponse:
     first thing anyone watching sees. Inlining the data the first render needs
     means the console opens fully populated on the first frame.
     """
+    # When a token is configured the console has no way to send one, so the
+    # index exchanges ?token= for a strict same-site cookie. Deliberately
+    # modest: this is an access control for a single-operator tool, not a
+    # user system, and it is documented as such.
+    expected = auth.configured_token()
+    if expected and not auth.token_matches(token):
+        return HTMLResponse(
+            "<!doctype html><meta charset=utf-8>"
+            "<title>Access token required</title>"
+            "<body style='font:15px/1.6 system-ui;margin:4rem auto;max-width:34rem'>"
+            "<h1>Access token required</h1>"
+            "<p>This console is bound beyond localhost, so it is protected by "
+            "the token in <code>CD_TOKEN</code>.</p>"
+            "<p>Open it as <code>/?token=YOUR_TOKEN</code>.</p>",
+            status_code=401)
+
     html = (config.WEB_DIR / "index.html").read_text(encoding="utf-8")
 
     preload: dict[str, Any] = {"meta": meta()}
@@ -465,7 +599,11 @@ def index() -> HTMLResponse:
     tag = f'<script>window.__PRELOAD__ = {blob};</script>'
     html = html.replace('<script src="/static/app.js"></script>',
                         tag + '\n<script src="/static/app.js"></script>')
-    return HTMLResponse(html)
+    response = HTMLResponse(html)
+    if expected:
+        response.set_cookie(auth.COOKIE_NAME, expected, httponly=True,
+                            samesite="strict", max_age=12 * 3600, path="/")
+    return response
 
 
 app.mount("/static", StaticFiles(directory=str(config.WEB_DIR)), name="static")
