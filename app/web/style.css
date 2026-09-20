@@ -566,6 +566,28 @@ td.ctx { font-size: 11.5px; color: var(--ink-3); }
 .foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
         margin-top: 1.5rem; font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); }
 
+/* Assurance chips.
+   Deliberately typographic rather than coloured like the quantum classes: a
+   reader must not mistake "observed" for a severity. The scale runs from faint
+   (capability — proves least) to solid (observed — proves most), so the visual
+   weight matches how much the evidence actually establishes. */
+.led-asr, .asr-chip {
+  display: inline-block; margin-left: .45rem; padding: 0 .3rem;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  text-transform: uppercase; border: 1px solid currentColor; border-radius: 2px;
+  vertical-align: 1px; white-space: nowrap;
+}
+.asr-capability { color: var(--ink-4); opacity: .75; }
+.asr-declared   { color: var(--ink-3); }
+.asr-used       { color: var(--ink-2); }
+.asr-observed   { color: var(--ink);   border-width: 1.5px; }
+
+/* A recommendation that names no target must not look like one that does. */
+.led-to.led-unresolved { color: var(--ink-4); font-style: italic; }
+.led-to.led-unresolved::before { content: "? "; }
+
+@media (max-width: 720px) { .led-asr { display: none; } }
+
 .cls { display: inline-flex; align-items: center; gap: .4rem; }
 .cls i { width: 8px; height: 8px; flex: none; }
 .cls.shor-broken { color: var(--i-broken); } .cls.grover-weakened { color: var(--i-weakened); }

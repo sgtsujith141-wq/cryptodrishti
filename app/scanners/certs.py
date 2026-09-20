@@ -20,8 +20,10 @@ from typing import Iterator, Optional
 
 from .. import config, fspolicy
 from ..fspolicy import FsPolicy
+from ..knowledge import purposes as P
 from ..models import (
-    ASSET_CERTIFICATE, ASSET_MATERIAL, Evidence, Finding, TECH_CERT_PARSE,
+    ASSET_CERTIFICATE, ASSET_MATERIAL, ASSURANCE_OBSERVED,
+    Evidence, Finding, TECH_CERT_PARSE,
 )
 
 SCANNER = "certificate"
@@ -123,6 +125,58 @@ def oid_to_algorithm(oid: str) -> Optional[tuple[str, str]]:
     if oid in _SLH_DSA_ARC:
         return "slh-dsa-128s", "SLH-DSA"
     return None
+
+
+def key_usage_purpose(cert) -> tuple[str, str]:
+    """Resolve what a certificate's subject key is for, from its KeyUsage.
+
+    This is the one place where a certificate tells you, in a field designed
+    for the question, what the key inside it does. ``keyEncipherment`` and
+    ``keyAgreement`` mean key establishment; ``digitalSignature``,
+    ``keyCertSign`` and ``cRLSign`` mean signing. RSA certificates are the
+    reason this matters: without KeyUsage there is nothing in an RSA
+    certificate that distinguishes a TLS server key used for key transport
+    from a CA key used for signing, and the two need different replacements.
+
+    A certificate asserting *both* is genuinely dual-use, which is a real and
+    common configuration, and is reported as unresolved rather than as
+    whichever we happened to check first.
+    """
+    try:
+        from cryptography import x509
+        ku = cert.extensions.get_extension_for_class(x509.KeyUsage).value
+    except Exception:
+        return P.UNKNOWN, ("the certificate carries no KeyUsage extension, so it "
+                           "does not state what its key is for")
+
+    signing = bool(getattr(ku, "digital_signature", False)
+                   or getattr(ku, "key_cert_sign", False)
+                   or getattr(ku, "crl_sign", False)
+                   or getattr(ku, "content_commitment", False))
+    establishment = bool(getattr(ku, "key_encipherment", False)
+                         or getattr(ku, "key_agreement", False)
+                         or getattr(ku, "data_encipherment", False))
+
+    flags = [n for n, v in (
+        ("digitalSignature", getattr(ku, "digital_signature", False)),
+        ("contentCommitment", getattr(ku, "content_commitment", False)),
+        ("keyEncipherment", getattr(ku, "key_encipherment", False)),
+        ("dataEncipherment", getattr(ku, "data_encipherment", False)),
+        ("keyAgreement", getattr(ku, "key_agreement", False)),
+        ("keyCertSign", getattr(ku, "key_cert_sign", False)),
+        ("cRLSign", getattr(ku, "crl_sign", False)),
+    ) if v]
+    named = ", ".join(flags) or "none set"
+
+    if signing and establishment:
+        return P.UNKNOWN, (f"KeyUsage asserts both signing and key establishment "
+                           f"({named}); the key is dual-use, so a single "
+                           f"replacement cannot be chosen for it")
+    if signing:
+        return P.SIGNATURE, f"KeyUsage asserts {named}"
+    if establishment:
+        return P.KEY_ESTABLISHMENT, f"KeyUsage asserts {named}"
+    return P.UNKNOWN, f"KeyUsage sets no usage this tool can interpret ({named})"
 
 
 def _key_details(pubkey, rsa, ec, dsa, ed25519) -> tuple[str, Optional[int]]:
@@ -244,22 +298,40 @@ def _parse_certificate(der_or_pem: bytes, rel: str, mods) -> list[Finding]:
     if problems:
         detail += " Issues: " + "; ".join(problems) + "."
 
+    key_purpose, key_purpose_why = key_usage_purpose(cert)
+    if key_purpose == P.UNKNOWN:
+        detail += (" The key's purpose is not resolved: " + key_purpose_why + ".")
+
     ev = Evidence(
         location=rel, symbol=sig_name, technique=TECH_CERT_PARSE, confidence=0.98,
         context=f"{key_alg} key, {sig_name} signature, expires {not_after.date()}",
         snippet=f"subject={subject[:120]}",
+        assurance=ASSURANCE_OBSERVED,
     )
 
     out = [Finding(
         algorithm=key_alg, asset_type=ASSET_CERTIFICATE, scanner=SCANNER,
         title="X.509 certificate", detail=detail, rule_id="cert.x509",
         key_size=key_bits, evidence=[ev],
+        purpose=key_purpose, purpose_evidence=key_purpose_why,
         extra={
             "subject": subject[:200], "issuer": issuer[:200],
             "not_before": str(not_before.date()), "not_after": str(not_after.date()),
             "signature_algorithm": sig_name, "expired": expired,
             "remaining_years": round(remaining_years, 2),
+            # `subject == issuer` is an observation about two name fields. It is
+            # not a verified self-signature, and it is not a trust decision.
+            "self_issued": subject == issuer,
             "self_signed": subject == issuer,
+            # Stated on every certificate finding so no reader has to infer it.
+            # Parsing a certificate establishes what it contains, never that it
+            # is trusted: no chain was built, no CA store consulted, no
+            # revocation checked, no name matched against a host.
+            "trust_verified": False,
+            "trust_note": ("Parsed from disk. Chain building, CA trust, revocation "
+                           "and name matching were not attempted, so this is an "
+                           "observation of the certificate's contents only."),
+            "key_usage_purpose": key_purpose,
             "problems": problems, "format": "X.509",
         },
     )]
@@ -272,10 +344,14 @@ def _parse_certificate(der_or_pem: bytes, rel: str, mods) -> list[Finding]:
             title="Certificate signature algorithm",
             detail=f"This certificate was signed using {sig_name}.",
             rule_id="cert.sigalg",
+            purpose=P.SIGNATURE,
+            purpose_evidence=("this algorithm produced the signature over the "
+                              "certificate, which is a signing operation by "
+                              "definition"),
             evidence=[Evidence(location=rel, symbol=sig_name,
                                technique=TECH_CERT_PARSE, confidence=0.98,
-                               context=sig_name)],
-            extra={"format": "X.509"},
+                               context=sig_name, assurance=ASSURANCE_OBSERVED)],
+            extra={"format": "X.509", "trust_verified": False},
         ))
     if sig_digest in ("sha1", "md5"):
         out.append(Finding(
@@ -284,9 +360,12 @@ def _parse_certificate(der_or_pem: bytes, rel: str, mods) -> list[Finding]:
             detail=("A collision-broken digest in a certificate signature is a "
                     "present-tense forgery risk, independent of quantum computing."),
             rule_id="cert.weakdigest",
+            purpose=P.HASHING,
+            purpose_evidence="the digest used inside the certificate signature",
             evidence=[Evidence(location=rel, symbol=sig_name,
-                               technique=TECH_CERT_PARSE, confidence=0.98)],
-            extra={"format": "X.509"},
+                               technique=TECH_CERT_PARSE, confidence=0.98,
+                               assurance=ASSURANCE_OBSERVED)],
+            extra={"format": "X.509", "trust_verified": False},
         ))
     return out
 
@@ -317,8 +396,11 @@ def scan_file(path: Path, root: Path, mods) -> list[Finding]:
             detail=("Private key material on disk. Every such key is a migration "
                     "unit: it must be regenerated, not merely reconfigured."),
             rule_id="cert.privatekey",
+            purpose_evidence=("a private key file does not state what the key is "
+                              "used for"),
             evidence=[Evidence(location=rel, symbol=label,
-                               technique=TECH_CERT_PARSE, confidence=0.95)],
+                               technique=TECH_CERT_PARSE, confidence=0.95,
+                               assurance=ASSURANCE_OBSERVED)],
             extra={"material_type": "private-key", "format": "PEM"},
         ))
 

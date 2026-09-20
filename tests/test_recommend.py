@@ -14,6 +14,7 @@ from app.engine.recommend import (
     PROFILE_LONG_LIVED, recommend, recommend_all,
 )
 from app.knowledge import algorithms as K
+from app.knowledge import purposes as P
 
 from conftest import make_finding
 
@@ -40,9 +41,16 @@ def test_constrained_profile_picks_the_smallest_standardised_parameter_set():
     assert rec.target == "ml-kem-512"
 
 
-def test_rsa_key_transport_is_routed_to_a_kem():
-    rec = recommend(make_finding("rsa-2048"), PROFILE_GENERAL)
+def test_rsa_resolved_to_key_transport_is_routed_to_a_kem():
+    """Positive case: purpose established, so a concrete target is named."""
+    rec = recommend(
+        make_finding("rsa-2048", purpose=P.KEY_ESTABLISHMENT,
+                     purpose_evidence="RSA-OAEP padding at the call site"),
+        PROFILE_GENERAL)
+    assert rec.unresolved is False
+    assert rec.purpose == P.KEY_ESTABLISHMENT
     assert K.get(rec.target).quantum_class in (K.SAFE, K.HYBRID)
+    assert K.get(rec.target).primitive in (K.PRIM_KEM, K.PRIM_KEY_AGREE)
 
 
 # --------------------------------------------------------------------------
@@ -172,14 +180,85 @@ def test_recommend_all_attaches_a_recommendation_to_every_finding():
     assert all("action" in f.recommendation for f in findings)
 
 
-def test_rsa_is_modelled_as_key_transport_not_signing():
-    """A documented limitation, pinned so it cannot change silently.
+# --------------------------------------------------------------------------
+# RSA purpose: the defect this model exists to prevent
+#
+# RSA signs and RSA transports keys. The replacements are ML-DSA and ML-KEM,
+# which are not interchangeable in either direction. An earlier version gave
+# RSA the CycloneDX `pke` primitive and routed every RSA finding to the
+# key-establishment branch, so every RSA *signing* site was told to adopt a
+# KEM -- advice that cannot be implemented.
+# --------------------------------------------------------------------------
 
-    The registry assigns RSA the `pke` primitive, so an RSA *signing* call site
-    is routed to the key-establishment branch and recommended a KEM rather than
-    ML-DSA. Correct for RSA key transport, wrong for RSA signatures -- see the
-    README's Known limitations.
-    """
-    assert K.get("rsa-2048").primitive == K.PRIM_PKE
+def test_rsa_resolved_to_signing_gets_a_signature_scheme_not_a_kem():
+    """The defect, inverted into a guard."""
+    rec = recommend(
+        make_finding("rsa-2048", purpose=P.SIGNATURE,
+                     purpose_evidence="RSA-PSS padding at the call site"),
+        PROFILE_GENERAL)
+    target = K.get(rec.target)
+    assert target.primitive == K.PRIM_SIGNATURE, "a signing site must not get a KEM"
+    assert rec.target == "ml-dsa-65"
+    assert target.primitive != K.PRIM_KEM
+
+
+def test_rsa_signing_and_rsa_key_transport_get_different_targets():
+    """Same algorithm, same key size, two purposes, two answers."""
+    signing = recommend(make_finding("rsa-2048", purpose=P.SIGNATURE), PROFILE_GENERAL)
+    transport = recommend(make_finding("rsa-2048", purpose=P.KEY_ESTABLISHMENT),
+                          PROFILE_GENERAL)
+    assert signing.target != transport.target
+    assert K.get(signing.target).primitive == K.PRIM_SIGNATURE
+    assert K.get(transport.target).primitive in (K.PRIM_KEM, K.PRIM_KEY_AGREE)
+
+
+def test_rsa_with_no_resolved_purpose_is_left_unresolved():
+    """Negative case: the evidence did not settle it, so nothing is invented."""
     rec = recommend(make_finding("rsa-2048"), PROFILE_GENERAL)
-    assert rec.target == "x25519-ml-kem-768"
+    assert rec.unresolved is True
+    assert rec.target == "", "no target may be named when the purpose is unknown"
+    assert rec.purpose == P.UNKNOWN
+    assert "purpose" in rec.target_name.lower()
+    assert "purpose" in rec.rationale.lower()
+    assert rec.confidence < 0.6
+
+
+def test_ambiguous_rsa_names_what_evidence_would_resolve_it():
+    """An unresolved answer must still be actionable."""
+    rec = recommend(make_finding("rsa-2048"), PROFILE_GENERAL)
+    action = rec.action.lower()
+    assert "padding" in action or "keyusage" in action or "sign" in action
+    assert rec.validate_before
+
+
+def test_key_generation_does_not_imply_a_purpose():
+    """`rsa.GenerateKey` says a key exists, not what it will do."""
+    rec = recommend(
+        make_finding("rsa-2048", rule_id="go.rsa.keygen"), PROFILE_GENERAL)
+    assert rec.unresolved is True
+
+
+@pytest.mark.parametrize("key", ["ecdsa-p-256", "ed25519", "dsa"])
+def test_unambiguous_signature_algorithms_need_no_resolved_purpose(key):
+    """ECDSA only ever signs, so the algorithm settles it and no guess occurs."""
+    rec = recommend(make_finding(key), PROFILE_GENERAL)
+    assert rec.unresolved is False
+    assert rec.purpose == P.SIGNATURE
+    assert K.get(rec.target).primitive == K.PRIM_SIGNATURE
+
+
+@pytest.mark.parametrize("key", ["ecdh", "dh", "x25519", "x448"])
+def test_unambiguous_key_agreement_needs_no_resolved_purpose(key):
+    rec = recommend(make_finding(key), PROFILE_GENERAL)
+    assert rec.unresolved is False
+    assert rec.purpose == P.KEY_ESTABLISHMENT
+
+
+def test_every_recommendation_records_how_the_purpose_was_reached():
+    """A target the reader cannot audit is a target they must take on trust."""
+    resolved = recommend(make_finding("rsa-2048", purpose=P.SIGNATURE,
+                                      purpose_evidence="RSA-PSS at the call site"),
+                         PROFILE_GENERAL)
+    assert resolved.purpose_evidence
+    implied = recommend(make_finding("ecdh"), PROFILE_GENERAL)
+    assert "implied by the algorithm" in implied.purpose_evidence

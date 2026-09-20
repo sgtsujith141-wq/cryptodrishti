@@ -1,0 +1,3 @@
+# A dependency manifest. Declares that pycryptodome is linked and therefore
+# that RSA is reachable -- it does NOT show that any code calls RSA.
+pycryptodome==3.19.0

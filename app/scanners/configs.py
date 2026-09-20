@@ -17,7 +17,12 @@ from typing import Iterator, Optional
 from .. import config, fspolicy
 from ..fspolicy import FsPolicy
 from ..knowledge.rules_source import _norm_alg
-from ..models import ASSET_ALGORITHM, ASSET_PROTOCOL, Evidence, Finding, TECH_CONFIG
+from ..knowledge import algorithms as K
+from ..knowledge import purposes as P
+from ..models import (
+    ASSET_ALGORITHM, ASSET_PROTOCOL, ASSURANCE_DECLARED,
+    Evidence, Finding, TECH_CONFIG,
+)
 
 SCANNER = "config"
 
@@ -125,9 +130,13 @@ def scan_file(path: Path, root: Path, kind: str) -> list[Finding]:
                             "Enabled here. The negotiated key exchange group, not the "
                             "version, determines quantum exposure."),
                     rule_id="cfg.protocol",
+                    purpose=P.TRANSPORT,
+                    purpose_evidence="a protocol version named in a configuration "
+                                     "directive",
                     evidence=[Evidence(location=rel, line=line_no, symbol=directive,
                                        snippet=value[:180], technique=TECH_CONFIG,
-                                       confidence=0.9, context=token)],
+                                       confidence=0.9, context=token,
+                                       assurance=ASSURANCE_DECLARED)],
                     extra={"protocol_type": "tls", "version": token},
                 ))
 
@@ -143,13 +152,18 @@ def scan_file(path: Path, root: Path, kind: str) -> list[Finding]:
             findings.append(Finding(
                 algorithm=alg, asset_type=ASSET_ALGORITHM, scanner=SCANNER,
                 title=f"{token} permitted by {directive}",
-                detail=(f"Configuration permits {token}. Cipher policy is usually the "
-                        f"cheapest part of a migration to change -- one line and a "
-                        f"service reload."),
+                detail=(f"Configuration permits {token}. This is declared policy: the "
+                        f"suite is allowed, not necessarily negotiated. Cipher policy "
+                        f"is usually the cheapest part of a migration to change -- one "
+                        f"line and a service reload."),
                 rule_id="cfg.cipher",
+                purpose=K.default_purpose(alg),
+                purpose_evidence=("implied by the algorithm; the directive permits it "
+                                  "but does not show it was negotiated"),
                 evidence=[Evidence(location=rel, line=line_no, symbol=directive,
                                    snippet=value[:180], technique=TECH_CONFIG,
-                                   confidence=0.8, context=token)],
+                                   confidence=0.8, context=token,
+                                   assurance=ASSURANCE_DECLARED)],
             ))
 
     return findings

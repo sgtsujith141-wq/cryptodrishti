@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
-from ..models import Finding
+from ..models import ASSURANCE_RANK, Finding, strongest_assurance
 
 # Paths that are not production code. A private key in a unit-test fixture is
 # a real finding -- it should still appear in the inventory -- but it is not
@@ -69,9 +69,20 @@ def criticality_for(f: Finding) -> float:
 
 
 def group_key(f: Finding) -> tuple:
-    """What makes two hits the same cryptographic asset."""
+    """What makes two hits the same cryptographic asset.
+
+    ``purpose`` is part of the identity, not a detail. RSA used for signing and
+    RSA used for key transport are one algorithm and two migration items with
+    two different replacements; merging them would reintroduce the exact defect
+    the purpose model exists to prevent, and the merged row could only carry
+    one recommendation, which would be wrong for half its evidence.
+
+    ``assurance`` is part of it for the same reason in the other direction: a
+    library that *can* do RSA and a call site that *does* must not collapse
+    into one row whose evidence no longer says which is which.
+    """
     return (f.algorithm, f.asset_type, f.mode or "", f.padding or "",
-            f.key_size or 0, f.scanner)
+            f.key_size or 0, f.scanner, f.purpose, f.assurance)
 
 
 def normalize(findings: Iterable[Finding]) -> list[Finding]:
@@ -107,8 +118,21 @@ def normalize(findings: Iterable[Finding]) -> list[Finding]:
         f.extra["path_breakdown"] = counts
         f.extra["files"] = len({e.location for e in f.evidence})
         f.extra["context"] = path_class(f.evidence[0].location) if f.evidence else "production"
-        # Confidence across many independent sightings is higher than one.
-        if f.occurrences >= 5:
-            f.confidence = min(0.99, f.confidence + 0.03)
+
+        # Assurance is recomputed from the evidence that survived merging, and
+        # the breakdown is kept so the UI and the report can say "used at 40
+        # sites, and additionally reachable through two libraries" instead of
+        # flattening both into one number.
+        f.refresh_assurance()
+        f.extra["assurance_breakdown"] = f.assurance_breakdown
+
+        # Confidence is the strongest single piece of evidence, and nothing
+        # more. An earlier version added 0.03 once a finding had five or more
+        # sightings, which manufactured precision from repetition: forty copies
+        # of the same regex firing is forty chances for the same rule to be
+        # wrong in the same way, not independent corroboration. Blast radius
+        # already enters the score through its own named term in the risk
+        # engine, so the bump was also double-counting.
+        f.confidence = max((e.confidence for e in f.evidence), default=f.confidence)
 
     return out

@@ -46,9 +46,38 @@ Closes R8.1–R8.9, S1–S9.
 **Exit criteria:** every S1–S9 item has a test that fails without the fix.
 Existing 226 tests still pass.
 
-## M2 — Detection correctness
+## M2 — Detection correctness  *(complete)*
 
-Closes D1–D7, R3.3–R3.9, R5.2.
+Closed D1–D7, R3.3–R3.10, R4.8–R4.9, R5.1, R5.2, R5.10.
+
+**What shipped.** `knowledge/purposes.py` makes cryptographic purpose a
+property of the finding, resolved from the call site, rather than a property
+of the algorithm name. RSA now carries two purposes in the registry, so
+nothing downstream can infer one; the detector resolves it from the padding
+object (PSS signs, OAEP encrypts, PKCS#1 v1.5 resolves nothing), the API
+called, or a certificate's KeyUsage extension, and where none of those
+settle it the recommendation says so instead of guessing.
+
+The registry grew from 52 to 74 entries: the full SHA-3 family, SHAKE, BLAKE2b
+/ BLAKE2s / BLAKE3, the truncated SHA-512 variants, and five block ciphers
+that were previously collapsed to `unknown`. MD2 is no longer aliased onto MD5.
+
+`Evidence.assurance` distinguishes capability, declared, used and observed,
+and is a named factor in the risk score separate from confidence. The
+confidence bump for repeated sightings was removed: forty matches from one
+rule are forty chances for that rule to be wrong in the same way.
+
+TLS reporting was split into four independent findings — version, cipher
+suite, key exchange, authentication — and a refused hybrid probe now yields
+`unknown` rather than naming ECDH it never saw.
+
+**Verified against.** A local TLS 1.3 server (negotiated X25519MLKEM768, read
+from the handshake) and a local TLS 1.2 server (suite decomposed to
+ECDHE + RSA; PQ group correctly reported as unobserved). Both on loopback,
+under `CD_ALLOW_PRIVATE_TARGETS`. 413 tests pass. The eleven tests that matter
+most were confirmed to fail when the defects were temporarily reintroduced.
+
+**Original plan, for the record:**
 
 1. Register the full SHA-3 family (224/384/512), SHAKE128/256, BLAKE2b,
    BLAKE2s, BLAKE3; fix `_PY_HASHES` and `_norm_alg`.
@@ -71,7 +100,7 @@ Closes D1–D7, R3.3–R3.9, R5.2.
 **Exit criteria:** a test for each corrected identification; no finding gains
 precision it did not earn.
 
-## M3 — Scanning coverage
+## M3 — Scanning coverage  *(next)*
 
 Closes R1.7, plus cross-sensor correlation.
 

@@ -12,6 +12,35 @@ const state = {
   pollTimer: null, qdayTimer: null, clockTimer: null, t0: 0, shown: {},
 };
 
+/* Assurance: what a finding's evidence actually establishes. Kept visually
+   distinct from the quantum class, because they answer different questions and
+   a reader who conflates them will count reachable algorithms as running ones. */
+const ASSURANCE_LABEL = {
+  capability: "capability",
+  declared: "declared",
+  used: "used",
+  observed: "observed",
+};
+
+const ASSURANCE_TIP = {
+  capability: "A dependency implements this algorithm. Nothing here shows it is called.",
+  declared: "Configuration or a manifest permits it. Stated policy, not an execution.",
+  used: "Code invokes it — a resolved call site or a linked binary symbol.",
+  observed: "Seen in a real artefact: a parsed certificate, or a completed handshake.",
+};
+
+const PURPOSE_LABEL = {
+  "key-establishment": "key establishment",
+  encryption: "encryption",
+  signature: "signature",
+  hashing: "hashing",
+  authentication: "authentication",
+  "key-derivation": "key derivation",
+  randomness: "randomness",
+  transport: "transport",
+  unknown: "purpose unresolved",
+};
+
 const CLASS_LABEL = {
   "shor-broken": "Broken by Shor", "grover-weakened": "Weakened by Grover",
   "quantum-safe": "Quantum-safe", "hybrid": "Hybrid", "unknown": "Unresolved",
@@ -1055,7 +1084,8 @@ function renderLedger() {
     row.style.borderLeftColor = tok(CLASS_VAR[f.quantum_class] || "--unknown");
     row.setAttribute("aria-label",
       `${f.algorithm}: ${f.title}. Risk ${f.risk_score.toFixed(0)}, `
-      + `${CLASS_LABEL[f.quantum_class] || f.quantum_class}, ${f.occurrences} call sites.`);
+      + `${CLASS_LABEL[f.quantum_class] || f.quantum_class}, `
+      + `${ASSURANCE_LABEL[f.assurance] || ""} evidence, ${f.occurrences} call sites.`);
 
     const ident = el("span");
     const cls = el("span", "cls led-cls " + f.quantum_class);
@@ -1072,8 +1102,17 @@ function renderLedger() {
     const loc = el("span", "led-loc", where); loc.title = where;
     what.append(find, loc);
 
-    const to = el("span", "led-to", f.recommendation?.target_name || "manual review");
-    to.title = f.recommendation?.target_name || "";
+    const asr = el("span", "led-asr asr-" + (f.assurance || "capability"),
+                   ASSURANCE_LABEL[f.assurance] || f.assurance || "");
+    asr.title = ASSURANCE_TIP[f.assurance] || "";
+    ident.appendChild(asr);
+
+    const recName = f.recommendation?.target_name || "manual review";
+    const to = el("span", "led-to"
+      + (f.recommendation?.unresolved ? " led-unresolved" : ""), recName);
+    to.title = f.recommendation?.unresolved
+      ? "No target named: " + (f.recommendation?.rationale || "")
+      : recName;
 
     const sites = el("span", "led-sites", f.occurrences.toLocaleString());
     sites.appendChild(el("i", null, "sites"));
@@ -1116,11 +1155,33 @@ function openDrawer(f, isRefresh) {
   c.append(dot, document.createTextNode(CLASS_LABEL[f.quantum_class] || f.quantum_class));
   const sevSpan = el("span", null, `${sevOf(f.risk_score)} · ${f.risk_score.toFixed(1)}`);
   sevSpan.style.color = tok(SEV_VAR[sevOf(f.risk_score)]);
-  meta.append(c, sevSpan, el("span", null, f.extra?.context || "production"));
+  const asrSpan = el("span", "asr-chip asr-" + (f.assurance || "capability"),
+                     ASSURANCE_LABEL[f.assurance] || "");
+  asrSpan.title = ASSURANCE_TIP[f.assurance] || "";
+  meta.append(c, sevSpan, asrSpan, el("span", null, f.extra?.context || "production"));
   head.appendChild(meta);
   d.appendChild(head);
 
   if (f.detail) { const s = sec("Assessment"); s.appendChild(el("p", "said", f.detail)); d.appendChild(s); }
+
+  /* Purpose and assurance, stated before the recommendation, because both are
+     the reasons the recommendation says what it says. */
+  {
+    const s = sec("What the evidence establishes");
+    s.appendChild(kv([
+      ["Purpose", PURPOSE_LABEL[f.purpose] || f.purpose || "unresolved"],
+      ["Assurance", ASSURANCE_LABEL[f.assurance] || f.assurance || ""],
+      ["Proves use", f.proves_use ? "yes" : "no — reachable or declared only"],
+    ]));
+    if (f.purpose_evidence) s.appendChild(el("p", "said", "Purpose " + f.purpose_evidence + "."));
+    s.appendChild(el("p", "said", ASSURANCE_TIP[f.assurance] || ""));
+    const br = f.assurance_breakdown || {};
+    const parts = Object.entries(br).map(([k, v]) => `${v} ${ASSURANCE_LABEL[k] || k}`);
+    if (parts.length > 1) {
+      s.appendChild(el("p", "said", "Evidence mix: " + parts.join(", ") + "."));
+    }
+    d.appendChild(s);
+  }
 
   const m = f.extra?.mosca;
   if (m) {
@@ -1132,9 +1193,17 @@ function openDrawer(f, isRefresh) {
   }
 
   const r = f.recommendation;
-  if (r) {
+  if (r && r.unresolved) {
+    const s = sec("No migration target named");
+    s.appendChild(kv([["Reason", r.target_name], ["Purpose", PURPOSE_LABEL[r.purpose] || r.purpose]]));
+    if (r.rationale) s.appendChild(el("p", "said", r.rationale));
+    if (r.action) s.appendChild(el("p", "said act", r.action));
+    if (r.validate_before) s.appendChild(el("p", "said warn", r.validate_before));
+    d.appendChild(s);
+  } else if (r) {
     const s = sec("Recommended migration");
-    s.appendChild(kv([["Target", r.target_name], ["Effort", r.effort],
+    s.appendChild(kv([["Target", r.target_name],
+      ["Chosen for", PURPOSE_LABEL[r.purpose] || r.purpose], ["Effort", r.effort],
       ["Hybrid", r.hybrid ? "yes" : "no"],
       ["Size delta", (r.size_delta_bytes === null || r.size_delta_bytes === undefined)
         ? "" : `${r.size_delta_bytes > 0 ? "+" : ""}${r.size_delta_bytes} B`],
@@ -1143,6 +1212,11 @@ function openDrawer(f, isRefresh) {
     if (r.action) s.appendChild(el("p", "said act", r.action));
     if (r.size_note) s.appendChild(el("p", "said warn", r.size_note));
     if (r.agility_note) s.appendChild(el("p", "said", r.agility_note));
+    if (r.validate_before) s.appendChild(el("p", "said warn", r.validate_before));
+    if (r.purpose_evidence) {
+      s.appendChild(el("p", "said", "Target chosen because the purpose was "
+        + r.purpose_evidence + "."));
+    }
     d.appendChild(s);
   }
 
@@ -1162,7 +1236,8 @@ function openDrawer(f, isRefresh) {
     item.appendChild(el("div", "l", ev.line ? `${ev.location}:${ev.line}` : ev.location));
     if (ev.snippet) item.appendChild(el("div", "s", ev.snippet));
     item.appendChild(el("div", "m",
-      `${ev.technique} · conf ${ev.confidence.toFixed(2)}${ev.symbol ? " · " + ev.symbol : ""}`));
+      `${ev.technique} · ${ASSURANCE_LABEL[ev.assurance] || ev.assurance || "?"}`
+      + ` · conf ${ev.confidence.toFixed(2)}${ev.symbol ? " · " + ev.symbol : ""}`));
     s2.appendChild(item);
   }
   d.appendChild(s2);

@@ -29,8 +29,10 @@ from typing import Iterator, Optional
 from .. import config, fspolicy
 from ..fspolicy import FsPolicy
 from ..knowledge import rules_binary as rb
+from ..knowledge import algorithms as K
 from ..models import (
-    ASSET_ALGORITHM, ASSET_LIBRARY, Evidence, Finding,
+    ASSET_ALGORITHM, ASSET_LIBRARY, ASSURANCE_CAPABILITY, ASSURANCE_USED,
+    Evidence, Finding,
     TECH_BINARY_CONST, TECH_BINARY_STRING, TECH_BINARY_SYMBOL,
 )
 
@@ -228,8 +230,12 @@ def scan_binary(path: Path, root: Path, kind: str) -> list[Finding]:
                     "not parsed, so the name could in principle appear without the "
                     "routine being called. Reported at reduced confidence."),
             rule_id="bin.symbol",
+            purpose=K.default_purpose(alg),
+            purpose_evidence=("implied by the algorithm; a linked symbol names the "
+                              "routine but not what the caller does with it"),
             evidence=[Evidence(location=rel, symbol=sym, technique=technique,
-                               confidence=round(conf * conf_scale, 2), context=origin)],
+                               confidence=round(conf * conf_scale, 2), context=origin,
+                               assurance=ASSURANCE_USED)],
         ))
         seen_algorithms.add(alg)
 
@@ -247,9 +253,11 @@ def scan_binary(path: Path, root: Path, kind: str) -> list[Finding]:
             title=f"{sig.name} found in binary data",
             detail=sig.note,
             rule_id="bin.constant",
+            purpose=K.default_purpose(sig.algorithm),
             evidence=[Evidence(location=rel, symbol=sig.name,
                                technique=TECH_BINARY_CONST, confidence=conf,
-                               context=f"offset 0x{idx:x}, {len(sig.pattern)} byte signature")],
+                               context=f"offset 0x{idx:x}, {len(sig.pattern)} byte signature",
+                               assurance=ASSURANCE_USED)],
         ))
         seen_algorithms.add(sig.algorithm)
 
@@ -267,7 +275,11 @@ def scan_binary(path: Path, root: Path, kind: str) -> list[Finding]:
             rule_id="bin.version",
             evidence=[Evidence(location=rel, symbol=f"{label} {version}",
                                technique=TECH_BINARY_STRING, confidence=0.9,
-                               context=m.group(0).decode("ascii", "ignore")[:120])],
+                               context=m.group(0).decode("ascii", "ignore")[:120],
+                               # An embedded build banner identifies the library
+                               # that is present. What it is used for is not in
+                               # evidence, so this is capability.
+                               assurance=ASSURANCE_CAPABILITY)],
             extra={"library": libkey, "version": version},
         ))
 

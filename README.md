@@ -13,7 +13,7 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6](https://img.shields.io/badge/CBOM-CycloneDX%201.6-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-317%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-413%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -346,6 +346,46 @@ dependency, both of which conflict with running air-gapped. So `validate()`
 does a thorough structural check and its output states exactly what it did and
 did not verify.
 
+## Purpose and assurance
+
+Two questions decide what a finding means, and most crypto inventories answer
+neither.
+
+**What is it for?** RSA signs and RSA transports keys. The replacements are
+ML-DSA and ML-KEM, and neither substitutes for the other. Nothing in the
+string `RSA` tells you which, so purpose is a property of the *finding*,
+resolved from the call site:
+
+| Signal | Resolves to |
+|---|---|
+| `padding.PSS`, `Signature.getInstance`, `rsa.SignPSS`, `RSA_sign` | signature |
+| `padding.OAEP`, `Cipher.getInstance("RSA/…")`, `rsa.EncryptOAEP` | key establishment |
+| Certificate `KeyUsage: digitalSignature \| keyCertSign` | signature |
+| Certificate `KeyUsage: keyEncipherment \| keyAgreement` | key establishment |
+| `padding.PKCS1v15`, `GenerateKey`, `KeyPairGenerator`, dual-use KeyUsage | **nothing — stays unresolved** |
+
+The last row is the important one. Where the evidence does not settle it, no
+target is named and the recommendation says what would resolve it. An
+unresolved finding a human reviews is worth more than a resolved one that is
+wrong.
+
+**What does the evidence prove?** Distinct from confidence, which asks whether
+the identification is correct. A dependency on a library implementing RSA can
+be a *certain* identification of something that proves very little.
+
+| State | Meaning | Example |
+|---|---|---|
+| `capability` | The algorithm is reachable. Nothing shows it is called. | `pycryptodome` in `requirements.txt` |
+| `declared` | Configuration permits it. Stated policy, not an execution. | a cipher suite in `nginx.conf` |
+| `used` | Code invokes it. The strongest claim static analysis can make. | a resolved call site, an ELF symbol |
+| `observed` | Seen in a real artefact. | a parsed certificate, a completed handshake |
+
+Both are named factors in the risk score, exported in the CBOM
+(`cryptoFunctions` and `detection:assurance`), and shown in the console. Every
+scan publishes `proven_use` alongside the raw total, because reporting "412
+quantum-vulnerable assets" when 300 are capabilities nobody calls is the
+easiest way for this tool to mislead.
+
 ## Security
 
 The tool takes a filesystem path and a list of hosts over HTTP and acts on
@@ -441,14 +481,19 @@ actively harmful.
 - **Binary analysis is ELF-only.** Mach-O and PE binaries fall back to raw
   string scanning. A string match is not proof of linkage and is reported with
   lower confidence, but it is still weaker evidence than a symbol table.
-- **RSA is modelled as key transport, not signing.** The registry assigns RSA
-  the `pke` primitive, so an RSA *signature* call site is recommended a KEM
-  (hybrid X25519+ML-KEM) rather than ML-DSA. Correct for key transport, wrong
-  for signing. This is pinned by a test so it cannot change silently.
-- **Dependency findings prove capability, not use.** Depending on a library
-  that can do RSA is not evidence that RSA is used.
+- **Purpose resolution is best-effort, and unresolved is a common answer.**
+  RSA signing gets ML-DSA and RSA key transport gets ML-KEM, resolved from the
+  padding scheme, the API called or a certificate's KeyUsage. Where none of
+  those settle it — a bare `GenerateKey`, a `PKCS1v15()` padding object, a
+  dual-use certificate — the tool names no target at all. That is deliberate,
+  but it means a real estate will have a queue of findings a human must
+  classify before they can be scheduled.
 - **The network sensor reports what was negotiated with it**, which is not
-  necessarily what the server supports or prefers for other clients.
+  necessarily what the server supports or prefers for other clients. A refused
+  hybrid probe is reported as "no hybrid accepted, mechanism not observed" and
+  never as a specific classical group.
+- **Reading the actual negotiated group needs OpenSSL 3.5+ locally.** Without
+  it the key-exchange mechanism stays unobserved rather than being guessed.
 - **Token access control, not a user system.** There is one shared token, no
   per-user authorization and no audit log. Scan history is a local SQLite file
   with no migrations. This is a single-operator tool.
@@ -465,8 +510,6 @@ actively harmful.
   (tree-sitter would cover all of them with one dependency).
 - Mach-O and PE symbol-table parsing, to bring non-Linux binaries up to the
   evidence quality of ELF.
-- Split RSA into distinct signing and key-transport entries so signature call
-  sites are recommended ML-DSA.
 - Container image layer scanning — the sensor interface exists
   (`TECH_CONTAINER`) but is not implemented.
 - Differential scans: track an estate's PQC readiness over time rather than
@@ -478,7 +521,8 @@ actively harmful.
 ```
 run.py                      entry point
 app/
-  knowledge/algorithms.py   52-algorithm registry — the source of truth
+  knowledge/algorithms.py   74-algorithm registry — the source of truth
+  knowledge/purposes.py     cryptographic purpose model
   knowledge/rules_*.py      detection rule packs (source, binary)
   scanners/                 the six sensors
   engine/normalize.py       hit merging and path weighting
@@ -487,7 +531,7 @@ app/
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      317 tests
+tests/                      413 tests
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots

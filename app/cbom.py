@@ -26,9 +26,10 @@ from typing import Any, Iterable, Optional
 
 from . import config
 from .knowledge import algorithms as K
+from .knowledge import purposes as P
 from .models import (
     ASSET_ALGORITHM, ASSET_CERTIFICATE, ASSET_MATERIAL, ASSET_PROTOCOL,
-    Finding, ScanResult,
+    ASSURANCE_LABEL, Finding, ScanResult,
 )
 
 SPEC_VERSION = "1.6"
@@ -78,6 +79,13 @@ def _crypto_properties(f: Finding) -> dict[str, Any]:
 
     if asset_type == "algorithm":
         ap: dict[str, Any] = {"primitive": _PRIMITIVE.get(alg.primitive, "other")}
+        # CycloneDX carries purpose as cryptoFunctions -- the operations the
+        # asset performs. Emitting it means the resolved purpose survives
+        # export instead of living only in our own model, and an unresolved
+        # purpose is emitted as "unknown" rather than omitted, so a consumer
+        # can tell "we did not establish this" from "we did not look".
+        ap["cryptoFunctions"] = list(
+            P.CRYPTO_FUNCTIONS.get(P.normalise(f.purpose), ["unknown"]))
         if f.key_size or alg.classical_bits:
             ap["parameterSetIdentifier"] = str(f.key_size or alg.classical_bits)
         if f.mode:
@@ -130,8 +138,11 @@ def _evidence(f: Finding) -> dict[str, Any]:
             occ["line"] = e.line
         if e.symbol:
             occ["symbol"] = e.symbol
-        if e.context or e.snippet:
-            occ["additionalContext"] = (e.context or e.snippet)[:240]
+        # Assurance is prefixed onto the context so it survives into the
+        # standard field rather than needing an extension a consumer may drop.
+        context = (e.context or e.snippet)[:220]
+        label = ASSURANCE_LABEL.get(e.assurance, e.assurance)
+        occ["additionalContext"] = f"[{label}] {context}".strip()
         occurrences.append(occ)
 
     techniques = sorted({_TECHNIQUE.get(e.technique, "other") for e in f.evidence})
@@ -169,11 +180,28 @@ def component_for(f: Finding) -> dict[str, Any]:
         {"name": "detection:scanner", "value": f.scanner},
         {"name": "detection:ruleId", "value": f.rule_id},
         {"name": "detection:occurrences", "value": str(f.occurrences)},
+        # Assurance travels with every component, because a consumer that
+        # cannot tell a library capability from a live call site will add both
+        # into the same total and report an estate that does not exist.
+        {"name": "detection:assurance", "value": f.assurance},
+        {"name": "detection:provesUse", "value": "true" if f.proves_use else "false"},
+        {"name": "crypto:purpose", "value": P.normalise(f.purpose)},
     ]
+    if f.purpose_evidence:
+        comp["properties"].append(
+            {"name": "crypto:purposeEvidence", "value": f.purpose_evidence[:400]})
+    if f.extra.get("trust_verified") is not None:
+        comp["properties"].append(
+            {"name": "certificate:trustVerified",
+             "value": str(f.extra["trust_verified"]).lower()})
     if f.recommendation:
         comp["properties"].append(
             {"name": "migration:recommendation",
-             "value": str(f.recommendation.get("target_name", ""))})
+             "value": str(f.recommendation.get("target_name", "")
+                          or "unresolved — purpose not established")})
+        if f.recommendation.get("unresolved"):
+            comp["properties"].append(
+                {"name": "migration:unresolved", "value": "true"})
     return comp
 
 
@@ -233,6 +261,12 @@ _VALID_PRIMITIVES = {
     "xof", "kdf", "key-agree", "kem", "ae", "combiner", "other", "unknown",
 }
 
+# CycloneDX 1.6 cryptoFunctions enum.
+_VALID_CRYPTO_FUNCTIONS = {
+    "generate", "keygen", "encrypt", "decrypt", "digest", "tag", "keyderive",
+    "sign", "verify", "encapsulate", "decapsulate", "other", "unknown",
+}
+
 
 def validate(doc: dict[str, Any]) -> tuple[bool, list[str]]:
     """Structural conformance check against the CycloneDX 1.6 CBOM shape.
@@ -288,6 +322,10 @@ def validate(doc: dict[str, Any]) -> tuple[bool, list[str]]:
             nl = ap.get("nistQuantumSecurityLevel")
             if nl is not None and not (0 <= nl <= 6):
                 problems.append(f"{where}.nistQuantumSecurityLevel {nl} out of range 0-6")
+            for fn in ap.get("cryptoFunctions", []) or []:
+                if fn not in _VALID_CRYPTO_FUNCTIONS:
+                    problems.append(
+                        f"{where}.algorithmProperties.cryptoFunctions '{fn}' is invalid")
 
         ev = comp.get("evidence", {})
         for j, ident in enumerate(ev.get("identity", [])):

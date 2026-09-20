@@ -29,7 +29,11 @@ from typing import Optional
 
 from .. import netpolicy
 from ..netpolicy import Destination, DestinationRefused, NetPolicy
-from ..models import ASSET_CERTIFICATE, ASSET_PROTOCOL, Evidence, Finding, TECH_NETWORK
+from ..knowledge import purposes as P
+from ..models import (
+    ASSET_ALGORITHM, ASSET_CERTIFICATE, ASSET_PROTOCOL, ASSURANCE_OBSERVED,
+    Evidence, Finding, TECH_NETWORK,
+)
 
 SCANNER = "network"
 
@@ -56,6 +60,97 @@ OBSOLETE_PQ_GROUPS = {
     "P256Kyber768Draft00": "pre-standard CRYSTALS-Kyber draft, superseded by "
                            "SecP256r1MLKEM768 (FIPS 203)",
 }
+
+
+# --------------------------------------------------------------------------
+# Cipher suite decomposition
+#
+# A cipher suite name is not one fact, and treating it as one is where TLS
+# reporting usually goes wrong. In TLS 1.2 the name carries four things:
+# ECDHE-RSA-AES256-GCM-SHA384 is key exchange ECDHE, authentication RSA, bulk
+# cipher AES-256-GCM, PRF hash SHA-384. In TLS 1.3 it carries **two**:
+# TLS_AES_256_GCM_SHA384 names the AEAD and the hash and says nothing at all
+# about key exchange or authentication, which are negotiated separately.
+#
+# That difference is the whole reason a TLS 1.3 endpoint cannot be assessed
+# from its cipher suite: the quantum-relevant part of the handshake is the one
+# part the suite name does not contain.
+# --------------------------------------------------------------------------
+
+_KEX_TOKENS = {
+    "ECDHE": ("ecdh", "ephemeral elliptic-curve Diffie-Hellman"),
+    "EECDH": ("ecdh", "ephemeral elliptic-curve Diffie-Hellman"),
+    "DHE": ("dh", "ephemeral finite-field Diffie-Hellman"),
+    "EDH": ("dh", "ephemeral finite-field Diffie-Hellman"),
+    "ECDH": ("ecdh", "static elliptic-curve Diffie-Hellman"),
+    "DH": ("dh", "static finite-field Diffie-Hellman"),
+    "PSK": ("unknown", "pre-shared key"),
+    "SRP": ("unknown", "secure remote password"),
+}
+
+_AUTH_TOKENS = {
+    "RSA": ("rsa", "RSA"),
+    "ECDSA": ("ecdsa", "ECDSA"),
+    "DSS": ("dsa", "DSA"),
+    "PSK": ("unknown", "pre-shared key"),
+    "anon": ("unknown", "anonymous — no server authentication"),
+}
+
+
+def parse_cipher_suite(name: str, tls_version: str) -> dict:
+    """Decompose a negotiated cipher suite into its independent parts.
+
+    Returns a dict whose ``encodes_kex`` field is the one that matters: when
+    it is False, nothing about key exchange may be inferred from this string,
+    and a caller that does so is guessing.
+    """
+    out = {
+        "suite": name, "kex": None, "kex_label": "", "auth": None,
+        "auth_label": "", "encodes_kex": False, "note": "",
+    }
+    if not name:
+        out["note"] = "no cipher suite was reported"
+        return out
+
+    upper = name.upper().replace("_", "-")
+
+    # TLS 1.3 suites are named TLS-<AEAD>-<HASH> and carry nothing else.
+    if tls_version == "TLSv1.3" or upper.startswith("TLS-AES") or \
+            upper.startswith("TLS-CHACHA"):
+        out["note"] = (
+            "A TLS 1.3 cipher suite names only the AEAD and the hash. Key "
+            "exchange and authentication are negotiated independently, so "
+            "neither can be read from this suite -- the quantum-relevant half "
+            "of the handshake is exactly the half the name omits."
+        )
+        return out
+
+    # TLS 1.2 and earlier. Strip the IANA prefix and split at WITH.
+    body = upper[4:] if upper.startswith("TLS-") else upper
+    head = body.split("-WITH-")[0] if "-WITH-" in body else body
+    tokens = head.split("-")
+
+    for token in tokens:
+        if out["kex"] is None and token in _KEX_TOKENS:
+            out["kex"], out["kex_label"] = _KEX_TOKENS[token]
+            continue
+        if out["auth"] is None and token in _AUTH_TOKENS:
+            out["auth"], out["auth_label"] = _AUTH_TOKENS[token]
+
+    if out["kex"] is None and out["auth"] == "rsa":
+        # `AES256-SHA` with no explicit exchange is static RSA key transport:
+        # the client encrypts the premaster secret to the server's RSA key.
+        out["kex"], out["kex_label"] = "rsa", "static RSA key transport"
+    if out["kex"] is None and out["auth"] is None:
+        out["note"] = "the suite name did not decompose into known components"
+        return out
+
+    out["encodes_kex"] = out["kex"] is not None
+    if out["encodes_kex"]:
+        out["note"] = (f"Key exchange {out['kex_label']}, authentication "
+                       f"{out['auth_label'] or 'unstated'}, read from the "
+                       f"negotiated suite name.")
+    return out
 
 
 def _base_context() -> ssl.SSLContext:
@@ -178,7 +273,89 @@ def _probe_pq_group(dest: Destination, timeout: float) -> tuple[Optional[bool], 
     return False, "no hybrid group accepted"
 
 
-def _cert_findings(der: bytes, endpoint: str) -> list[Finding]:
+# Named TLS groups mapped onto registry algorithms, used only when a group was
+# actually read off a completed handshake.
+_GROUP_ALGORITHMS = {
+    "x25519": "x25519", "x448": "x448",
+    "secp256r1": "ecdh", "prime256v1": "ecdh",
+    "secp384r1": "ecdh", "secp521r1": "ecdh",
+    "ffdhe2048": "dh", "ffdhe3072": "dh", "ffdhe4096": "dh",
+    "ffdhe6144": "dh", "ffdhe8192": "dh",
+    "x25519mlkem768": "x25519-ml-kem-768",
+    "secp256r1mlkem768": "x25519-ml-kem-768",
+}
+
+
+def _observe_negotiated_group(dest: Destination, timeout: float) -> tuple[Optional[str], str]:
+    """Read the key-exchange group the server actually chose, if we can.
+
+    Returns (group, how). ``group`` is None when no observation was possible,
+    which is a different and much weaker statement than "the group is
+    classical". The distinction exists because a failed hybrid probe tells you
+    only that one group was not accepted; it does not tell you what *was*
+    negotiated, and naming a specific classical mechanism on that basis would
+    be inventing an observation.
+    """
+    binary = openssl_bin()
+    if not binary:
+        return None, ("no OpenSSL 3.5+ available locally to read the negotiated "
+                      "group")
+
+    import subprocess
+    address = dest.addresses[0]
+    connect_arg = (f"[{address}]:{dest.port}" if ":" in address
+                   else f"{address}:{dest.port}")
+    try:
+        proc = subprocess.run(
+            [binary, "s_client", "-connect", connect_arg,
+             "-servername", dest.host, "-brief"],
+            capture_output=True, text=True, timeout=timeout + 8,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"could not run the local OpenSSL client ({exc})"
+
+    blob = (proc.stdout or "") + (proc.stderr or "")
+    m = re.search(r"Negotiated TLS1\.3 group:\s*(\S+)", blob)
+    if m:
+        return m.group(1).strip(), "read from the completed handshake"
+    return None, ("the handshake did not report a negotiated group (TLS 1.2 and "
+                  "earlier do not expose one this way)")
+
+
+def _verify_trust(dest: Destination, timeout: float) -> tuple[Optional[bool], str]:
+    """Attempt a *verifying* handshake, separately from the inspecting one.
+
+    Every other probe in this module deliberately disables verification so it
+    can inspect endpoints whose certificates do not validate -- which is most
+    of an internal estate. That means none of those probes says anything about
+    trust. This one does, by building a chain against the system CA store and
+    matching the hostname, and its result is reported as its own fact.
+
+    Returns (verified, detail). None means the attempt itself could not be
+    made, which is again distinct from "not trusted".
+    """
+    ctx = ssl.create_default_context()
+    try:
+        ctx.load_default_certs()
+    except Exception:
+        pass
+    try:
+        with netpolicy.connect(dest, timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=dest.host):
+                return True, ("chain built to a trusted root in the system store "
+                              "and the hostname matched")
+    except ssl.SSLCertVerificationError as exc:
+        return False, f"certificate verification failed: {exc.verify_message or exc}"
+    except ssl.SSLError as exc:
+        return False, f"TLS error during verification: {exc}"
+    except OSError as exc:
+        return None, f"verification could not be attempted: {exc}"
+
+
+def _cert_findings(der: bytes, endpoint: str,
+                   trust: tuple[Optional[bool], str] = (None, "not attempted"),
+                   ) -> list[Finding]:
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives.asymmetric import dsa, ec, ed25519, rsa
@@ -198,37 +375,73 @@ def _cert_findings(der: bytes, endpoint: str) -> list[Finding]:
     except AttributeError:
         not_after = cert.not_valid_after.replace(tzinfo=dt.timezone.utc)
 
+    from .certs import key_usage_purpose
+    purpose, purpose_why = key_usage_purpose(cert)
+
+    trusted, trust_detail = trust
+    if trusted is True:
+        trust_line = f"Certificate chain verified: {trust_detail}."
+    elif trusted is False:
+        trust_line = (f"Certificate presented but NOT trusted: {trust_detail}. "
+                      f"The algorithms below are still an accurate inventory of "
+                      f"what the endpoint served.")
+    else:
+        trust_line = (f"Trust was not established: {trust_detail}. Reported as "
+                      f"undetermined rather than as untrusted.")
+
     return [Finding(
         algorithm=key_alg, asset_type=ASSET_CERTIFICATE, scanner=SCANNER,
         title="Certificate presented by live endpoint",
         detail=(f"Served by {endpoint}. Signed with {sig_name}, expires "
-                f"{not_after.date()}."),
+                f"{not_after.date()}. {trust_line}"),
         rule_id="net.cert", key_size=key_bits,
+        purpose=purpose, purpose_evidence=purpose_why,
         evidence=[Evidence(location=endpoint, symbol=sig_name,
                            technique=TECH_NETWORK, confidence=0.98,
-                           context=f"{key_alg}, expires {not_after.date()}")],
+                           context=f"{key_alg}, expires {not_after.date()}",
+                           assurance=ASSURANCE_OBSERVED)],
         extra={"signature_algorithm": sig_name, "not_after": str(not_after.date()),
-               "format": "X.509"},
+               "format": "X.509",
+               # Observation and trust are two separate facts and are reported
+               # as two separate fields. The inspecting handshake deliberately
+               # disables verification; this value comes from a second,
+               # verifying handshake and from nothing else.
+               "trust_verified": trusted,
+               "trust_detail": trust_detail},
     )]
 
 
 def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
-    """Probe one vetted destination."""
+    """Probe one vetted destination.
+
+    Emits each negotiated property as its own finding, because they are
+    independent facts with independent remediations:
+
+      * the protocol version accepted,
+      * the cipher suite chosen, decomposed where the version allows it,
+      * the key-exchange group, only when actually observed,
+      * the certificate served, and separately whether it is trusted.
+
+    The rule that governs the whole function: a probe that failed is not an
+    observation. If we offer a hybrid group and the server declines it, we
+    have learned that the server did not accept that group -- not that it
+    negotiated ECDH, not that it negotiated anything in particular. Naming a
+    specific classical mechanism there would be recording an inference as a
+    measurement, and it is the first thing a reviewer would test.
+    """
     endpoint = dest.label
     findings: list[Finding] = []
     accepted: list[str] = []
     best: Optional[dict] = None
+    best_label = ""
 
-    # A destination reached only because the private-network relaxation was
-    # enabled is annotated on every finding it produces. An inventory that
-    # quietly mixes internet-facing and lab results is worse than one that
-    # refused, because the reader cannot tell which is which.
     relaxation = (" Probed under CD_ALLOW_PRIVATE_TARGETS, which permits internal "
                   "addresses; treat this as a lab observation."
                   if dest.private_allowed else "")
     probe_extra = {"probed_address": dest.addresses[0],
                    "private_target": dest.private_allowed}
 
+    # ---- 1. protocol versions -------------------------------------------
     for label, version, alg_key in _VERSIONS:
         if version is None:
             continue
@@ -237,22 +450,26 @@ def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
             continue
         accepted.append(label)
         if best is None:
-            best = res
+            best, best_label = res, label
 
         legacy = alg_key in ("tls1.0", "tls1.1")
         findings.append(Finding(
             algorithm=alg_key, asset_type=ASSET_PROTOCOL, scanner=SCANNER,
             title=f"{label} accepted",
             detail=("Deprecated by RFC 8996 and should be disabled." if legacy else
-                    "Key exchange for this version is classical unless a hybrid "
-                    "post-quantum group is negotiated.") + relaxation,
+                    "The version alone does not determine quantum exposure. What "
+                    "matters is the key-exchange group negotiated inside it, "
+                    "reported separately below.") + relaxation,
             rule_id="net.tlsversion",
-            evidence=[Evidence(location=endpoint, symbol=res["cipher"],
+            purpose=P.TRANSPORT,
+            purpose_evidence="a protocol version accepted in a completed handshake",
+            evidence=[Evidence(location=endpoint, symbol=label,
                                technique=TECH_NETWORK, confidence=0.99,
-                               context=f"{label}, {res['cipher']}, {res['bits']} bits")],
+                               context=f"{label} handshake completed",
+                               assurance=ASSURANCE_OBSERVED)],
             extra={"protocol_type": "tls", "version": label,
                    "cipher_suites": [res["cipher"]] if res["cipher"] else [],
-                   **probe_extra},
+                   "determines_quantum_exposure": False, **probe_extra},
         ))
 
     if not accepted:
@@ -263,17 +480,72 @@ def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
                    + relaxation,
             rule_id="net.unreachable",
             evidence=[Evidence(location=endpoint, technique=TECH_NETWORK,
-                               confidence=0.9)],
+                               confidence=0.9, assurance=ASSURANCE_OBSERVED)],
             extra=dict(probe_extra),
         )]
 
-    supports_pq, pq_note = _probe_pq_group(dest, timeout)
+    # ---- 2. cipher suite, decomposed ------------------------------------
+    suite = best.get("cipher") if best else ""
+    parsed = parse_cipher_suite(suite or "", best_label)
+    if suite:
+        findings.append(Finding(
+            algorithm="unknown", asset_type=ASSET_PROTOCOL, scanner=SCANNER,
+            title=f"Cipher suite negotiated: {suite}",
+            detail=(f"Negotiated at {best_label}. {parsed['note']}" + relaxation),
+            rule_id="net.ciphersuite",
+            purpose=P.TRANSPORT,
+            purpose_evidence="the suite chosen in a completed handshake",
+            evidence=[Evidence(location=endpoint, symbol=suite,
+                               technique=TECH_NETWORK, confidence=0.99,
+                               context=f"{best_label}, {best.get('bits', 0)} bits",
+                               assurance=ASSURANCE_OBSERVED)],
+            extra={"protocol_type": "tls", "cipher_suites": [suite],
+                   "suite_encodes_key_exchange": parsed["encodes_kex"],
+                   "suite_key_exchange": parsed["kex"],
+                   "suite_authentication": parsed["auth"], **probe_extra},
+        ))
 
+        # Key exchange and authentication are separate assets, and only exist
+        # as findings when the suite name genuinely carried them.
+        if parsed["encodes_kex"] and parsed["kex"]:
+            findings.append(Finding(
+                algorithm=parsed["kex"], asset_type=ASSET_ALGORITHM, scanner=SCANNER,
+                title=f"Key exchange observed: {parsed['kex_label']}",
+                detail=(f"Read from the negotiated suite {suite!r}, which encodes the "
+                        f"key exchange because this is {best_label}. This is an "
+                        f"observation of what was used, not an inference."
+                        + relaxation),
+                rule_id="net.kex",
+                purpose=P.KEY_ESTABLISHMENT,
+                purpose_evidence=f"the key-exchange component of the negotiated suite",
+                evidence=[Evidence(location=endpoint, symbol=parsed["kex_label"],
+                                   technique=TECH_NETWORK, confidence=0.95,
+                                   context=suite, assurance=ASSURANCE_OBSERVED)],
+                extra={**probe_extra},
+            ))
+        if parsed["auth"] and parsed["auth"] != "unknown":
+            findings.append(Finding(
+                algorithm=parsed["auth"], asset_type=ASSET_ALGORITHM, scanner=SCANNER,
+                title=f"Server authentication observed: {parsed['auth_label']}",
+                detail=(f"The server authenticated itself with {parsed['auth_label']}, "
+                        f"read from the negotiated suite {suite!r}. Authentication and "
+                        f"key exchange are separate mechanisms with separate "
+                        f"replacements." + relaxation),
+                rule_id="net.auth",
+                purpose=P.SIGNATURE,
+                purpose_evidence="the authentication component of the negotiated suite",
+                evidence=[Evidence(location=endpoint, symbol=parsed["auth_label"],
+                                   technique=TECH_NETWORK, confidence=0.95,
+                                   context=suite, assurance=ASSURANCE_OBSERVED)],
+                extra={**probe_extra},
+            ))
+
+    # ---- 3. key exchange group ------------------------------------------
+    supports_pq, pq_note = _probe_pq_group(dest, timeout)
+    observed_group, observed_how = _observe_negotiated_group(dest, timeout)
     obsolete = OBSOLETE_PQ_GROUPS.get(pq_note)
+
     if supports_pq is True and obsolete:
-        # Negotiating a pre-standard draft group is not the same posture as
-        # negotiating the standardised one, and recording it as though it were
-        # would overstate the endpoint's readiness.
         algorithm, title, confidence = "unknown", \
             "Pre-standard post-quantum group negotiated", 0.9
         detail = (f"Negotiated {pq_note}, a {obsolete}. This is not the standardised "
@@ -283,12 +555,25 @@ def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
             "Hybrid post-quantum key exchange negotiated", 0.97
         detail = (f"Negotiated {pq_note}. Traffic to this endpoint is already "
                   f"protected against harvest-now-decrypt-later capture.")
+    elif supports_pq is False and observed_group:
+        # We offered hybrid, it was declined, AND we separately read what the
+        # server actually chose. Only now can a specific mechanism be named.
+        algorithm = _GROUP_ALGORITHMS.get(observed_group.lower(), "unknown")
+        title = f"Classical key exchange observed: {observed_group}"
+        confidence = 0.95
+        detail = (f"No hybrid group was accepted, and the group actually negotiated "
+                  f"was {observed_group} ({observed_how}). Traffic captured today is "
+                  f"decryptable once a CRQC exists.")
     elif supports_pq is False:
-        algorithm, title, confidence = "ecdh", "Key exchange is classical only", 0.9
-        detail = ("No hybrid post-quantum group was accepted. Traffic captured today "
-                  "is decryptable once a CRQC exists. This is the single most "
-                  "important property of the endpoint, and the TLS version does not "
-                  "reveal it -- TLS 1.3 over a classical group is still Shor-broken.")
+        # The honest state. We know a hybrid group was refused; we did not see
+        # what replaced it, so we do not name one.
+        algorithm, title, confidence = "unknown", \
+            "No hybrid key exchange; specific mechanism not observed", 0.85
+        detail = (f"The endpoint declined every hybrid post-quantum group we offered, "
+                  f"so its key exchange is classical and traffic captured today is "
+                  f"decryptable once a CRQC exists. The specific mechanism was not "
+                  f"observed ({observed_how}), so none is named: a refused probe "
+                  f"shows what was not accepted, never what was.")
     else:
         algorithm, title, confidence = "unknown", \
             "Post-quantum support not determined", 0.5
@@ -299,16 +584,24 @@ def scan_endpoint(dest: Destination, timeout: float = 4.0) -> list[Finding]:
     findings.append(Finding(
         algorithm=algorithm, asset_type=ASSET_PROTOCOL, scanner=SCANNER,
         title=title, detail=detail + relaxation, rule_id="net.pqgroup",
-        evidence=[Evidence(location=endpoint, symbol=pq_note,
+        purpose=P.KEY_ESTABLISHMENT,
+        purpose_evidence="the key-establishment mechanism of the TLS handshake",
+        evidence=[Evidence(location=endpoint, symbol=observed_group or pq_note,
                            technique=TECH_NETWORK, confidence=confidence,
-                           context=pq_note)],
+                           context=pq_note, assurance=ASSURANCE_OBSERVED)],
         extra={"protocol_type": "tls", "pq_supported": supports_pq,
                "pq_group": pq_note if supports_pq else None,
-               "pq_group_obsolete": bool(obsolete), **probe_extra},
+               "pq_group_obsolete": bool(obsolete),
+               "observed_group": observed_group,
+               "observed_group_source": observed_how,
+               "mechanism_observed": bool(observed_group) or supports_pq is True,
+               **probe_extra},
     ))
 
+    # ---- 4. certificate, and separately its trust -----------------------
     if best and best.get("peercert_der"):
-        for finding in _cert_findings(best["peercert_der"], endpoint):
+        trust = _verify_trust(dest, timeout)
+        for finding in _cert_findings(best["peercert_der"], endpoint, trust):
             finding.extra.update(probe_extra)
             findings.append(finding)
 

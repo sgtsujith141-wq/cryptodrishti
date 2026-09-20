@@ -17,7 +17,9 @@ from typing import Any
 
 from . import config
 from .engine import risk
+from . import models as M
 from .knowledge import algorithms as K
+from .knowledge import purposes as P
 from .models import ScanResult
 
 _CLASS_COLOUR = {
@@ -31,6 +33,14 @@ _CLASS_COLOUR = {
 _SEV_COLOUR = {
     "critical": "#B3261E", "high": "#B35A00",
     "medium": "#8A6D0B", "low": "#14664C",
+}
+
+
+_ASSURANCE_COLOUR = {
+    M.ASSURANCE_CAPABILITY: "#8A8DA8",
+    M.ASSURANCE_DECLARED: "#3F7DBF",
+    M.ASSURANCE_USED: "#B8860B",
+    M.ASSURANCE_OBSERVED: "#B2453C",
 }
 
 
@@ -67,16 +77,50 @@ def build(result: ScanResult, summary: dict[str, Any] | None = None) -> str:
         w = waves.setdefault(target, {
             "assets": 0, "occurrences": 0, "effort": rec.get("effort", "medium"),
             "action": rec.get("action", ""), "max_score": 0.0,
+            "capability_only": 0, "unresolved": 0,
         })
         w["assets"] += 1
         w["occurrences"] += f.occurrences
         w["max_score"] = max(w["max_score"], f.risk_score)
+        if not f.proves_use:
+            w["capability_only"] += 1
+        if rec.get("unresolved"):
+            w["unresolved"] += 1
+
+    def _wave_caveat(w: dict[str, Any]) -> str:
+        notes = []
+        if w["capability_only"]:
+            notes.append(f"{w['capability_only']} of these are library capability "
+                         f"only — confirm a call site before scheduling work")
+        if w["unresolved"]:
+            notes.append(f"{w['unresolved']} have an unresolved cryptographic purpose")
+        return (f"<div class='muted'>{_e('; '.join(notes))}.</div>") if notes else ""
 
     wave_rows = "".join(
-        f"<tr><td><strong>{_e(name)}</strong><div class='muted'>{_e(w['action'])}</div></td>"
+        f"<tr><td><strong>{_e(name)}</strong><div class='muted'>{_e(w['action'])}</div>"
+        f"{_wave_caveat(w)}</td>"
         f"<td class='num'>{w['assets']}</td><td class='num'>{w['occurrences']:,}</td>"
         f"<td>{_e(w['effort'])}</td><td class='num'>{w['max_score']:.0f}</td></tr>"
         for name, w in sorted(waves.items(), key=lambda kv: -kv[1]["max_score"])
+    )
+
+    # Assurance and purpose breakdowns. These exist so a reader cannot come
+    # away with a headline total that silently mixes what the estate runs with
+    # what it merely has available.
+    assurance_rows = "".join(
+        f"<tr><td>{_e(M.ASSURANCE_LABEL[a])}</td>"
+        f"<td style='width:38%'>{_bar(summary.get('by_assurance', {}).get(a, 0), total, _ASSURANCE_COLOUR[a])}</td>"
+        f"<td class='num'>{summary.get('by_assurance', {}).get(a, 0)}</td>"
+        f"<td class='small muted'>{_e(M.ASSURANCE_DESCRIPTION[a])}</td></tr>"
+        for a in M.ASSURANCE_ORDER if summary.get("by_assurance", {}).get(a)
+    )
+
+    purpose_rows = "".join(
+        f"<tr><td>{_e(P.LABEL[k])}</td>"
+        f"<td style='width:52%'>{_bar(v, total, '#63667E')}</td>"
+        f"<td class='num'>{v}</td></tr>"
+        for k, v in sorted(summary.get("by_purpose", {}).items(), key=lambda kv: -kv[1])
+        if k in P.LABEL
     )
 
     finding_rows = "".join(
@@ -86,9 +130,12 @@ def build(result: ScanResult, summary: dict[str, Any] | None = None) -> str:
         f"<td><span class='pill' style='color:{_CLASS_COLOUR.get(f.quantum_class, '#555')}'>"
         f"{_e(K.CLASS_LABEL.get(f.quantum_class, f.quantum_class))}</span></td>"
         f"<td>{_e(f.title)}</td>"
+        f"<td><span class='pill' style='color:{_ASSURANCE_COLOUR.get(f.assurance, '#555')}'>"
+        f"{_e(M.ASSURANCE_LABEL.get(f.assurance, f.assurance))}</span></td>"
+        f"<td class='small'>{_e(P.LABEL.get(P.normalise(f.purpose), '—'))}</td>"
         f"<td class='num'>{f.occurrences:,}</td>"
         f"<td class='mono small'>{_e(f.primary_location)}</td>"
-        f"<td>{_e((f.recommendation or {}).get('target_name', ''))}</td></tr>"
+        f"<td>{_e((f.recommendation or {}).get('target_name', '') or 'unresolved')}</td></tr>"
         for f in worst
     )
 
@@ -203,9 +250,30 @@ migration is staffed: one workstream per replacement, not one per finding.</p>
 <h2>Highest-risk findings</h2>
 <table>
   <thead><tr><th class="num">Score</th><th>Algorithm</th><th>Exposure class</th>
-    <th>Finding</th><th class="num">Uses</th><th>First location</th><th>Migrate to</th></tr></thead>
+    <th>Finding</th><th>Assurance</th><th>Purpose</th><th class="num">Uses</th>
+    <th>First location</th><th>Migrate to</th></tr></thead>
   <tbody>{finding_rows}</tbody>
 </table>
+
+<h2>What the evidence establishes</h2>
+<p class="sub">Confidence asks whether an identification is correct. Assurance asks
+what a correct identification proves. A dependency on a library that implements RSA
+can be a certain identification of something that shows only that RSA is reachable,
+and a total that mixes the two describes an estate that does not exist.</p>
+<table>{assurance_rows or '<tr><td>No findings.</td></tr>'}</table>
+<p class="sub"><strong>{summary.get('proven_use', 0)}</strong> of
+{summary.get('total', 0)} assets are backed by a call site or a live observation;
+<strong>{summary.get('capability_only', 0)}</strong> are reachable capability or
+declared configuration only.</p>
+
+<h2>Cryptographic purpose</h2>
+<p class="sub">The replacement for an algorithm depends on what it is used for, not
+on its name. RSA signing is replaced by ML-DSA and RSA key transport by ML-KEM;
+neither substitutes for the other. Where the evidence did not establish the purpose,
+the asset is listed as unresolved and no target is named.</p>
+<table>{purpose_rows or '<tr><td>No findings.</td></tr>'}</table>
+<p class="sub"><strong>{summary.get('unresolved_purpose', 0)}</strong> assets have an
+unresolved purpose and need a human to determine it before they can be scheduled.</p>
 
 <h2>Method and limitations</h2>
 <table>
@@ -216,7 +284,13 @@ migration is staffed: one workstream per replacement, not one per finding.</p>
   <tr><td><strong>Confidence</strong></td>
       <td>Every finding carries a per-detector confidence score. Artefacts that could
       not be resolved to a specific algorithm are reported as <em>unresolved</em>
-      rather than inferred.</td></tr>
+      rather than inferred. Confidence is the strongest single piece of evidence and
+      is never raised by repetition: forty matches from one rule are forty chances for
+      that rule to be wrong in the same way, not independent corroboration.</td></tr>
+  <tr><td><strong>Certificate trust</strong></td>
+      <td>Parsing a certificate establishes what it contains, never that it is
+      trusted. Where trust was tested, it was tested by a separate verifying
+      handshake and is reported as its own result.</td></tr>
   <tr><td><strong>Known limitations</strong></td>
       <td>Detection for languages other than Python uses pattern rules rather than full
       parsing, which lowers precision. Cryptography executing inside a hardware security

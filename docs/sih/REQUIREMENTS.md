@@ -43,13 +43,14 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 |---|---|---|---|---|---|
 | R3.1 | Shor / Grover / safe classification | `app/knowledge/algorithms.py` — 52 entries | `tests/test_knowledge.py` (12) | Every entry has a valid class and primitive | DONE |
 | R3.2 | Unknown stays unknown | `algorithms.get` → `unknown` fallback | `test_knowledge.py::unknown_is_reported_not_guessed` | Verified | DONE |
-| R3.3 | Correct hash-family identification | `source.py:_PY_HASHES` | — | **Wrong** — SHA3-512→SHA3-256, BLAKE2b→SHA-512 | **DEFECT (D1, D2)** |
-| R3.4 | Complete SHA-3 / BLAKE coverage | `algorithms.py` | — | Only `sha3-256` registered | **GAP (D3)** |
-| R3.5 | Capability vs use vs runtime observation | partially via `Evidence.technique` | — | No `assurance` dimension in the model | **GAP (D5)** |
-| R3.6 | TLS version vs negotiated group | `network.py:195-257` | none | Correct today, untested | PARTIAL |
-| R3.7 | Probe failure vs observed classical KEX | `network.py:230-248` — three-state `None`/`False`/`True` | none | Correct today, untested | PARTIAL |
-| R3.8 | Certificate observation vs verified trust | `certs.py` | — | No trust dimension recorded | **GAP (D6)** |
-| R3.9 | Current PQC identifiers | `network.py:PQ_GROUPS`, `certs.PQC_OIDS` | — | `X25519Kyber768Draft00` is obsolete | **DEFECT (D7)** |
+| R3.3 | Correct hash-family identification | `source.py:_PY_HASHES`, `_PY_HASHLIB` | 20 | SHA3-512, BLAKE2b, BLAKE2s each keep their own identity through the whole pipeline | **DONE** |
+| R3.4 | Complete SHA-3 / BLAKE coverage | `algorithms.py` — SHA3-224/256/384/512, SHAKE128/256, BLAKE2b/2s/3, SHA-512/224, SHA-512/256 | 20 | Registry 52 → 74 entries | **DONE** |
+| R3.5 | Capability vs use vs runtime observation | `models.py` assurance states; set by every sensor | 9 | `capability` / `declared` / `used` / `observed`, exported in the CBOM | **DONE** |
+| R3.6 | TLS version vs negotiated group | `network.py` — version, suite, KEX and auth are four findings | 6 | Verified against a local TLS 1.3 and a TLS 1.2 server | **DONE** |
+| R3.7 | Probe failure vs observed classical KEX | `network.py:scan_endpoint` | 3 | A refused hybrid probe now yields `unknown`, never `ecdh` | **DONE** |
+| R3.8 | Certificate observation vs verified trust | `certs.py`, `network._verify_trust` | 5 | `trust_verified` from a separate verifying handshake | **DONE** |
+| R3.9 | Current PQC identifiers | `network.PQ_GROUPS` / `OBSOLETE_PQ_GROUPS` | 2 | Draft groups recognised but never offered | **DONE** (M1) |
+| R3.10 | Cipher suite decomposition | `network.parse_cipher_suite` | 3 | TLS 1.3 suites correctly report that they encode no key exchange | **DONE** |
 
 ## R4 — Mosca-style risk reasoning
 
@@ -62,14 +63,16 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 | R4.5 | Explicit migration duration | `MIGRATION_EFFORT_YEARS` by sensor | `test_risk.py::binary_findings_carry_a_longer_migration_cost_than_config` | Not overridable per asset | PARTIAL |
 | R4.6 | Business criticality | `normalize.CRITICALITY` inferred from path | `test_normalize.py` (4) | Path-derived only, not operator-set | PARTIAL |
 | R4.7 | Evidence confidence feeds the score | `conf_term` in `score_finding` | `test_risk.py::low_confidence_findings_cannot_outrank_certain_ones` | | DONE |
-| R4.8 | Cryptographic purpose feeds risk | — | — | Purpose is not an input to scoring | GAP |
+| R4.8 | Cryptographic purpose feeds risk | `risk.PURPOSE_URGENCY` | 3 | Key establishment weighted above signing: only the former is exposed to harvest-now-decrypt-later | **DONE** |
+| R4.9 | Evidence assurance feeds risk | `risk.ASSURANCE_WEIGHT` | 2 | A named factor distinct from confidence; capability findings rank below equivalent call sites | **DONE** |
 
 ## R5 — Migration recommendations
 
 | ID | Requirement | Implementation | Tests | Evidence | Baseline |
 |---|---|---|---|---|---|
-| R5.1 | Purpose-correct alternatives | `app/engine/recommend.py` branches on `alg.primitive` | `tests/test_recommend.py` (23) | Mechanism is right | PARTIAL |
-| R5.2 | **RSA signing must not get a KEM** | `algorithms.py` assigns RSA `primitive=pke` unconditionally | `test_recommend.py::rsa_is_modelled_as_key_transport_not_signing` **pins the wrong behaviour** | Verified: RSA-2048 → `x25519-ml-kem-768` | **DEFECT (D4)** |
+| R5.1 | Purpose-correct alternatives | `recommend.py` dispatches on the finding's resolved **purpose**, not the algorithm's primitive | 31 | `knowledge/purposes.py` is the model | **DONE** |
+| R5.2 | **RSA signing must not get a KEM** | RSA carries two purposes; the detector resolves which from the call site | 9 | Verified: RSA-PSS → ML-DSA-65, RSA-OAEP → X25519MLKEM768, `GenerateKey` → unresolved | **DONE** |
+| R5.10 | Unknown purpose yields an explicit unresolved recommendation | `recommend._unresolved_purpose` | 4 | No target named; the action says what evidence would resolve it | **DONE** |
 | R5.3 | Key establishment → KEM / hybrid | `recommend.py:117-149` | 3 tests | | DONE |
 | R5.4 | Signatures → ML-DSA / SLH-DSA / FN-DSA by profile | `recommend.py:152-189` | 5 tests | | DONE |
 | R5.5 | Symmetric → AES-256 without family change | `recommend.py:192-210` | 2 tests | | DONE |
@@ -84,7 +87,7 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 |---|---|---|---|---|---|
 | R6.1 | Machine-readable export | `GET /api/scan/{id}/cbom` | `test_api.py` (3) | | DONE |
 | R6.2 | Human-readable report | `app/report.py` → `GET /api/scan/{id}/report` | none | HTML executive report | PARTIAL |
-| R6.3 | Asset → Evidence → Classification → Risk → Recommendation → Action chain | partially in `report.py` | — | Chain is not explicit end-to-end | PARTIAL |
+| R6.3 | Asset → Evidence → Classification → Risk → Recommendation → Action chain | `report.py` gains "What the evidence establishes" and "Cryptographic purpose" sections | 1 | Assurance and purpose columns in the findings table | PARTIAL — chain is visible, not yet a single traced view |
 | R6.4 | Incomplete scans and unresolved findings surfaced | `stats["sensor_errors"]` captured | — | **Never shown in the UI or report** | **GAP** |
 
 ## R7 — Interactive interface
@@ -94,7 +97,7 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 | R7.1 | Scan configuration | `app/web/` + `/api/browse` | `test_api.py` (2) | Folder picker works | DONE |
 | R7.2 | Progress and partial failures | progress DONE; failures **not surfaced** | `test_api.py::a_scan_runs_to_completion` | Tick counter distinguishes slow from stalled | PARTIAL |
 | R7.3 | Cryptographic inventory | ledger scene with filters | | | DONE |
-| R7.4 | Evidence inspection | first location only | | No drill-down | PARTIAL |
+| R7.4 | Evidence inspection | drawer shows purpose, assurance, evidence mix and per-item assurance | | Assurance chips in the ledger; unresolved recommendations styled distinctly | PARTIAL — still no cross-file drill-down |
 | R7.5 | Quantum-risk assessment | radial + composition + Mosca scene | | | DONE |
 | R7.6 | Migration planner | plan scene | | | DONE |
 | R7.7 | CBOM export | download + validate buttons | `test_api.py` | | DONE |
@@ -158,14 +161,18 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 ## Summary at baseline
 
-| Status | At 90f4da3 | After M1 |
-|---|---|---|
-| DONE | 26 | 35 |
-| PARTIAL | 25 | 22 |
-| GAP | 17 | 12 |
-| DEFECT | 5 | 4 |
+| Status | At 90f4da3 | After M1 | After M2 |
+|---|---|---|---|
+| DONE | 26 | 35 | 48 |
+| PARTIAL | 25 | 22 | 18 |
+| GAP | 17 | 12 | 11 |
+| DEFECT | 5 | 4 | **0** |
 
 M1 closed all nine R8 rows and one detection defect (D7, the obsolete Kyber
-draft group, which lived in the network sensor and was corrected while that
-file was being reworked for the destination policy). Test count rose from
-226 to 317.
+draft group). Test count rose from 226 to 317.
+
+M2 closed the remaining four detection defects — D1 and D2 (hash identity),
+D4 (RSA purpose), D5 (capability reported as use) — and D6 (certificate trust),
+plus the TLS semantic defect where a refused hybrid probe named a specific
+classical mechanism it had never observed. Test count rose from 317 to 413.
+**No defect rows remain open.**

@@ -127,11 +127,29 @@ def test_path_breakdown_is_recorded_for_the_ui():
     assert out[0].extra["path_breakdown"] == {"production": 1, "vendored": 1, "test": 1}
 
 
-def test_corroboration_across_many_sites_raises_confidence():
+def test_repetition_does_not_manufacture_confidence():
+    """Forty sightings from one rule are not forty independent confirmations.
+
+    An earlier version added 0.03 to any finding with five or more occurrences.
+    That turned repetition into precision: the same regex firing forty times is
+    forty chances for one rule to be wrong in the same way. Blast radius is a
+    real signal and it has its own named term in the risk engine; it does not
+    belong in the confidence that the identification is correct.
+    """
     single = normalize([make_finding("aes-128", location="src/a.py", confidence=0.7)])
     many = normalize([make_finding("aes-128", location=f"src/f{i}.py", confidence=0.7)
-                      for i in range(6)])
-    assert many[0].confidence > single[0].confidence
+                      for i in range(40)])
+    assert many[0].confidence == single[0].confidence == 0.7
+    assert many[0].occurrences == 40      # the count is kept, just not laundered
+
+
+def test_confidence_is_the_strongest_single_piece_of_evidence():
+    out = normalize([
+        make_finding("aes-128", location="src/a.py", confidence=0.55),
+        make_finding("aes-128", location="src/b.py", confidence=0.92),
+        make_finding("aes-128", location="src/c.py", confidence=0.61),
+    ])
+    assert out[0].confidence == 0.92
 
 
 def test_group_key_is_stable_for_the_same_artefact():

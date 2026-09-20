@@ -21,7 +21,11 @@ from typing import Iterator, Optional
 
 from .. import config, fspolicy
 from ..fspolicy import FsPolicy
-from ..models import ASSET_LIBRARY, Evidence, Finding, TECH_MANIFEST
+from ..knowledge import algorithms as K
+from ..models import (
+    ASSET_LIBRARY, ASSURANCE_CAPABILITY, ASSURANCE_DECLARED,
+    Evidence, Finding, TECH_MANIFEST,
+)
 
 SCANNER = "dependency"
 
@@ -168,6 +172,9 @@ def scan(root: str | Path, max_files: int = 500,
             elif pqc_min:
                 detail += f" Post-quantum support requires {pqc_min} or later."
 
+            # The dependency itself is DECLARED: the manifest is a statement
+            # of intent that this library is linked, and the line in the
+            # manifest is the thing you would change.
             findings.append(Finding(
                 algorithm="unknown", asset_type=ASSET_LIBRARY, scanner=SCANNER,
                 title=f"Cryptographic library: {package}"
@@ -176,23 +183,35 @@ def scan(root: str | Path, max_files: int = 500,
                 evidence=[Evidence(location=rel, symbol=package,
                                    technique=TECH_MANIFEST, confidence=0.9,
                                    context=f"{kind} manifest"
-                                           + (f", version {version}" if version else ""))],
+                                           + (f", version {version}" if version else ""),
+                                   assurance=ASSURANCE_DECLARED)],
                 extra={"library": key, "version": version, "ecosystem": kind,
                        "provides": algorithms},
             ))
 
-            # Each algorithm the library provides is a real part of the estate's
-            # cryptographic surface, even though no first-party code names it.
+            # What the library *can* do is CAPABILITY and nothing stronger.
+            # Depending on a package that implements RSA is not evidence that
+            # RSA is used, and an inventory that counts it as use inflates
+            # every total it reports. The finding is still worth recording --
+            # it is the reachable surface -- but it must be labelled for what
+            # it is so a reader never mistakes it for a call site.
             for alg in algorithms:
                 findings.append(Finding(
                     algorithm=alg, asset_type=ASSET_LIBRARY, scanner=SCANNER,
                     title=f"{alg} reachable via {package}",
-                    detail=f"Provided by the {package} dependency declared in {rel}.",
+                    detail=(f"Provided by the {package} dependency declared in {rel}. "
+                            f"This shows the algorithm is reachable, not that any code "
+                            f"calls it; confirm against a call site before treating it "
+                            f"as part of the estate in use."),
                     rule_id="dep.provides",
+                    purpose=K.default_purpose(alg),
+                    purpose_evidence=("implied by the algorithm where it serves only "
+                                      "one purpose; the manifest itself says nothing "
+                                      "about use"),
                     evidence=[Evidence(location=rel, symbol=f"{package}:{alg}",
                                        technique=TECH_MANIFEST, confidence=0.55,
-                                       context="inferred from library capability, "
-                                               "not from a call site")],
+                                       context="library capability, not a call site",
+                                       assurance=ASSURANCE_CAPABILITY)],
                     extra={"library": key, "version": version},
                 ))
 

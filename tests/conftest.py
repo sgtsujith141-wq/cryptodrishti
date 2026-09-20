@@ -25,17 +25,25 @@ os.environ.setdefault(
     "CD_DB", str(Path(tempfile.mkdtemp(prefix="cryptodrishti-tests-")) / "scans.sqlite3")
 )
 
-from app.models import Evidence, Finding, ScanResult, ScanTarget  # noqa: E402
+from app.models import (  # noqa: E402
+    ASSURANCE_USED, Evidence, Finding, ScanResult, ScanTarget,
+)
 
 
 def make_finding(algorithm: str = "rsa-2048", *, scanner: str = "source",
                  location: str = "src/auth/keys.py", line: int = 10,
                  rule_id: str = "py.rsa.generate", confidence: float = 0.9,
-                 occurrences: int = 1, **kw) -> Finding:
-    """Build a Finding with `occurrences` distinct evidence entries."""
+                 occurrences: int = 1, assurance: str = ASSURANCE_USED,
+                 **kw) -> Finding:
+    """Build a Finding with `occurrences` distinct evidence entries.
+
+    ``assurance`` defaults to USED because most fixtures stand in for a call
+    site. Pass it explicitly to model a dependency manifest (capability) or a
+    live handshake (observed).
+    """
     evidence = [
         Evidence(location=location, line=line + i, symbol="generate_private_key",
-                 confidence=confidence)
+                 confidence=confidence, assurance=assurance)
         for i in range(occurrences)
     ]
     return Finding(algorithm=algorithm, scanner=scanner, rule_id=rule_id,

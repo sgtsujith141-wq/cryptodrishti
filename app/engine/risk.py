@@ -26,7 +26,11 @@ from typing import Iterable, Optional
 
 from .. import config
 from ..knowledge import algorithms as K
-from ..models import Finding
+from ..knowledge import purposes as P
+from ..models import (
+    ASSURANCE_CAPABILITY, ASSURANCE_DECLARED, ASSURANCE_OBSERVED,
+    ASSURANCE_USED, Finding,
+)
 
 
 @dataclass
@@ -129,6 +133,50 @@ EXPOSURE_MULTIPLIER = {
 }
 
 
+# How much a finding's score depends on what its evidence actually proves.
+#
+# This is a different axis from confidence and is scored separately on
+# purpose. Confidence asks "is this identification correct?"; assurance asks
+# "does a correct identification here mean the estate uses this?". A
+# dependency on a library that implements RSA can be a certain identification
+# (confidence 0.9) of something that proves very little (capability), and a
+# ranking that cannot express that will put reachable-but-unused algorithms
+# above live call sites.
+#
+# Capability findings are damped hard rather than dropped: they are the
+# reachable surface, they belong in the inventory, and they are exactly what
+# you check after you have fixed everything you can prove is running.
+ASSURANCE_WEIGHT = {
+    ASSURANCE_CAPABILITY: 0.45,
+    ASSURANCE_DECLARED: 0.80,
+    ASSURANCE_USED: 1.00,
+    ASSURANCE_OBSERVED: 1.05,
+}
+
+# Purpose changes urgency, not just remediation.
+#
+# Key establishment is the one purpose exposed to harvest-now-decrypt-later:
+# a session key agreed today is recovered retroactively from recorded traffic
+# the moment a CRQC exists, so the deadline has already passed for data with a
+# long confidentiality life. A signature cannot be forged retroactively -- an
+# adversary with a CRQC in 2034 cannot un-sign a 2026 release -- so the
+# deadline is when the verifying party still needs to trust it. Hashing and
+# symmetric encryption move by parameter, not by family, and are cheaper.
+PURPOSE_URGENCY = {
+    P.KEY_ESTABLISHMENT: 1.15,
+    P.ENCRYPTION: 1.00,
+    P.SIGNATURE: 0.92,
+    P.AUTHENTICATION: 0.90,
+    P.HASHING: 0.90,
+    P.KEY_DERIVATION: 0.90,
+    P.RANDOMNESS: 1.00,
+    P.TRANSPORT: 1.00,
+    # An unresolved purpose is not discounted. The finding may be the urgent
+    # kind, and discounting it would reward the tool for failing to resolve it.
+    P.UNKNOWN: 1.00,
+}
+
+
 def _sensitivity_shelf_life(sensitivity: Optional[str]) -> float:
     return config.SHELF_LIFE_BY_SENSITIVITY.get(
         sensitivity or config.DEFAULT_SENSITIVITY,
@@ -197,7 +245,15 @@ def score_finding(f: Finding, qday: QDayModel, now_year: int = 2026,
     conf = f.confidence or max((e.confidence for e in f.evidence), default=0.5)
     conf_term = 0.60 + 0.40 * conf
 
-    score = base * criticality * exposure_mult * mosca_term * occ_term * conf_term
+    # Assurance damps it again, on the separate question of what the evidence
+    # proves. These are not double-counting: a manifest entry can be a certain
+    # identification of a mere capability.
+    assurance_term = ASSURANCE_WEIGHT.get(f.assurance, 1.0)
+
+    purpose_term = PURPOSE_URGENCY.get(P.normalise(f.purpose), 1.0)
+
+    score = (base * criticality * exposure_mult * mosca_term * occ_term
+             * conf_term * assurance_term * purpose_term)
     # The floor is scaled by criticality too, so a private key in a unit-test
     # fixture is still inventoried but does not outrank production findings.
     score = max(score, CLASSICAL_DEFECT_FLOOR.get(f.rule_id, 0.0) * criticality)
@@ -212,6 +268,10 @@ def score_finding(f: Finding, qday: QDayModel, now_year: int = 2026,
         "mosca_term": round(mosca_term, 3),
         "occurrence_term": round(occ_term, 3),
         "confidence_term": round(conf_term, 3),
+        "assurance_term": assurance_term,
+        "assurance": f.assurance,
+        "purpose_term": purpose_term,
+        "purpose": P.normalise(f.purpose),
         "shelf_life_years": shelf,
         "migration_years": migration,
     })
@@ -250,12 +310,33 @@ def portfolio_summary(findings: list[Finding]) -> dict:
     total = len(findings)
     worst = max((f.exposure_years for f in findings), default=0.0)
 
+    by_assurance: dict[str, int] = {}
+    by_purpose: dict[str, int] = {}
+    for f in findings:
+        by_assurance[f.assurance] = by_assurance.get(f.assurance, 0) + 1
+        key = P.normalise(f.purpose)
+        by_purpose[key] = by_purpose.get(key, 0) + 1
+
+    # Headline totals that count only what the estate can be shown to use.
+    # Reporting "412 quantum-vulnerable assets" when 300 of them are library
+    # capabilities nobody calls is the single easiest way for this tool to
+    # mislead, so both numbers are published side by side.
+    proven = [f for f in findings if f.proves_use]
+    proven_vulnerable = sum(
+        1 for f in proven if f.quantum_class in (K.BROKEN, K.WEAKENED))
+
     return {
         "total": total,
         "quantum_vulnerable": vulnerable,
         "vulnerable_pct": round(100.0 * vulnerable / total, 1) if total else 0.0,
         "by_class": by_class,
         "by_severity": by_severity,
+        "by_assurance": by_assurance,
+        "by_purpose": by_purpose,
+        "proven_use": len(proven),
+        "proven_vulnerable": proven_vulnerable,
+        "capability_only": total - len(proven),
+        "unresolved_purpose": by_purpose.get(P.UNKNOWN, 0),
         "max_exposure_years": worst,
         "mean_risk": round(sum(f.risk_score for f in findings) / total, 1) if total else 0.0,
     }
