@@ -39,9 +39,25 @@ DIAGRAM = ROOT / "docs" / "architecture" / "architecture.png"
 TRIMMED = Path(__file__).resolve().parent / ".trimmed"
 OUT = ROOT / "submission" / "CryptoDrishti-SIH26164-Idea-Presentation.pptx"
 
-# Values this repository cannot establish. Written as visible markers so the
-# deck cannot be submitted with a plausible-looking guess in place of a fact.
+# Registration details, exactly as the SIH portal issues them. A field left
+# empty here is written into the deck as a visible marker instead, so
+# `check_deck.py` still refuses to call the deck submittable -- filling these
+# in is the only thing that clears that check, and nothing else bypasses it.
 FILL_IN = "[FILL FROM SIH PORTAL]"
+
+PORTAL = {
+    "ps_id": "SIH26164",
+    "ps_title": "Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)",
+    "theme": "26164",
+    "category": "Software",
+    "team_id": "146876",
+    "team_name": "Zero-Day",
+}
+
+
+def portal(key: str) -> str:
+    """One registration field, or the fill-in marker when it is not known."""
+    return PORTAL.get(key, "").strip() or FILL_IN
 
 # The template's own furniture. Content must stay inside these bounds: the
 # title and the team oval occupy the top, the blue footer bar the bottom.
@@ -293,12 +309,12 @@ def build_title(slide) -> None:
     box = shape_by_name(slide, "TextBox 9")
     place(box, LEFT, 2.25, 6.2, 3.65)
     write(box.text_frame, [
-        ("Problem Statement ID – SIH26164", "lead"),
-        ("Problem Statement Title – " + FILL_IN, "body"),
-        ("Theme – " + FILL_IN, "body"),
-        ("PS Category – Software", "body"),
-        ("Team ID – " + FILL_IN, "body"),
-        ("Team Name – " + FILL_IN, "body"),
+        ("Problem Statement ID – " + portal("ps_id"), "lead"),
+        ("Problem Statement Title – " + portal("ps_title"), "body"),
+        ("Theme – " + portal("theme"), "body"),
+        ("PS Category – " + portal("category"), "body"),
+        ("Team ID – " + portal("team_id"), "body"),
+        ("Team Name – " + portal("team_name"), "body"),
     ], size=15, gap=9)
 
     note = slide.shapes.add_textbox(Inches(LEFT), Inches(6.05), Inches(6.2),
@@ -632,15 +648,29 @@ def main() -> int:
     build_references(s6)
 
     for slide in (s2, s3, s4, s5, s6):
-        set_team_oval(slide, FILL_IN)
+        set_team_oval(slide, portal("team_name"))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     prs.save(str(OUT))
     print(f"written: {OUT.relative_to(ROOT)}  ({len(prs.slides)} slides)")
-    print("\nSTILL TO FILL FROM THE SIH PORTAL (this script will not guess):")
-    for item in ("Problem Statement Title (verbatim)", "Theme",
-                 "Team ID", "Team Name (also shown in each slide's oval)"):
-        print(f"  - {item}")
+
+    labels = {
+        "ps_id": "Problem Statement ID",
+        "ps_title": "Problem Statement Title (verbatim)",
+        "theme": "Theme",
+        "category": "PS Category",
+        "team_id": "Team ID",
+        "team_name": "Team Name (also shown in each slide's oval)",
+    }
+    unfilled = [labels[k] for k in labels if portal(k) == FILL_IN]
+    if unfilled:
+        print("\nSTILL TO FILL FROM THE SIH PORTAL (this script will not guess):")
+        for item in unfilled:
+            print(f"  - {item}")
+    else:
+        print("\nRegistration details, as written into the title slide:")
+        for key, label in labels.items():
+            print(f"  {label.split(' (')[0]:26s} {PORTAL[key]}")
     return 0
 
 

@@ -962,8 +962,8 @@ Report/                     project report and design history
 
 | What | Where | State |
 |---|---|---|
-| Six-slide idea presentation | [`submission/`](submission/) | built from the official template, QA-clean |
-| Final submission PDF | — | **not produced** — four portal fields are still unknown; see [`submission/README.md`](submission/README.md) |
+| Six-slide idea presentation | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/) | built from the official template, QA-clean |
+| Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, verified** — rasterised, because no LibreOffice or PowerPoint is installed; see [`submission/README.md`](submission/README.md) |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
 | Presentation script, video script, Q&A | [`presenter/`](presenter/) | scripts only — **no video has been recorded** |
 | Screenshots | [`submission/screenshots/`](submission/screenshots/) | genuine captures of the running console |

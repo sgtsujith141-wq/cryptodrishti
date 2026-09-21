@@ -314,7 +314,7 @@ its structural properties are asserted instead.
 | R10.8 | Limitations | `README.md` | **DONE** — now names obfuscated call sites, vendored trees, Mach-O/PE, SHA-1 certificates and the source-only CLI |
 | R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
 | R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
-| R10.11 | Six-page submission PDF | — | **BLOCKED** — four portal fields (problem-statement title, theme, team ID, team name) are not recoverable from this repository and must not be invented. See `submission/README.md`. |
+| R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Rasterised at 240 dpi via macOS QuickLook, because no LibreOffice or PowerPoint is installed; `build/export_pdf.py` takes the vector route automatically once one is. |
 | R10.12 | Video script and shot list | `presenter/video.md` | **DONE** as a script |
 | R10.13 | Recorded demonstration video | — | **GAP** — no recording has been produced. Nothing in this repository claims otherwise. |
 | R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
@@ -324,13 +324,17 @@ its structural properties are asserted instead.
 
 ## Summary at baseline
 
-| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 | M7 |
-|---|---|---|---|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 | 97 |
-| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 | 4 |
-| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 | 3 |
-| BLOCKED | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** | **0** |
+| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 | M7 | final |
+|---|---|---|---|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 | 97 | 98 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 | 4 | 4 |
+| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 | 3 | 3 |
+| BLOCKED | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | **0** |
+| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+
+The `final` column is after the registration details arrived: R10.11 moved from
+BLOCKED to DONE, which was the only change. **R10.13 — the demonstration video
+— is still a GAP**, and is now the one submission item outstanding.
 
 **How the M7 column is derived.** M7 touched only the R10 rows, so every
 non-R10 count is carried forward from M6 unchanged. R10 went from 11 rows
@@ -340,9 +344,10 @@ because the per-requirement tables above record each row's state at the
 baseline commit, not its state today — reading a current total straight off
 them would double-count.
 
-`BLOCKED` is new at M7 and means exactly one thing: the work is finished except
-for a fact this repository does not hold and must not guess. There is one such
-row, R10.11, and together with R10.13 it is why the submission is not complete.
+`BLOCKED` meant exactly one thing: the work was finished except for a fact this
+repository did not hold and must not guess. The SIH portal details — problem
+statement title, theme, team ID `146876` and team name `Zero-Day` — were
+supplied afterwards, so that row is now DONE and the column is empty.
 
 M7 produced the submission assets: the six-slide official deck, the
 architecture diagram as a standalone editable asset, a one-command reproducible

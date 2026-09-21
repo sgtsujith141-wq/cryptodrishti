@@ -367,15 +367,27 @@ The Python 3.11 syntax guard was widened from `app/` and `tests/` to every
 Python file git tracks, driven by `git ls-files` so it cannot wander into the
 third-party clones under `demo/targets/`.
 
-**Open, and recorded as open.**
+**Closed after the milestone, when the registration details arrived.**
 
-- **R10.11 — six-page submission PDF: BLOCKED.** The problem-statement title,
-  theme, team ID and team name are not recoverable from this repository. The
-  build writes each as a visible `[FILL FROM SIH PORTAL]` marker and refuses to
-  guess; `check_deck.py` counts them and says the deck is not submittable while
-  the count is above zero.
+- **R10.11 — six-page submission PDF: DONE.** The SIH portal details were
+  supplied — problem statement *Enterprise Cryptographic Discovery & Analysis
+  Tool (ECDAT)*, theme `26164`, category Software, team `146876` / Zero-Day —
+  and now live in one `PORTAL` dictionary at the top of `build_deck.py`. A
+  field left empty there still becomes a visible marker, so the placeholder
+  check was filled rather than weakened. `build/export_pdf.py` produced
+  `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`: six pages at
+  exactly 13.333 × 7.50 in, each one inspected. It prefers LibreOffice, which
+  keeps text as text; no LibreOffice, PowerPoint or Keynote is installed on
+  this machine, so it fell back to rendering through macOS QuickLook at 240
+  dpi. The PDF is therefore faithful but rasterised, which
+  `submission/README.md` states plainly along with the one command that
+  regenerates it as vector.
+
+**Still open.**
+
 - **R10.13 — demonstration video: GAP.** `presenter/video.md` is a script and a
   shot list. No recording exists, and nothing in the repository says otherwise.
+  This is the last item between the package and submission.
 
 **Verified.** 664 tests pass. The benchmark reproduces 116/0/0 at P = R = F1 =
 1.000 with the committed ground truth unmodified. Both CBOM versions pass

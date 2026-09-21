@@ -8,23 +8,43 @@ matches the code it describes.
 |---|---|---|
 | Official template (unmodified) | `template/SIH2026-IDEA-Presentation-Format.pptx` | 7 slides, as supplied |
 | Idea presentation | `CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **6 slides, built, QA-clean** |
-| Final submission PDF | — | **Not produced. See "Blocked on" below.** |
+| Final submission PDF | `CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **6 pages, 13.333 × 7.50 in, verified** |
 | Screenshots | `screenshots/*.png` | 7 genuine captures of the running console |
 | Build script | `build/build_deck.py` | rebuilds the deck from the template |
 | QA script | `build/check_deck.py` | text, geometry and completeness checks |
+| PDF export | `build/export_pdf.py` | LibreOffice if present, else macOS QuickLook |
 
-## Rebuilding the deck
+## Registration details
+
+These are written into the title slide, and the team name into the oval on
+slides 2–6. They live in one place — the `PORTAL` dictionary at the top of
+`build/build_deck.py`.
+
+| Field | Value |
+|---|---|
+| Problem Statement ID | SIH26164 |
+| Problem Statement Title | Enterprise Cryptographic Discovery & Analysis Tool (ECDAT) |
+| Theme | 26164 |
+| PS Category | Software |
+| Team ID | 146876 |
+| Team Name | Zero-Day |
+
+Any field left empty in `PORTAL` is written into the deck as a visible
+`[FILL FROM SIH PORTAL]` marker instead, and `check_deck.py` counts those and
+refuses to call the deck submittable while the count is above zero. Filling the
+dictionary is the only thing that clears that check.
+
+## Rebuilding
 
 ```bash
 python run.py --demo                      # populate the console with real data
 python submission/build/build_deck.py     # fill the template
 python submission/build/check_deck.py     # QA
+python submission/build/export_pdf.py     # six-page PDF
 ```
 
 `check_deck.py` exits non-zero if any shape leaves the canvas, collides with
-another, or runs into the template's footer bar. It also counts the portal
-fields that are still placeholders, and says plainly that the deck is not
-submittable while that count is above zero.
+another, or runs into the template's footer bar.
 
 ## What the deck contains
 
@@ -56,32 +76,35 @@ below the card's last row, so the interface is legible at slide size. That
 cropping is the only change; no interface is mocked up, recomposed, retouched
 or drawn.
 
-## Blocked on
+## About the PDF
 
-The deck cannot be exported as the final submission PDF yet. Four fields are
-not recoverable from this repository, and the build writes each one as a
-visible `[FILL FROM SIH PORTAL]` marker rather than a plausible guess:
+The PDF was produced by `build/export_pdf.py`. That script prefers LibreOffice
+(`soffice --headless --convert-to pdf`), which keeps text as text. **LibreOffice
+is not installed on the machine that built this file**, and neither is
+PowerPoint or Keynote, so the script fell back to its second route: macOS
+QuickLook — the renderer Finder uses to preview a `.pptx` — at 240 dpi, one
+slide per page, assembled at exactly the template's 13.333 × 7.50 in slide size.
 
-| Field | Where it appears | Why it is blank |
-|---|---|---|
-| Problem Statement Title | slide 1 | The verbatim portal wording is not recorded here |
-| Theme | slide 1 | Assigned by the portal |
-| Team ID | slide 1 | Issued on registration |
-| Team Name | slide 1, and the oval on slides 2–6 | Chosen at registration |
+What that means in practice:
 
-`PS Category` is filled as **Software**, which is a property of this submission
-rather than a portal-issued fact: CryptoDrishti is a software tool with no
-hardware component.
+* the PDF is visually faithful, and every page has been inspected;
+* pages are the correct size and there are exactly six of them;
+* **the text is rasterised, not selectable or searchable.**
 
-### To finish
+For a vector PDF, install LibreOffice and re-run the exporter — it will take
+the first route automatically and overwrite the file:
 
-1. Open `submission/build/build_deck.py` and replace the four values —
-   `FILL_IN` at the top of the file is the marker each one currently uses.
-2. `python submission/build/build_deck.py && python submission/build/check_deck.py`
-   — the check must report `portal fields still unfilled: 0`.
-3. Export to PDF from PowerPoint (or `soffice --headless --convert-to pdf`) and
-   confirm the result is **exactly six pages**.
-4. Open every page and read it, not just the first.
+```bash
+brew install --cask libreoffice
+python submission/build/export_pdf.py
+```
 
-Until step 3 has actually been done, this submission is not complete, and
-nothing in this repository should be read as saying otherwise.
+Or export manually from PowerPoint: **File → Export → PDF**, with *Slides*
+(not handouts), one slide per page. Then confirm the result is six pages.
+
+## Still outstanding
+
+**A demonstration video has not been recorded.** `presenter/video.md` holds the
+script, the shot list, the expected on-screen output for each shot and a
+fallback plan. No video file exists anywhere in this repository. Nothing here
+should be read as saying otherwise until one does.
