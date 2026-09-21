@@ -57,21 +57,46 @@ jobs:
       - name: Scan this repository and emit a CBOM
         run: python -m app.cli scan app --cbom cbom.json
 
-      - name: Assert the CBOM is a conforming CycloneDX 1.6 document
+      - name: Validate the CBOM against the official CycloneDX schema
         run: |
           python - <<'PY'
           import json, sys
-          from app import cbom
+          from app import cbom, schema_validation
 
           doc = json.load(open("cbom.json"))
           assert doc["bomFormat"] == "CycloneDX", doc.get("bomFormat")
           assert doc["specVersion"] == "1.6", doc.get("specVersion")
 
+          failed = False
+
           valid, problems = cbom.validate(doc)
           if not valid:
               print("CBOM failed structural validation:", *problems, sep="\n  ")
+              failed = True
+
+          # The official schema is the one that decides conformance. If it
+          # cannot run, that is a CI failure too -- a check that silently did
+          # not happen is worse than one that failed.
+          if not schema_validation.available():
+              print("official schema validation unavailable:",
+                    schema_validation.unavailable_reason())
               sys.exit(1)
-          print(f"CBOM OK: {len(doc['components'])} components, CycloneDX 1.6")
+
+          drift = schema_validation.verify_checksums()
+          if drift:
+              print("vendored schemas have drifted:", *drift, sep="\n  ")
+              sys.exit(1)
+
+          ok, schema_problems = schema_validation.validate(doc, "1.6")
+          if not ok:
+              print("CBOM failed OFFICIAL CycloneDX 1.6 schema validation:",
+                    *schema_problems[:40], sep="\n  ")
+              failed = True
+
+          if failed:
+              sys.exit(1)
+          print(f"CBOM OK: {len(doc['components'])} components, "
+                f"official CycloneDX 1.6 schema validation passed")
           PY
 
       - name: Scan a generated container image and emit a CBOM
@@ -93,17 +118,40 @@ jobs:
           archive = builder.write_tar(out / "ci.tar")
 
           result = orchestrator.scan_image(archive)
-          doc = cbom.build(result)
-          valid, problems = cbom.validate(doc)
-          if not valid:
-              print("container CBOM failed validation:", *problems, sep="\n  ")
-              sys.exit(1)
           if not result.findings:
               print("container scan produced no findings")
               sys.exit(1)
-          pathlib.Path("container-cbom.json").write_text(json.dumps(doc, indent=2))
-          print(f"container CBOM OK: {len(doc['components'])} components "
-                f"from {result.stats['container_layers']} layer(s)")
+
+          from app import schema_validation
+          if not schema_validation.available():
+              print("official schema validation unavailable:",
+                    schema_validation.unavailable_reason())
+              sys.exit(1)
+
+          failed = False
+          # Both supported spec versions are validated against their own
+          # official schema. A version this tool offers but cannot produce
+          # validly is worse than one it does not offer.
+          for version in cbom.SUPPORTED_SPEC_VERSIONS:
+              doc = cbom.build(result, spec_version=version)
+              valid, problems = cbom.validate(doc)
+              if not valid:
+                  print(f"container CBOM {version} failed structural validation:",
+                        *problems[:20], sep="\n  ")
+                  failed = True
+              ok, schema_problems = schema_validation.validate(doc, version)
+              if not ok:
+                  print(f"container CBOM {version} failed OFFICIAL schema validation:",
+                        *schema_problems[:40], sep="\n  ")
+                  failed = True
+              else:
+                  print(f"container CBOM OK: {len(doc['components'])} components, "
+                        f"official CycloneDX {version} schema validation passed")
+              pathlib.Path(f"container-cbom-{version}.json").write_text(
+                  json.dumps(doc, indent=2))
+
+          if failed:
+              sys.exit(1)
           PY
 
       - name: Upload the CBOMs
@@ -112,4 +160,4 @@ jobs:
           name: cbom
           path: |
             cbom.json
-            container-cbom.json
+            container-cbom-*.json

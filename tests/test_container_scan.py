@@ -578,8 +578,11 @@ def test_an_image_scan_exports_a_valid_cbom_through_the_api(client, tmp_path):
 
     validation = client.get(f"/api/scan/{run['id']}/cbom/validate").json()
     assert validation["valid"] is True, validation["problems"]
-    # The validator must keep saying what it actually checks.
-    assert "Not a full JSON-Schema validation" in validation["note"]
+    # The structural check must keep saying what it actually checks...
+    assert "NOT full schema conformance" in validation["structural"]["note"]
+    # ...and a container CBOM must pass the official schema too.
+    assert validation["official"]["checked"] is True
+    assert validation["official"]["valid"] is True, validation["official"]["problems"]
 
 
 def test_a_directory_scan_through_the_api_is_unaffected(client, tmp_path):

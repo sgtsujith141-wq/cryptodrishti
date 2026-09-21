@@ -12,8 +12,8 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![CycloneDX 1.6](https://img.shields.io/badge/CBOM-CycloneDX%201.6-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-557%20passing-brightgreen)](#testing)
+[![CycloneDX 1.6 + 1.7](https://img.shields.io/badge/CBOM-CycloneDX%201.6%20%2B%201.7-brightgreen)](https://cyclonedx.org/)
+[![Tests](https://img.shields.io/badge/tests-617%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -428,6 +428,69 @@ What correlation may never do:
 A path maps to a component only when every library-naming finding there
 agrees. A `requirements.txt` listing six packages is a list, not a component.
 
+## Standards conformance
+
+Two checks exist, and conflating them would be the overclaim this whole tool
+is shaped to avoid:
+
+| Check | What it is |
+|---|---|
+| **Structural** | Required fields, enum membership, bom-ref uniqueness, reference integrity. Fast, dependency-free. **Not conformance.** |
+| **Official** | Validation against the JSON Schema the CycloneDX project publishes, vendored at a pinned commit and checksummed on load. |
+
+Both are reported separately by the API, the CLI and the console. A run where
+official validation could not happen reports `checked: false` — never a pass.
+A check that silently did not run is worse than one that failed.
+
+The schemas live in `app/schemas/cyclonedx/`, copied from upstream at a commit
+recorded in `PROVENANCE.md`. Validation is **offline**: no network call, so two
+runs over the same estate cannot disagree because upstream changed. A schema
+edited locally fails its checksum and is refused, because a validator you can
+quietly modify is not a validator.
+
+```bash
+python -m app.cli scan ./src --cbom out.json --cbom-version 1.7
+```
+
+**Versions genuinely supported: 1.6 (the default) and 1.7.** 1.7 is a real
+implementation, not a relabelled 1.6 — it uses `ellipticCurve` (a namespaced
+closed enum: `nist/P-256`) for the deprecated `curve`,
+`relatedCryptographicAssets` for the deprecated `signatureAlgorithmRef`, and
+`algorithmFamily`, which splits RSA into `RSASSA-PSS` and `RSAES-OAEP` and is
+therefore **omitted** when the purpose is unresolved. CI validates both against
+their own schema and fails on any violation.
+
+### What the audit found
+
+Auditing the emitter field by field against the schema turned up eight
+defects. Four were hard schema violations; the rest a schema could never have
+caught — dependencies emitted as cryptographic algorithms, an execution
+environment asserted rather than observed, a security strength reported as a
+parameter set, a certificate reference holding a name instead of a bom-ref.
+
+One was a leak: a hardcoded secret the scanner found was exported verbatim
+into the CBOM, a document made to be attached to tickets and sent to vendors.
+Evidence is now redacted — and the location is kept, because that is what
+makes the finding actionable and it is not the secret.
+
+## Reports
+
+The HTML report is self-contained and offline: no scripts, no external fetches,
+no service. It has an executive summary **and** a full inventory in which every
+asset — not the top fifteen — carries a six-step traced chain:
+
+> Detection evidence → Purpose and assurance → Quantum classification → Risk
+> inputs and assumptions → Recommended alternative → Action and validation
+
+A partial scan says so at the top, with the reasons: sensor failures, skipped
+sensors, refused endpoints, skipped paths, refused archive members. *Absence of
+a finding is not evidence of absence*, and the report says that too.
+
+Every untrusted value goes through `html.escape`. There is **no direct PDF
+export**: the report is styled for `@media print`, so Print → Save as PDF in a
+browser produces a clean document with blocks that do not split across pages.
+Adding a headless-browser dependency to do the same thing worse was not worth it.
+
 ## Assessment: whose number is it?
 
 The risk engine has always taken X, Y and criticality. Until M4 it derived all
@@ -651,6 +714,9 @@ actively harmful.
   images, no zstd layers, no signature or attestation verification. Layer
   replay handles whiteouts; it does not reconstruct a squashed image any other
   way. The exact supported set is in [Container images](#container-images).
+- **Schema conformance is against a pinned copy.** It is the official schema,
+  vendored and checksummed, but it is a snapshot. Upstream moves; updating is
+  a deliberate, reviewable change, not something that happens on its own.
 - **Most risk inputs start as unreviewed defaults.** The tool says so on
   every asset, and lists them under the recommendation's unknowns, but an
   estate nobody has assessed by hand produces provisional scores. That is a
@@ -683,6 +749,8 @@ app/
   knowledge/algorithms.py   74-algorithm registry — the source of truth
   knowledge/purposes.py     cryptographic purpose model
   assessment.py             per-asset risk inputs and their provenance
+  schema_validation.py      offline validation against the official schemas
+  schemas/cyclonedx/        vendored CycloneDX schemas, pinned and checksummed
   container.py              safe, read-only image archive reader
   engine/correlate.py       cross-sensor logical asset linking
   knowledge/rules_*.py      detection rule packs (source, binary)
@@ -693,7 +761,7 @@ app/
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      557 tests
+tests/                      617 tests
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots
@@ -702,7 +770,7 @@ docs/                       industry brief and build kit
 
 ## Tech stack
 
-Python 3.11+ · FastAPI · Uvicorn · Pydantic · `cryptography` · SQLite ·
+Python 3.11+ · FastAPI · Uvicorn · Pydantic · `cryptography` · `jsonschema` · SQLite ·
 vanilla JavaScript (no build step, no framework, no CDN) · pytest · GitHub
 Actions.
 

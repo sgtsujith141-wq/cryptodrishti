@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import cbom, config
+from . import cbom, config, schema_validation
 from .engine import normalize, risk
 from .models import ScanResult, ScanTarget
 from .scanners import source
@@ -52,14 +52,34 @@ def cmd_scan(args: argparse.Namespace) -> int:
               f"{f.title[:30]:30s}  {loc[:40]}")
 
     if args.cbom:
-        doc = cbom.build(result)
+        try:
+            doc = cbom.build(result, spec_version=args.cbom_version)
+        except ValueError as exc:
+            print(f"\n  {exc}", file=sys.stderr)
+            return 2
         ok, problems = cbom.validate(doc)
         Path(args.cbom).write_text(json.dumps(doc, indent=2))
         print(f"\n  CBOM written to {args.cbom}  ({len(doc['components'])} components)")
-        print(f"  CycloneDX {cbom.SPEC_VERSION} structural validation: "
+        print(f"  CycloneDX {args.cbom_version} structural validation: "
               f"{'PASS' if ok else 'FAIL'}")
-        for p in problems[:10]:
-            print(f"     - {p}")
+        for problem in problems[:10]:
+            print(f"     - {problem}")
+
+        # The official schema check is reported separately and never conflated
+        # with the structural one above.
+        official = schema_validation.report(doc, args.cbom_version)
+        if official["checked"]:
+            print(f"  Official CycloneDX {args.cbom_version} JSON Schema: "
+                  f"{'PASS' if official['valid'] else 'FAIL'}")
+            for problem in official["problems"][:10]:
+                print(f"     - {problem}")
+            if not official["valid"]:
+                return 1
+        else:
+            print(f"  Official schema validation not run: "
+                  f"{official['reason_unavailable']}")
+        if not ok:
+            return 1
     return 0
 
 
@@ -72,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--label", default="")
     s.add_argument("--top", type=int, default=20)
     s.add_argument("--max-files", type=int, default=config.MAX_FILES)
-    s.add_argument("--cbom", default="", help="write a CycloneDX 1.6 CBOM here")
+    s.add_argument("--cbom", default="", help="write a CycloneDX CBOM here")
+    s.add_argument("--cbom-version", default=cbom.SPEC_VERSION,
+                   choices=list(cbom.SUPPORTED_SPEC_VERSIONS),
+                   help="CycloneDX specification version to emit")
     s.set_defaults(func=cmd_scan)
 
     args = parser.parse_args(argv)

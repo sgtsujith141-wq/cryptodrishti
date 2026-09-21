@@ -32,6 +32,7 @@ from . import (
 )
 from .assessment import AssetOverride, InvalidOverride
 from .container import ContainerError
+from . import schema_validation
 from .engine import recommend, risk
 from .fspolicy import PathRefused
 from .knowledge import algorithms as K
@@ -585,16 +586,21 @@ def _asset_view(f) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 @app.get("/api/scan/{scan_id}/cbom")
-def get_cbom(scan_id: str, download: bool = Query(False)) -> Response:
+def get_cbom(scan_id: str, download: bool = Query(False),
+             spec_version: str = Query(cbom.SPEC_VERSION)) -> Response:
     result = store.load_result(scan_id)
     if not result:
         raise HTTPException(status_code=404, detail="Unknown scan")
-    doc = cbom.build(result)
+    try:
+        doc = cbom.build(result, spec_version=spec_version)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     body = json.dumps(doc, indent=2)
     headers = {}
     if download:
         name = (result.target.label or "cbom").replace(" ", "-").lower()
-        headers["Content-Disposition"] = f'attachment; filename="{name}-cbom.json"'
+        headers["Content-Disposition"] = (
+            f'attachment; filename="{name}-cbom-{spec_version}.json"')
     return Response(content=body, media_type="application/json", headers=headers)
 
 
@@ -614,19 +620,45 @@ def get_report(scan_id: str, download: bool = Query(False)) -> Response:
 
 
 @app.get("/api/scan/{scan_id}/cbom/validate")
-def validate_cbom(scan_id: str) -> dict[str, Any]:
+def validate_cbom(scan_id: str,
+                  spec_version: str = Query(cbom.SPEC_VERSION)) -> dict[str, Any]:
+    """Validate an exported CBOM, structurally and against the official schema.
+
+    Both results are returned, separately labelled. The structural check is
+    fast and dependency-free; the official one is conformance. Reporting the
+    first as though it were the second is the overclaim this endpoint exists
+    to avoid, so `official.checked` is a field in its own right and "we could
+    not run it" can never read as "it passed".
+    """
     result = store.load_result(scan_id)
     if not result:
         raise HTTPException(status_code=404, detail="Unknown scan")
-    doc = cbom.build(result)
+    try:
+        doc = cbom.build(result, spec_version=spec_version)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     ok, problems = cbom.validate(doc)
+    official = schema_validation.report(doc, spec_version)
+
     return {
-        "valid": ok,
-        "spec": f"CycloneDX {cbom.SPEC_VERSION} (ECMA-424)",
+        "spec": f"CycloneDX {spec_version} (ECMA-424)",
+        "spec_version": spec_version,
         "components": len(doc["components"]),
-        "problems": problems,
-        "note": ("Structural conformance check: required fields, enum membership and "
-                 "bom-ref uniqueness. Not a full JSON-Schema validation."),
+        # Kept for compatibility with the console's existing call.
+        "valid": bool(ok and official.get("valid") is not False),
+        "structural": {
+            "valid": ok,
+            "problems": problems,
+            "note": ("Required fields, enum membership, bom-ref uniqueness and "
+                     "reference integrity. Fast and dependency-free. This is "
+                     "NOT full schema conformance."),
+        },
+        "official": official,
+        "problems": problems + (official.get("problems") or []),
+        "note": ("Two checks: a structural one written here, and validation "
+                 "against the official CycloneDX JSON Schema vendored at a "
+                 "pinned commit. They are reported separately."),
     }
 
 
@@ -765,6 +797,13 @@ def meta() -> dict[str, Any]:
         },
         # Advertised so the console never offers a format the sensor cannot
         # actually read, and so the documented coverage has one source.
+        "cbom_versions": list(cbom.SUPPORTED_SPEC_VERSIONS),
+        "cbom_default_version": cbom.SPEC_VERSION,
+        "schema_validation": {
+            "available": schema_validation.available(),
+            "reason_unavailable": schema_validation.unavailable_reason(),
+            "schema": schema_validation.provenance(),
+        },
         "container_formats": container.SUPPORTED_FORMATS,
         "container_suffixes": list(container.SUPPORTED_SUFFIXES),
     }

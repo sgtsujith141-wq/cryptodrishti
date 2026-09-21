@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 cryptography
 pydantic
+jsonschema        # official CycloneDX schema validation, offline

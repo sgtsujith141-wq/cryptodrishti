@@ -203,7 +203,51 @@ Per-asset confidentiality lifetime, migration window and business criticality
 overrides; purpose in the score; explainable factor list rendered next to each
 number; Q-Day assumptions labelled as assumptions everywhere they appear.
 
-## M5 — CBOM and reporting  *(next)*
+## M5 — CBOM and reporting  *(complete)*
+
+Closed R2.3, R2.4, R2.6, R6.2–R6.6.
+
+**What shipped.** The official CycloneDX 1.6 and 1.7 JSON Schemas are vendored
+under `app/schemas/cyclonedx` at a pinned upstream commit, checksummed on load
+so a locally edited schema is refused rather than trusted, and validated
+against offline with no network call. The hand-written structural check stays,
+reported separately and never as conformance; a run where official validation
+could not happen reports `checked: false`, because a check that silently did
+not run is worse than one that failed. CI validates directory-scan and
+container-scan CBOMs in both versions and fails on any violation.
+
+CycloneDX 1.7 is a genuine implementation rather than a relabelled 1.6. Its
+`algorithmFamily` enum splits RSA by purpose, which means an RSA finding whose
+purpose M2 could not resolve gets **no** family — the correct answer falling
+out of the earlier work rather than needing a special case.
+
+The report gained a scan-integrity section that says plainly when an inventory
+is partial and why, and a full inventory in which **every** asset carries a
+six-step traced chain from evidence to action. The executive table still shows
+fifteen; it is now labelled as a ranking of the full set rather than standing
+in for it.
+
+**Eight emitter defects found by auditing field-by-field against the schema,
+each reproduced before being changed.** Four were hard schema violations
+(`mode`, `padding`); the rest were semantic and a schema could never have
+caught them: dependencies emitted as cryptographic algorithms, an execution
+environment asserted rather than observed, a security strength reported as a
+parameter set, a certificate reference holding a name instead of a bom-ref.
+
+**One was a leak.** A hardcoded secret the scanner found was exported verbatim
+into the CBOM — a document made to be attached to tickets and sent to vendors.
+Redaction was added, and the first attempt was itself wrong twice: too blunt
+(it ate `AES/ECB/PKCS5Padding`, the most informative field in a Java finding)
+and then incomplete (it redacted `additionalContext` while the same secret sat
+in `symbol` one field over).
+
+**Verified against.** A live server on port 8125: a partial scan with a refused
+endpoint, an operator override saved and applied, both CBOM versions passing
+official schema validation with zero problems, and a 63 KB report carrying
+eight traced chains, the partial-scan banner, the refusal, operator-versus-
+derived provenance, and no secret anywhere in it. 617 tests pass.
+
+
 
 Closes R2.3, R2.4, R6.2–R6.4.
 
@@ -212,7 +256,7 @@ where a schema can be shipped or vendored; full chain report
 (asset → evidence → classification → risk → recommendation → action)
 including incomplete scans and unresolved findings.
 
-## M6 — Benchmark and product experience
+## M6 — Benchmark and product experience  *(next)*
 
 Closes R9.1–R9.3, R7.2, R7.4, R7.8.
 

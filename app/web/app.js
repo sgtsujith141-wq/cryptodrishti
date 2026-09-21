@@ -225,7 +225,14 @@ async function boot() {
   });
   $("filter-context").addEventListener("change", renderLedger);
   $("btn-cbom").addEventListener("click", () => {
-    if (state.scanId) location.href = `/api/scan/${state.scanId}/cbom?download=true`;
+    if (state.scanId) {
+      location.href = `/api/scan/${state.scanId}/cbom?download=true`
+        + `&spec_version=${encodeURIComponent(cbomVersion())}`;
+    }
+  });
+  $("cbom-version").addEventListener("change", () => {
+    const box = $("validate-result");
+    if (!box.hidden) validateCbom();      // a stale verdict for the old version
   });
   $("btn-report").addEventListener("click", () => {
     if (state.scanId) window.open(`/api/scan/${state.scanId}/report`, "_blank");
@@ -1563,16 +1570,43 @@ document.addEventListener("keydown", (e) => {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
+const cbomVersion = () => ($("cbom-version") || {}).value || "1.6";
+
+/* Two results, reported as two results. The structural check is ours and is
+   not conformance; the official one validates against the schema the
+   CycloneDX project publishes. Collapsing them into one PASS would be the
+   overclaim this whole surface exists to avoid, and "could not run" must
+   never read as "passed". */
 async function validateCbom() {
   if (!state.scanId) return;
   const box = $("validate-result");
+  const version = cbomVersion();
   box.hidden = false; box.className = "call"; box.textContent = "Validating…";
   try {
-    const r = await api(`/api/scan/${state.scanId}/cbom/validate`);
-    box.className = "call " + (r.valid ? "pass" : "fail");
-    box.textContent = r.valid
-      ? `PASS — ${r.components} cryptographic-asset components conform to ${r.spec}.`
-      : `FAIL — ${r.problems.length} problem(s): ${r.problems.slice(0, 3).join("; ")}`;
+    const r = await api(`/api/scan/${state.scanId}/cbom/validate`
+      + `?spec_version=${encodeURIComponent(version)}`);
+
+    const structural = r.structural || {};
+    const official = r.official || {};
+    const lines = [];
+
+    lines.push(structural.valid
+      ? `Structural check: PASS (${r.components} components).`
+      : `Structural check: FAIL — ${(structural.problems || []).slice(0, 2).join("; ")}`);
+
+    if (!official.checked) {
+      lines.push(`Official ${r.spec} schema: NOT RUN — ${official.reason_unavailable || "unavailable"}.`);
+    } else if (official.valid) {
+      lines.push(`Official ${r.spec} JSON Schema: PASS `
+        + `(pinned ${String(official.schema?.pinned_commit || "").slice(0, 8)}).`);
+    } else {
+      lines.push(`Official ${r.spec} JSON Schema: FAIL — `
+        + `${(official.problems || []).slice(0, 2).join("; ")}`);
+    }
+
+    const ok = structural.valid && official.valid === true;
+    box.className = "call " + (ok ? "pass" : (official.checked === false ? "" : "fail"));
+    box.textContent = lines.join(" ");
   } catch (e) { box.className = "call fail"; box.textContent = "Validation failed: " + e.message; }
 }
 

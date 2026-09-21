@@ -653,6 +653,9 @@ def score_finding(f: Finding, qday: QDayModel, now_year: Optional[float] = None,
         "assessed_on": assessment_date().isoformat(),
         "qday": qday.to_dict(),
         "override_applied": bool(override and not override.is_empty),
+        # Carried so downstream consumers -- the CBOM's executionEnvironment
+        # among them -- can act on what the operator declared.
+        "constraints": list(getattr(override, "constraints", []) or []),
         "operator_inputs": sorted(
             name for name, value in inputs.items()
             if value.provenance == A.OPERATOR),

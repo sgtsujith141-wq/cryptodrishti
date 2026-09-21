@@ -280,6 +280,12 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
           component — the ECMA-424 standard a regulator or a downstream tool can actually
           consume. Validation checks the document structurally, live.</p>
         <div class="out-b">
+          <label class="cbom-ver">Version
+            <select id="cbom-version" aria-label="CycloneDX specification version">
+              <option value="1.6" selected>CycloneDX 1.6</option>
+              <option value="1.7">CycloneDX 1.7</option>
+            </select>
+          </label>
           <button id="btn-cbom" class="btn-o">Download CBOM</button>
           <button id="btn-validate" class="btn-o">Validate</button>
         </div>

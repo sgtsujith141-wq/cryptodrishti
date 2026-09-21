@@ -116,7 +116,14 @@ def test_cbom_validation_endpoint_passes_and_states_its_scope(client, completed_
     assert v["valid"] is True
     assert v["problems"] == []
     # The endpoint must not imply a full JSON-Schema validation it does not do.
-    assert "not a full" in v["note"].lower()
+    # The structural check still disclaims itself; that disclaimer moved to
+    # where the structural result lives now that real schema validation exists.
+    assert "not full schema conformance" in v["structural"]["note"].lower()
+    assert v["structural"]["valid"] is True
+    # And official validation is now a separate, honestly-labelled result.
+    assert v["official"]["checked"] is True, v["official"].get("reason_unavailable")
+    assert v["official"]["valid"] is True, v["official"]["problems"]
+    assert v["official"]["schema"]["pinned_commit"]
 
 
 def test_cbom_for_an_unknown_scan_is_404(client):

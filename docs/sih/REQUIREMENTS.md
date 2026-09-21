@@ -34,9 +34,10 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 |---|---|---|---|---|---|
 | R2.1 | CycloneDX 1.6 CBOM | `app/cbom.py` | `tests/test_cbom.py` (18) | CI `smoke` job asserts conformance on every push | DONE |
 | R2.2 | Detection evidence in the BOM | `cbom._evidence` → `evidence.occurrences` + `evidence.identity` | `test_cbom.py::detection_evidence_is_carried_into_the_bom` | Technique and confidence per component | DONE |
-| R2.3 | Schema validation | `cbom.validate` — structural only, states its own scope | 10 | Honest about not being JSON-Schema; container findings validated | PARTIAL |
+| R2.3 | Official schema validation | `app/schema_validation.py` against the vendored official schemas | 11 | Offline, pinned commit, checksummed; CI fails on violation | **DONE** |
+| R2.6 | Structural check kept separate | `cbom.validate` | 6 | Reported beside the official result, never as conformance | **DONE** |
 | R2.5 | Container provenance in the CBOM | `cbom._metadata_properties`, `container:*` properties | 4 | Image, digest, platform, layer index/digest and effective state per component | **DONE** |
-| R2.4 | Additional export version | — | — | — | GAP — must first verify whether a newer applicable spec exists |
+| R2.4 | Additional export version | CycloneDX 1.7, genuinely implemented | 7 | `ellipticCurve`, `algorithmFamily`, `relatedCryptographicAssets`; both versions validated against their own schema | **DONE** |
 
 ### Container coverage, stated exactly
 
@@ -81,6 +82,42 @@ A path maps to a component only when every library-naming finding at that
 path agrees. A `requirements.txt` listing six packages is a list, not a
 component, so it maps to none of them — otherwise every algorithm any of the
 six provides would attach to every artefact of whichever parsed first.
+
+### Standards conformance, stated exactly
+
+Two checks exist and they are **not** the same thing.
+
+| Check | What it is | Where |
+|---|---|---|
+| Structural | Required fields, enum membership, bom-ref uniqueness, reference integrity. Fast, no dependencies. **Not conformance.** | `cbom.validate` |
+| Official | Validation against the JSON Schema the CycloneDX project publishes, vendored at a pinned commit and checksummed on load. | `schema_validation.validate` |
+
+Both are reported separately by the API, the CLI and the console. A run where
+official validation could not happen reports `checked: false`, never a pass —
+a check that silently did not run is worse than one that failed.
+
+**Versions genuinely supported: 1.6 (default) and 1.7.** 1.7 is a real
+implementation, not a relabelled 1.6: it uses `ellipticCurve` (a namespaced
+closed enum, `nist/P-256`) in place of the deprecated `curve`,
+`relatedCryptographicAssets` in place of the deprecated
+`signatureAlgorithmRef`, and `algorithmFamily`, which splits RSA by purpose —
+`RSASSA-PSS`, `RSAES-OAEP` — and is therefore **omitted** when the purpose is
+unresolved. CI validates both against their own schema.
+
+### CBOM defects found by the audit and fixed
+
+Every one was reproduced before being changed.
+
+| Defect | Was | Now |
+|---|---|---|
+| Library components | Dependencies emitted as `cryptographic-asset` with `assetType: algorithm`. The module comment already claimed otherwise. | `type: library`, no `cryptoProperties` |
+| `mode` enum | `xts`, `cfb8`, `gcm-siv` emitted raw — **rejected by the official schema** | Mapped, unmappable values to `other` |
+| `padding` enum | `pkcs5padding`, `OAEPWith…` emitted raw — **rejected** | Mapped to `pkcs5`, `oaep`, … |
+| `executionEnvironment` | Hardcoded `software-plain-ram` — a guess, and exactly wrong for an HSM key | `unknown`, or `hardware` when an operator says so |
+| `parameterSetIdentifier` | Fell back to `classical_bits`, reporting ECDSA P-256 as parameter set "128" (its strength) | Key size only; named curves go in `curve` |
+| `signatureAlgorithmRef` | Held a name (`sha256WithRSAEncryption`); the schema declares it a `refType` | A real bom-ref, or omitted |
+| Certificate dates | Bare dates against `format: date-time` | RFC 3339 |
+| Secret material | `SECRET_KEY = "hunter2…"` exported verbatim in `additionalContext` **and** `symbol` | Redacted; location kept |
 
 ## R3 — Quantum exposure classification
 
@@ -165,9 +202,11 @@ scenario and `is_forecast` is emitted as `false` in the CBOM.
 | ID | Requirement | Implementation | Tests | Evidence | Baseline |
 |---|---|---|---|---|---|
 | R6.1 | Machine-readable export | `GET /api/scan/{id}/cbom` | `test_api.py` (3) | | DONE |
-| R6.2 | Human-readable report | `app/report.py` → `GET /api/scan/{id}/report` | none | HTML executive report | PARTIAL |
-| R6.3 | Asset → Evidence → Classification → Risk → Recommendation → Action chain | `report.py` gains "What the evidence establishes" and "Cryptographic purpose" sections | 1 | Assurance and purpose columns in the findings table | PARTIAL — chain is visible, not yet a single traced view |
-| R6.4 | Incomplete scans and unresolved findings surfaced | `_scan_warnings` now also reports archive refusals and truncation | 2 | Archive member refusals reach the operator as scan warnings | PARTIAL — surfaced in the API and status, not yet in the HTML report |
+| R6.2 | Human-readable report | `app/report.py` | 12 | Executive summary plus a full inventory: every asset, not the top 15 | **DONE** |
+| R6.3 | Asset → Evidence → Classification → Risk → Recommendation → Action chain | `report._chain_block` — six numbered steps per asset | 3 | One traced block per finding, all of them | **DONE** |
+| R6.4 | Incomplete scans and unresolved findings surfaced | `report._status_cell`, `_sensor_error_rows`, `_refusal_rows`, `_coverage_rows` | 3 | A partial scan says so at the top and lists why | **DONE** |
+| R6.5 | Report safety: escaping and redaction | `html.escape` throughout; `cbom.redact` | 5 | Hostile input cannot inject markup; secrets never exported | **DONE** |
+| R6.6 | Offline, print-to-PDF reporting | `@media print` rules, no scripts, no external fetches | 1 | Browser Print → Save as PDF; no direct export and none claimed | **DONE** |
 
 ## R7 — Interactive interface
 
@@ -240,12 +279,18 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 ## Summary at baseline
 
-| Status | At 90f4da3 | After M1 | After M2 | After M3 | After M4 |
-|---|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 | 73 |
-| PARTIAL | 25 | 22 | 18 | 18 | 14 |
-| GAP | 17 | 12 | 11 | 9 | 9 |
-| DEFECT | 5 | 4 | **0** | **0** | **0** |
+| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 |
+|---|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 | 83 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 |
+| GAP | 17 | 12 | 11 | 9 | 9 | 8 |
+| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** |
+
+M5 made the CBOM independently schema-valid against the official CycloneDX
+schemas, added genuine 1.7 export, and found eight emitter defects by audit —
+four of which the official schema rejects outright and one of which exported
+hardcoded secrets into a document meant to be shared. Test count rose from
+557 to 617.
 
 M4 made risk assessment per-asset rather than estate-wide, corrected two
 mathematical defects found by reading the code (the mode/median mislabelling

@@ -566,6 +566,12 @@ td.ctx { font-size: 11.5px; color: var(--ink-3); }
 .foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
         margin-top: 1.5rem; font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); }
 
+/* CBOM version selector. Two versions are genuinely supported; the default
+   is the one to rely on and is first. */
+.cbom-ver { display:inline-flex; align-items:center; gap:.35rem;
+            font-size:11.5px; color:var(--ink-3); margin-right:.5rem; }
+.cbom-ver select { font-size:11.5px; }
+
 /* Preview versus saved.
    The single most important state in the assessment workflow, so it is a
    banner and not a subtlety: quoting an unsaved what-if as a saved figure is
