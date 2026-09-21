@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Development branches are verified on push. Without this the SIH
+    # milestone branch had no CI at all until it was merged, which is the one
+    # moment a regression is most expensive to discover.
+    branches: [main, 'sih/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -71,8 +74,42 @@ jobs:
           print(f"CBOM OK: {len(doc['components'])} components, CycloneDX 1.6")
           PY
 
-      - name: Upload the CBOM
+      - name: Scan a generated container image and emit a CBOM
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          sys.path.insert(0, "tests")
+          import imagelab as L
+          from app import cbom, orchestrator
+
+          out = pathlib.Path("ci-image")
+          builder = L.OCIBuilder()
+          layer = L.tar_bytes([
+              ("app/main.py", L.CRYPTO_APP_PY),
+              ("app/requirements.txt", L.REQUIREMENTS),
+              ("etc/nginx.conf", L.NGINX_CONF),
+          ], gzipped=True)
+          builder.add_image([layer], tag="ci:latest")
+          archive = builder.write_tar(out / "ci.tar")
+
+          result = orchestrator.scan_image(archive)
+          doc = cbom.build(result)
+          valid, problems = cbom.validate(doc)
+          if not valid:
+              print("container CBOM failed validation:", *problems, sep="\n  ")
+              sys.exit(1)
+          if not result.findings:
+              print("container scan produced no findings")
+              sys.exit(1)
+          pathlib.Path("container-cbom.json").write_text(json.dumps(doc, indent=2))
+          print(f"container CBOM OK: {len(doc['components'])} components "
+                f"from {result.stats['container_layers']} layer(s)")
+          PY
+
+      - name: Upload the CBOMs
         uses: actions/upload-artifact@v4
         with:
           name: cbom
-          path: cbom.json
+          path: |
+            cbom.json
+            container-cbom.json

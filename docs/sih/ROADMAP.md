@@ -11,7 +11,7 @@ and measurement after that.
 
 ---
 
-## M1 — Security hardening  *(in progress)*
+## M1 — Security hardening  *(complete)*
 
 Closes R8.1–R8.9, S1–S9.
 
@@ -100,9 +100,51 @@ most were confirmed to fail when the defects were temporarily reintroduced.
 **Exit criteria:** a test for each corrected identification; no finding gains
 precision it did not earn.
 
-## M3 — Scanning coverage  *(next)*
+## M3 — Scanning coverage  *(complete)*
 
-Closes R1.7, plus cross-sensor correlation.
+Closed R1.7, R2.5, R11.1-R11.8.
+
+**What shipped.** `app/container.py` reads OCI layout directories, OCI tar
+archives and `docker save` archives with no daemon, no network and no
+privileged access. Nothing is ever extracted: members are streamed into memory
+and analysed there, which is both the security property and the reason there
+is no cleanup path to get wrong. Every member is vetted for traversal,
+absolute paths, drive letters, control characters, link escapes and special
+files before a byte is read, and member count, per-file size, total
+uncompressed bytes, nesting depth and wall clock are all bounded.
+
+`app/scanners/container.py` reuses the existing source, binary, config,
+manifest and certificate analysers rather than reimplementing detection, so an
+ELF inside an image is analysed by the code that analyses an ELF on disk, at
+the same confidence, recording the technique that actually ran. Layers are
+replayed in order with `.wh.` and `.wh..wh..opq` whiteout handling, so a file
+deleted by a later layer is reported as **historical** — still extractable, so
+still inventoried, but not part of what the image runs.
+
+`app/engine/correlate.py` links findings that share a concrete artefact: the
+same file, the same file in the same layer, or the same identified component.
+It never merges. Findings are bucketed by `(algorithm, purpose)` before any
+linking, so RSA signing can never join RSA key establishment; assurance and
+confidence are never written to; and disagreements are recorded rather than
+resolved.
+
+**Verified against.** A generated OCI archive scanned through a live server on
+port 8123: 23 assets across 2 layers from 5 analysed files, 1 historical
+finding (a private key deleted by the next layer), 2 evidence-backed logical
+assets, and a CycloneDX 1.6 CBOM that validates and carries image digest,
+layer digest and effective state per component. 487 tests pass.
+
+**Two real bugs were found by this verification, not by the tests:**
+
+1. Container findings all carried `scanner = "container"`, so normalisation
+   merged a source call site with a binary symbol — a distinction a directory
+   scan preserves. The scanner name now keeps the inner analyser.
+2. A `requirements.txt` declaring several libraries mapped its path to
+   whichever parsed first, producing a false correlation between MD5 from
+   pycryptodome and an OpenSSL binary. A path now maps to a component only
+   when every library-naming finding there agrees.
+
+**Original plan, for the record:**
 
 1. Container images, read-only: OCI layout directories, `docker save` tars,
    and `.tar`/`.tar.gz` layers. Bounded extraction with a decompression-ratio
@@ -114,7 +156,7 @@ Closes R1.7, plus cross-sensor correlation.
    sensors **while preserving each original evidence item's technique,
    confidence and assurance**. Correlation is presentation, never erasure.
 
-## M4 — Risk and migration intelligence
+## M4 — Risk and migration intelligence  *(next)*
 
 Closes R4.4–R4.8, R5.9.
 

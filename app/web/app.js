@@ -205,6 +205,17 @@ async function boot() {
   initPicker();
   $("run-scan").addEventListener("click", startScan);
   $("scan-path").addEventListener("keydown", (e) => { if (e.key === "Enter") startScan(); });
+  $("scan-path").addEventListener("change", inspectImage);
+  for (const radio of document.querySelectorAll('input[name="target-kind"]')) {
+    radio.addEventListener("change", () => {
+      const image = targetKind() === "image";
+      $("scan-path").placeholder = image
+        ? "/path/to/image.tar or an OCI layout directory"
+        : "/path/to/the/estate";
+      $("image-pick").hidden = !image;
+      if (image) inspectImage();
+    });
+  }
   let ft = null;
   $("filter-q").addEventListener("input", () => { clearTimeout(ft); ft = setTimeout(renderLedger, 90); });
   $("filter-class").addEventListener("change", () => {
@@ -343,19 +354,65 @@ function startClock() {
 }
 const stopClock = () => clearInterval(state.clockTimer);
 
+/* ─── container image archives ─────────────────────────────────────── */
+
+const targetKind = () =>
+  (document.querySelector('input[name="target-kind"]:checked') || {}).value || "directory";
+
+/* Describe the archive without scanning it, so a multi-image archive offers a
+   choice instead of the tool picking one, and an unsupported file says so
+   here rather than halfway through a scan. */
+async function inspectImage() {
+  const path = $("scan-path").value.trim();
+  const pick = $("image-pick");
+  const select = $("image-select");
+  const note = $("image-note");
+  if (targetKind() !== "image" || !path) { pick.hidden = true; return; }
+
+  select.textContent = "";
+  note.textContent = "Reading archive metadata…";
+  note.className = "image-note";
+  pick.hidden = false;
+
+  try {
+    const info = await api("/api/container/inspect?path=" + encodeURIComponent(path));
+    for (const image of info.images) {
+      const option = document.createElement("option");
+      option.value = image.name;
+      option.textContent = image.name + (image.platform ? ` — ${image.platform}` : "");
+      select.appendChild(option);
+    }
+    select.disabled = info.images.length < 2;
+    note.textContent = info.images.length > 1
+      ? `${info.format_description}. ${info.images.length} images — choose one, `
+        + "because each is a different estate."
+      : `${info.format_description}.`;
+  } catch (e) {
+    select.disabled = true;
+    note.textContent = e.message;
+    note.className = "image-note bad";
+  }
+}
+
 async function startScan() {
   const path = $("scan-path").value.trim();
   if (!path) { $("scan-path").focus(); return; }
+  const kind = targetKind();
   $("run-scan").disabled = true;
   armArray(); startClock();
   try {
+    const body = {
+      path, label: "",
+      profile: $("profile").value,
+      target_kind: kind,
+      endpoints: kind === "image" ? []
+        : $("scan-endpoints").value.split(",").map((s) => s.trim()).filter(Boolean),
+    };
+    if (kind === "image") body.image = $("image-select").value || "";
+
     const { scan_id } = await api("/api/scan", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path, label: "",
-        profile: $("profile").value,
-        endpoints: $("scan-endpoints").value.split(",").map((s) => s.trim()).filter(Boolean),
-      }),
+      body: JSON.stringify(body),
     });
     poll(scan_id);
   } catch (e) {
@@ -1216,6 +1273,56 @@ function openDrawer(f, isRefresh) {
     if (r.purpose_evidence) {
       s.appendChild(el("p", "said", "Target chosen because the purpose was "
         + r.purpose_evidence + "."));
+    }
+    d.appendChild(s);
+  }
+
+  /* Container provenance. Which image, which layer, and — the part that
+     matters — whether the file is still in the final filesystem. */
+  const prov = f.extra?.container;
+  if (prov) {
+    const s = sec("Container provenance");
+    s.appendChild(kv([
+      ["Image", prov.image || "—"],
+      ["Path", prov.path || "—"],
+      ["Layer", prov.layer_index >= 0
+        ? `${prov.layer_index} · ${(prov.layer_digest || "").slice(0, 19)}`
+        : "image config"],
+      ["State", prov.effective ? "in the final filesystem" : "historical layer only"],
+    ]));
+    if (!prov.effective) {
+      s.appendChild(el("p", "said warn",
+        `Layer ${prov.superseded_by_layer} removed or replaced this file. It is `
+        + "still extractable from the archive, so it is inventoried — but it is "
+        + "not part of what the image runs."));
+    }
+    d.appendChild(s);
+  }
+
+  /* Correlation. A link, never a merge: this finding's own assurance is
+     restated here so nobody reads the link as a promotion. */
+  const link = f.extra?.correlation;
+  if (link) {
+    const s = sec("Correlated with other evidence");
+    s.appendChild(kv([
+      ["Linked by", (link.basis || []).join(", ") || "—"],
+      ["Other detectors", (link.peer_detectors || []).join(", ") || "—"],
+      ["This finding's assurance", ASSURANCE_LABEL[link.own_assurance_unchanged]
+        || link.own_assurance_unchanged],
+      ["Strongest in group", ASSURANCE_LABEL[link.strongest_assurance_in_group]
+        || link.strongest_assurance_in_group],
+    ]));
+    s.appendChild(el("p", "said",
+      "Linked because the same concrete artefact was cited by more than one "
+      + "detector. The link does not change this finding's assurance or "
+      + "confidence."));
+    if (link.corroborated_by_use) {
+      s.appendChild(el("p", "said act",
+        "A declared capability here is corroborated by evidence of actual use "
+        + "elsewhere in the same component."));
+    }
+    for (const c of (link.conflicts || [])) {
+      s.appendChild(el("p", "said warn", c));
     }
     d.appendChild(s);
   }

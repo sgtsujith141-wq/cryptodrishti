@@ -25,7 +25,7 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 | R1.4 | Libraries | `app/scanners/deps.py` + `rules_binary.VERSION_PATTERNS` | none | Library capability recorded | PARTIAL — capability not marked as such (see D5) |
 | R1.5 | Configuration | `app/scanners/configs.py` — nginx, sshd, OpenSSL, Java, Apache, HAProxy | none dedicated | Disable-lists correctly excluded | PARTIAL — untested |
 | R1.6 | Certificates and key material | `app/scanners/certs.py` — PEM/DER X.509, PKCS#12, private keys, PQC OIDs | `test_cbom.py::certificate_findings_emit_certificate_asset_type` | PQC OID fallback verified in code | PARTIAL |
-| R1.7 | Container images | — | — | — | **GAP** |
+| R1.7 | Container images | `app/container.py` (archive safety), `app/scanners/container.py` (sensor) | 71 | OCI layout dir, OCI archive, Docker save. Layer replay with whiteouts; effective vs historical | **DONE** — see coverage note below |
 | R1.8 | Explicitly authorized infrastructure | `app/scanners/network.py` — live TLS probe | none | Works; **no authorization control** | PARTIAL — see S1 |
 
 ## R2 — Standardized CBOM
@@ -34,8 +34,53 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 |---|---|---|---|---|---|
 | R2.1 | CycloneDX 1.6 CBOM | `app/cbom.py` | `tests/test_cbom.py` (18) | CI `smoke` job asserts conformance on every push | DONE |
 | R2.2 | Detection evidence in the BOM | `cbom._evidence` → `evidence.occurrences` + `evidence.identity` | `test_cbom.py::detection_evidence_is_carried_into_the_bom` | Technique and confidence per component | DONE |
-| R2.3 | Schema validation | `cbom.validate` — structural only, states its own scope | 8 validator tests | Honest about not being JSON-Schema | PARTIAL |
+| R2.3 | Schema validation | `cbom.validate` — structural only, states its own scope | 10 | Honest about not being JSON-Schema; container findings validated | PARTIAL |
+| R2.5 | Container provenance in the CBOM | `cbom._metadata_properties`, `container:*` properties | 4 | Image, digest, platform, layer index/digest and effective state per component | **DONE** |
 | R2.4 | Additional export version | — | — | — | GAP — must first verify whether a newer applicable spec exists |
+
+### Container coverage, stated exactly
+
+What is supported, and nothing beyond it:
+
+| Supported | Not supported |
+|---|---|
+| OCI image layout, unpacked directory | Pulling from a registry (by design — no network) |
+| OCI image layout packed as a tar | zstd-compressed layers (named and refused, not skipped) |
+| `docker save` tar archives | A running Docker daemon or any privileged access |
+| gzip, bzip2, xz compression | Windows container images |
+| Layer replay with `.wh.` and `.wh..wh..opq` whiteouts | Squashed-image reconstruction beyond whiteout replay |
+| Image config: env, labels, history | Signature or attestation verification (cosign, in-toto) |
+| Reuse of the source, binary, config, manifest and certificate analysers | Anything the underlying analysers cannot do — e.g. Mach-O symbol tables |
+
+Every file is streamed into memory and analysed there. **Nothing is extracted
+to disk at any point**, which is both the security property and the reason
+there is no cleanup path to get wrong.
+
+## R11 — Cross-sensor correlation
+
+| ID | Requirement | Implementation | Tests | Evidence | Status |
+|---|---|---|---|---|---|
+| R11.1 | Link findings that are one logical asset | `app/engine/correlate.py` | 11 | Union-find over shared concrete artefacts | **DONE** |
+| R11.2 | Links must be evidence-backed | `artefact_keys` — same file, same layer+path, or same identified component | 3 | A shared algorithm name links nothing | **DONE** |
+| R11.3 | RSA signing and key establishment stay distinct | bucketed by `(algorithm, purpose)` before any linking | 1 | No shared artefact can bridge two purposes | **DONE** |
+| R11.4 | CAPABILITY never becomes OBSERVED | correlation writes only to `extra["correlation"]` | 2 | `own_assurance_unchanged` asserted equal to `f.assurance` | **DONE** |
+| R11.5 | Correlation must not invent confidence | no write to `confidence` anywhere in the module | 1 | Confidence map asserted identical before and after | **DONE** |
+| R11.6 | Conflicting evidence stays visible | `_conflicts` records key size, mode, padding and assurance spread | 1 | Surfaced in API, drawer, report and CBOM | **DONE** |
+| R11.7 | Unlinkable findings are left alone | clusters of one are discarded | 1 | Most findings carry no `correlation` key | **DONE** |
+| R11.8 | Exposed in API, dashboard and reports | `logical_assets` in the payload; drawer section; `correlation:*` CBOM properties | 4 | | **DONE** |
+
+**Correlation basis kinds, and what each one actually claims.**
+
+| Basis | Claim | Why it is safe |
+|---|---|---|
+| `file:<path>` | Two detectors read the same file | The file is one artefact |
+| `layer:<digest>:<path>` | Same file in the same image layer | Same path in two layers is two files |
+| `component:<library>` | Both belong to a library a detector *identified* | Only from a version banner, or a finding's own `library` key |
+
+A path maps to a component only when every library-naming finding at that
+path agrees. A `requirements.txt` listing six packages is a list, not a
+component, so it maps to none of them — otherwise every algorithm any of the
+six provides would attach to every artefact of whichever parsed first.
 
 ## R3 — Quantum exposure classification
 
@@ -88,7 +133,7 @@ Baseline column = state at `90f4da3`. This file is updated as milestones land.
 | R6.1 | Machine-readable export | `GET /api/scan/{id}/cbom` | `test_api.py` (3) | | DONE |
 | R6.2 | Human-readable report | `app/report.py` → `GET /api/scan/{id}/report` | none | HTML executive report | PARTIAL |
 | R6.3 | Asset → Evidence → Classification → Risk → Recommendation → Action chain | `report.py` gains "What the evidence establishes" and "Cryptographic purpose" sections | 1 | Assurance and purpose columns in the findings table | PARTIAL — chain is visible, not yet a single traced view |
-| R6.4 | Incomplete scans and unresolved findings surfaced | `stats["sensor_errors"]` captured | — | **Never shown in the UI or report** | **GAP** |
+| R6.4 | Incomplete scans and unresolved findings surfaced | `_scan_warnings` now also reports archive refusals and truncation | 2 | Archive member refusals reach the operator as scan warnings | PARTIAL — surfaced in the API and status, not yet in the HTML report |
 
 ## R7 — Interactive interface
 
@@ -161,15 +206,24 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 ## Summary at baseline
 
-| Status | At 90f4da3 | After M1 | After M2 |
-|---|---|---|---|
-| DONE | 26 | 35 | 48 |
-| PARTIAL | 25 | 22 | 18 |
-| GAP | 17 | 12 | 11 |
-| DEFECT | 5 | 4 | **0** |
+| Status | At 90f4da3 | After M1 | After M2 | After M3 |
+|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 |
+| PARTIAL | 25 | 22 | 18 | 18 |
+| GAP | 17 | 12 | 11 | 9 |
+| DEFECT | 5 | 4 | **0** | **0** |
 
 M1 closed all nine R8 rows and one detection defect (D7, the obsolete Kyber
 draft group). Test count rose from 226 to 317.
+
+M3 closed the container-image gap (R1.7) and added the correlation layer
+(R11), plus CBOM container provenance (R2.5). CI now runs on `sih/**` branches,
+which it did not before, so this branch was previously unverified until merge.
+Test count rose from 413 to 487. One fidelity bug was found and fixed during
+M3 verification: container findings originally all carried `scanner =
+"container"`, which made normalisation merge a source call site with a binary
+symbol — the distinction a directory scan preserves. The scanner name now
+keeps the inner analyser.
 
 M2 closed the remaining four detection defects — D1 and D2 (hash identity),
 D4 (RSA purpose), D5 (capability reported as use) — and D6 (certificate trust),

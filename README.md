@@ -13,7 +13,7 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6](https://img.shields.io/badge/CBOM-CycloneDX%201.6-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-413%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-487%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -44,8 +44,9 @@ about algorithms alone.
 
 A single-operator tool that answers that question end to end:
 
-1. **Six independent sensors** read what is actually present, rather than
-   trusting a manifest or a policy document.
+1. **Seven independent sensors** read what is actually present, rather than
+   trusting a manifest or a policy document — including local container image
+   archives, read without a daemon and without extracting anything.
 2. Raw detector hits are **normalised into distinct cryptographic assets**, so
    one algorithm seen 800 times is one migration item with 800 call sites — not
    800 findings.
@@ -70,7 +71,7 @@ flowchart TB
         T["Target<br/>directory · binaries · certs · endpoint"]
     end
 
-    subgraph Sensors["Six sensors (app/scanners/)"]
+    subgraph Sensors["Seven sensors (app/scanners/)"]
         direction LR
         S1["source<br/><i>Python AST + 10-language rules</i>"]
         S2["dependency<br/><i>package manifests</i>"]
@@ -117,7 +118,7 @@ project.
 Everything below is exercised by the test suite or reproducible with the
 commands given in [Testing](#testing).
 
-### Six sensors
+### Seven sensors
 
 | Sensor | Technique | Strength of evidence |
 |---|---|---|
@@ -127,6 +128,7 @@ commands given in [Testing](#testing).
 | `certificate` | X.509, PEM/DER, private key material, including PQC certificates | Parsed, not guessed |
 | `config` | nginx, Apache, sshd, OpenSSL, Java security policy | As actually deployed |
 | `network` | Live TLS probing, including hybrid PQC group negotiation | Ground truth for what is negotiated |
+| `container` | Local OCI and `docker save` archives, streamed without extraction; layers replayed with whiteouts | Reuses the five analysers above, so evidence strength is theirs — plus image and layer provenance |
 
 ### Classification
 
@@ -346,6 +348,86 @@ dependency, both of which conflict with running air-gapped. So `validate()`
 does a thorough structural check and its output states exactly what it did and
 did not verify.
 
+## Container images
+
+Point it at a local image archive and it reads what is actually shipped —
+which is where the gap between what a team wrote and what they run is widest.
+A base image nobody chose carries an OpenSSL nobody audited.
+
+```bash
+# In the console: choose "Container image archive", then Browse.
+# Or over the API:
+curl -X POST localhost:8000/api/scan -H 'Content-Type: application/json' \
+  -d '{"path": "/path/to/image.tar", "target_kind": "image", "image": "app:1.0"}'
+```
+
+**Supported**, and nothing beyond it:
+
+| Format | Notes |
+|---|---|
+| OCI image layout (directory) | `oci-layout` + `index.json` + `blobs/` |
+| OCI image layout (tar) | Same, packed |
+| `docker save` archive | `manifest.json` + layer tars |
+
+Compression: gzip, bzip2, xz. **zstd layers are named and refused**, not
+silently reported as empty. No daemon, no network, no privileged access, and
+**nothing is ever extracted to disk** — members are streamed into memory and
+analysed there.
+
+**Not supported**, stated because a security tool that overstates coverage is
+worse than one with less of it: pulling from a registry, Windows images,
+signature or attestation verification, and anything the underlying analysers
+cannot do (Mach-O symbol tables, for instance, are still string-matched).
+
+Detection is not reimplemented. Each file goes to the analyser that already
+handles it, so an ELF inside an image is read by the code that reads an ELF on
+disk, at the same confidence, recording the technique that actually ran.
+
+**Layers are replayed in order**, with `.wh.` and `.wh..wh..opq` whiteouts
+applied. A file deleted by a later layer is still extractable from the
+archive, so it is still inventoried — but as **historical**, not as live
+content. The commonest reason a key is in a layer at all is that somebody
+noticed and deleted it in the next one.
+
+An archive holding more than one image is **refused until one is named**. Each
+image is a different estate, and picking one silently would inventory
+something the operator did not ask about.
+
+### Archive safety
+
+Every member is vetted before a byte is read: upward traversal, absolute paths,
+drive letters, control characters, links whose targets escape the archive
+root, device nodes, FIFOs and sockets are all refused **and counted**, because
+a silent skip means reporting an incomplete image as complete. Member count,
+per-file size, total uncompressed bytes, nesting depth and wall clock are
+bounded — the total-bytes bound is what stops a decompression bomb, and it
+works because we were never writing to disk.
+
+## Correlation
+
+Two detectors seeing the same thing is worth recording. It is not worth
+merging, and it is definitely not worth promoting.
+
+`engine/correlate.py` links findings that share a **concrete artefact** — the
+same file, the same file in the same layer, or the same component a detector
+actually identified (an OpenSSL version banner, a named dependency). A shared
+*algorithm name* links nothing: an estate uses AES in forty unrelated places.
+
+What correlation may never do:
+
+- **Turn capability into observed.** A dependency that can do RSA, corroborated
+  by a call site that does, is still a dependency that can do RSA. The link is
+  recorded on both; neither one's assurance moves.
+- **Raise confidence.** Two detectors agreeing often means two readings of the
+  same bytes, and there is no calibration that would justify a number.
+- **Bridge two purposes.** Findings are bucketed by `(algorithm, purpose)`
+  before anything is linked, so RSA signing can never join RSA key transport.
+- **Hide disagreement.** Conflicting key sizes, modes or assurance states are
+  recorded and shown.
+
+A path maps to a component only when every library-naming finding there
+agrees. A `requirements.txt` listing six packages is a list, not a component.
+
 ## Purpose and assurance
 
 Two questions decide what a finding means, and most crypto inventories answer
@@ -500,6 +582,14 @@ actively harmful.
 - **Not packaged for distribution.** Run it from the source tree.
 - **`app/api.py` uses the deprecated FastAPI `on_event` startup hook**, which
   emits two warnings. Harmless today; needs migrating to lifespan handlers.
+- **Container coverage is local archives only.** No registry pulls, no Windows
+  images, no zstd layers, no signature or attestation verification. Layer
+  replay handles whiteouts; it does not reconstruct a squashed image any other
+  way. The exact supported set is in [Container images](#container-images).
+- **Correlation is conservative and will miss real links.** It requires a
+  shared concrete artefact, so a library the binary analyser could not
+  identify produces no link even when one exists. Missing a link costs less
+  than inventing one, so that is the direction it errs in.
 - **Not independently audited.** The classifications follow NIST IR 8547 and
   the CycloneDX 1.6 specification as I read them; they have not been reviewed
   by a cryptographer.
@@ -509,9 +599,8 @@ actively harmful.
 - Migrate the remaining nine languages from regex rule packs to real parsers
   (tree-sitter would cover all of them with one dependency).
 - Mach-O and PE symbol-table parsing, to bring non-Linux binaries up to the
-  evidence quality of ELF.
-- Container image layer scanning — the sensor interface exists
-  (`TECH_CONTAINER`) but is not implemented.
+  evidence quality of ELF — and, by the same change, images built on them.
+- zstd layer support, and image signature verification.
 - Differential scans: track an estate's PQC readiness over time rather than
   reporting a single snapshot.
 - Package for `pipx` install, and migrate `on_event` to lifespan handlers.
@@ -523,15 +612,17 @@ run.py                      entry point
 app/
   knowledge/algorithms.py   74-algorithm registry — the source of truth
   knowledge/purposes.py     cryptographic purpose model
+  container.py              safe, read-only image archive reader
+  engine/correlate.py       cross-sensor logical asset linking
   knowledge/rules_*.py      detection rule packs (source, binary)
-  scanners/                 the six sensors
+  scanners/                 seven sensors, including container
   engine/normalize.py       hit merging and path weighting
   engine/risk.py            Mosca model and scoring
   engine/recommend.py       migration target selection
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      413 tests
+tests/                      487 tests
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots

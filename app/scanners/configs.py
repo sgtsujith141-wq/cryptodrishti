@@ -98,7 +98,19 @@ def scan_file(path: Path, root: Path, kind: str) -> list[Finding]:
         rel = str(path.relative_to(root))
     except ValueError:
         rel = str(path)
+    return analyse_text(text, rel, kind)
 
+
+def config_kind(filename: str) -> Optional[str]:
+    """Which configuration dialect a filename implies, if any."""
+    kind = CONFIG_FILES.get(filename)
+    if kind is None and Path(filename).suffix.lower() in CONFIG_SUFFIXES:
+        kind = "generic"
+    return kind
+
+
+def analyse_text(text: str, rel: str, kind: str) -> list[Finding]:
+    """Parse configuration held in memory, for callers without a file."""
     findings: list[Finding] = []
 
     for m in _DIRECTIVES.finditer(text):

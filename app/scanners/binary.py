@@ -185,6 +185,17 @@ def scan_binary(path: Path, root: Path, kind: str) -> list[Finding]:
     except ValueError:
         rel = str(path)
 
+    return analyse_bytes(data, rel, kind)
+
+
+def analyse_bytes(data: bytes, rel: str, kind: str) -> list[Finding]:
+    """Run all three techniques over a binary held in memory.
+
+    Split out of ``scan_binary`` so the container sensor analyses a layer
+    member with the same code that analyses a file on disk. The technique and
+    confidence recorded still depend on the format, so a Mach-O inside an
+    image is reported exactly as weakly as one outside it.
+    """
     findings: list[Finding] = []
     seen_algorithms: set[str] = set()
 

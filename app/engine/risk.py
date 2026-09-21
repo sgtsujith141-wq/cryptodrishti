@@ -177,6 +177,19 @@ PURPOSE_URGENCY = {
 }
 
 
+def _by_scanner(table: dict, scanner: str, default: float) -> float:
+    """Look up a per-sensor weight, tolerating a qualified scanner name.
+
+    The container sensor reports as ``container/binary``, ``container/source``
+    and so on, so that normalisation keeps those findings apart. The weights
+    are defined per family, so an exact miss falls back to the part before the
+    slash rather than silently taking the default.
+    """
+    if scanner in table:
+        return table[scanner]
+    return table.get(scanner.split("/", 1)[0], default)
+
+
 def _sensitivity_shelf_life(sensitivity: Optional[str]) -> float:
     return config.SHELF_LIFE_BY_SENSITIVITY.get(
         sensitivity or config.DEFAULT_SENSITIVITY,
@@ -210,7 +223,7 @@ def score_finding(f: Finding, qday: QDayModel, now_year: int = 2026,
     f.quantum_class = alg.quantum_class
 
     shelf = _sensitivity_shelf_life(f.sensitivity)
-    migration = MIGRATION_EFFORT_YEARS.get(f.scanner, 2.0)
+    migration = _by_scanner(MIGRATION_EFFORT_YEARS, f.scanner, 2.0)
     m = mosca(shelf, migration, qday, now_year=now_year, trials=400)
     f.exposure_years = m.exposure_years
 
@@ -230,7 +243,7 @@ def score_finding(f: Finding, qday: QDayModel, now_year: int = 2026,
     if alg.classical_bits is not None and alg.classical_bits < 112:
         base += 8.0
 
-    exposure_mult = EXPOSURE_MULTIPLIER.get(f.scanner, 1.0)
+    exposure_mult = _by_scanner(EXPOSURE_MULTIPLIER, f.scanner, 1.0)
 
     # Mosca gap contributes sub-linearly: 10 years exposed is worse than 5,
     # but not twice as bad, because both already mean "you have lost".

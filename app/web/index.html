@@ -44,6 +44,12 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
         live endpoint. Six sensors read what is actually there and return every cryptographic
         asset present — each one classified by what a quantum computer does to it.</p>
       <label class="aim-l" for="scan-path">Target estate</label>
+      <div class="aim-kind" role="radiogroup" aria-label="Kind of target">
+        <label><input type="radio" name="target-kind" value="directory" checked>
+          Directory or repository</label>
+        <label><input type="radio" name="target-kind" value="image">
+          Container image archive</label>
+      </div>
       <div class="aim-row">
         <input id="scan-path" type="text" spellcheck="false" autocomplete="off"
                placeholder="/path/to/the/estate">
@@ -67,6 +73,15 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
           <button id="pick-up" class="btn-s" type="button">↑ Parent folder</button>
           <button id="pick-use" class="btn-p" type="button">Scan this folder</button>
         </div>
+      </div>
+
+      <!-- Shown only for an image archive. An archive holding more than one
+           image is ambiguous, so the operator picks rather than the tool
+           guessing which estate they meant. -->
+      <div class="image-pick" id="image-pick" hidden>
+        <label class="aim-l" for="image-select">Image in this archive</label>
+        <select id="image-select"></select>
+        <p class="image-note" id="image-note"></p>
       </div>
 
       <div class="presets" id="presets"></div>

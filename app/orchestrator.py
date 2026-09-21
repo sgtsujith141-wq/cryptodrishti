@@ -15,11 +15,12 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
 from . import config, fspolicy
-from .engine import normalize, recommend, risk
+from .container import ArchiveLimits, ContainerError
+from .engine import correlate, normalize, recommend, risk
 from .fspolicy import FsPolicy, PathRefused
 from .models import Finding, ScanResult, ScanTarget
 from .netpolicy import NetPolicy
-from .scanners import binary, certs, configs, deps, network, source
+from .scanners import binary, certs, configs, container, deps, network, source
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,42 @@ DEFAULT_SENSORS = list(SENSORS)
 
 # Sensors that can report their own inner progress.
 _SUB_PROGRESS = {"source", "binary"}
+
+
+def _finish(raw: list[Finding], result: ScanResult, stats: dict[str, Any],
+            profile: str, qday, progress) -> list[Finding]:
+    """The half of a scan that is the same whatever produced the findings.
+
+    Normalise, correlate, score, recommend. Shared by the directory and the
+    image entry points so a container finding travels exactly the same path as
+    one from a source tree -- there is no second pipeline to drift.
+    """
+    if progress:
+        progress(80, "Normalising cryptographic assets", "")
+    assets = normalize.normalize(raw)
+
+    if progress:
+        progress(84, "Correlating evidence across sensors", "")
+    # Correlation runs before scoring and changes nothing it scores: it links
+    # findings and records why, leaving every assurance and confidence value
+    # exactly as the detector set it.
+    links = correlate.correlate(assets)
+    stats["correlation"] = correlate.summary(links)
+    stats["logical_assets"] = [a.to_dict() for a in links]
+
+    if progress:
+        progress(88, "Scoring quantum risk", "")
+    risk.score_all(assets, qday or risk.QDayModel())
+
+    if progress:
+        progress(94, "Selecting migration targets", "")
+    recommend.recommend_all(assets, profile)
+
+    assets.sort(key=lambda f: -f.risk_score)
+
+    result.findings = assets
+    result.stats = stats
+    return assets
 
 
 def scan_target(
@@ -136,22 +173,7 @@ def scan_target(
             log.exception("network sensor failed")
         done_weight += 12
 
-    if progress:
-        progress(80, "Normalising cryptographic assets", "")
-    assets = normalize.normalize(raw)
-
-    if progress:
-        progress(88, "Scoring quantum risk", "")
-    risk.score_all(assets, qday or risk.QDayModel())
-
-    if progress:
-        progress(94, "Selecting migration targets", "")
-    recommend.recommend_all(assets, profile)
-
-    assets.sort(key=lambda f: -f.risk_score)
-
-    result.findings = assets
-    result.stats = stats
+    assets = _finish(raw, result, stats, profile, qday, progress)
     result.stats["raw_hits"] = len(raw)
     result.stats["filesystem_policy"] = fs.report()
 
@@ -171,6 +193,114 @@ def scan_target(
     if stats.get("endpoints_refused"):
         incomplete.append(
             f"{len(stats['endpoints_refused'])} endpoint(s) refused by network policy")
+    result.stats["complete"] = not incomplete
+    if incomplete:
+        result.stats["incomplete_reasons"] = incomplete
+
+    result.finished_at = time.time()
+    return result
+
+
+# --------------------------------------------------------------------------
+# Container images
+#
+# An image archive is not a directory and is deliberately not treated as one.
+# A directory scan walks a filesystem the operator already has; an image scan
+# reads an untrusted archive, resolves a manifest, replays layers and has to
+# decide which of several images was meant. Disguising the second as the first
+# would mean either lying about the target kind or quietly extracting the
+# archive somewhere, and we do neither.
+# --------------------------------------------------------------------------
+
+def inspect_image(archive_path: str | Path) -> dict[str, Any]:
+    """Describe an archive without scanning it, for the console's picker."""
+    from . import container as container_mod
+    return container_mod.inspect(archive_path)
+
+
+def scan_image(
+    archive_path: str | Path,
+    image: str = "",
+    label: str = "",
+    profile: str = recommend.PROFILE_GENERAL,
+    qday: Optional[risk.QDayModel] = None,
+    progress: Optional[Callable[[int, str], None]] = None,
+    time_budget: Optional[float] = None,
+    limits: Optional[ArchiveLimits] = None,
+) -> ScanResult:
+    """Scan one image inside one local container archive.
+
+    Runs the container sensor, then the same normalise -> correlate -> score ->
+    recommend pipeline a directory scan runs, so a container finding reaches
+    the CBOM by the identical route.
+    """
+    path = Path(archive_path).expanduser().resolve()
+    if not path.exists():
+        raise PathRefused(f"Image archive not found: {path}")
+
+    budget = time_budget if time_budget is not None else config.SCAN_TIME_BUDGET
+    limits = limits or ArchiveLimits()
+    if budget:
+        limits.deadline = time.monotonic() + budget
+
+    target = ScanTarget(kind="image", value=str(path),
+                        label=label or (image or path.name))
+    result = ScanResult(target=target)
+
+    stats: dict[str, Any] = {
+        "sensors_run": [], "sensor_errors": {},
+        "scan_root": str(path),
+        "time_budget_seconds": budget,
+        "target_kind": "image",
+    }
+
+    def report(phase: str, pct: int, detail: str = "") -> None:
+        if progress:
+            progress(pct, phase, detail)
+
+    def layer_progress(done: int, total: int, noun: str) -> None:
+        if progress and total:
+            pct = 5 + int(70 * done / total)
+            progress(min(pct, 75), "Reading image layers",
+                     f"{done} of {total} {noun}")
+
+    raw: list[Finding] = []
+    report("Opening image archive", 5)
+    try:
+        found, sstats = container.scan(path, image=image, limits=limits,
+                                       on_progress=layer_progress)
+        raw.extend(found)
+        stats.update(sstats)
+        stats["sensors_run"].append("container")
+    except ContainerError as exc:
+        # An unreadable or ambiguous archive is the operator's problem to fix
+        # and the message names what to do, so it is raised rather than
+        # flattened into an empty result that reads like a clean image.
+        raise
+    except Exception as exc:
+        stats["sensor_errors"]["container"] = f"{type(exc).__name__}: {exc}"
+        log.exception("container sensor failed on %s", path)
+
+    assets = _finish(raw, result, stats, profile, qday, progress)
+
+    # Recount after normalisation. The sensor counts raw detections; the
+    # inventory counts assets, and publishing one number labelled as the other
+    # makes the CBOM's own totals disagree with each other.
+    effective = sum(1 for f in assets
+                    if (f.extra.get("container") or {}).get("effective", True))
+    result.stats["container_findings_effective"] = effective
+    result.stats["container_findings_historical"] = len(assets) - effective
+
+    incomplete: list[str] = []
+    if stats["sensor_errors"]:
+        incomplete.append(f"{len(stats['sensor_errors'])} sensor(s) failed")
+    if stats.get("container_incomplete"):
+        incomplete.append(stats["container_incomplete"])
+    archive_stats = stats.get("container_archive_stats") or {}
+    if archive_stats.get("refused"):
+        total = sum(archive_stats["refused"].values())
+        incomplete.append(
+            f"{total} archive member(s) refused by the archive policy")
     result.stats["complete"] = not incomplete
     if incomplete:
         result.stats["incomplete_reasons"] = incomplete

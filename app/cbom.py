@@ -64,7 +64,11 @@ _TECHNIQUE = {
     "certificate-parse": "other",
     "network-probe": "dynamic-analysis",
     "config-parse": "other",
-    "container-layer-analysis": "binary-analysis",
+    # A container layer read is how we reached the bytes, not how the bytes
+    # were identified. Findings that came from the source, binary, config or
+    # manifest analysers keep *their* technique; only artefacts the container
+    # sensor identified itself carry this one.
+    "container-layer-analysis": "other",
 }
 
 
@@ -194,6 +198,48 @@ def component_for(f: Finding) -> dict[str, Any]:
         comp["properties"].append(
             {"name": "certificate:trustVerified",
              "value": str(f.extra["trust_verified"]).lower()})
+
+    # Container provenance. Carried as properties, which is the CycloneDX
+    # sanctioned place for data the spec has no field for, so a consumer that
+    # ignores them still gets a conforming document.
+    provenance = f.extra.get("container") or {}
+    if provenance:
+        comp["properties"].extend([
+            {"name": "container:image", "value": str(provenance.get("image", ""))},
+            {"name": "container:path", "value": str(provenance.get("path", ""))},
+            {"name": "container:layerIndex",
+             "value": str(provenance.get("layer_index", ""))},
+            {"name": "container:layerDigest",
+             "value": str(provenance.get("layer_digest", ""))},
+            # The distinction that matters: is this artefact in the image's
+            # final filesystem, or only in a layer something later deleted?
+            {"name": "container:state", "value": str(provenance.get("state", ""))},
+            {"name": "container:effective",
+             "value": "true" if provenance.get("effective") else "false"},
+        ])
+        if provenance.get("image_digest"):
+            comp["properties"].append(
+                {"name": "container:imageDigest",
+                 "value": str(provenance["image_digest"])})
+        if provenance.get("platform"):
+            comp["properties"].append(
+                {"name": "container:platform", "value": str(provenance["platform"])})
+
+    # Correlation. A link, never a merge: the component's own assurance is
+    # emitted above and is unaffected by anything here.
+    link = f.extra.get("correlation") or {}
+    if link:
+        comp["properties"].extend([
+            {"name": "correlation:assetId", "value": str(link.get("asset_id", ""))},
+            {"name": "correlation:basis", "value": "; ".join(link.get("basis", []))},
+            {"name": "correlation:peerDetectors",
+             "value": "; ".join(link.get("peer_detectors", []))},
+            {"name": "correlation:corroboratedByUse",
+             "value": "true" if link.get("corroborated_by_use") else "false"},
+        ])
+        for conflict in link.get("conflicts", [])[:3]:
+            comp["properties"].append(
+                {"name": "correlation:conflict", "value": conflict[:400]})
     if f.recommendation:
         comp["properties"].append(
             {"name": "migration:recommendation",
@@ -203,6 +249,49 @@ def component_for(f: Finding) -> dict[str, Any]:
             comp["properties"].append(
                 {"name": "migration:unresolved", "value": "true"})
     return comp
+
+
+def _metadata_properties(result: ScanResult, findings: list[Finding]
+                         ) -> list[dict[str, str]]:
+    """Document-level facts, including which image this BOM describes."""
+    stats = result.stats or {}
+    props = [
+        {"name": "sih:problemStatement", "value": config.PS_ID},
+        {"name": "sih:organisation", "value": config.PS_ORG},
+        {"name": "scan:durationSeconds", "value": str(round(result.duration, 2))},
+        {"name": "scan:findings", "value": str(len(findings))},
+        {"name": "scan:targetKind", "value": result.target.kind},
+        # An incomplete scan that does not say so is the most damaging thing
+        # this document could be, so completeness is a first-class field.
+        {"name": "scan:complete",
+         "value": "true" if stats.get("complete", True) else "false"},
+    ]
+    for reason in (stats.get("incomplete_reasons") or [])[:10]:
+        props.append({"name": "scan:incompleteReason", "value": str(reason)[:400]})
+
+    if stats.get("container_format"):
+        props.extend([
+            {"name": "container:archiveFormat",
+             "value": str(stats["container_format"])},
+            {"name": "container:image", "value": str(stats.get("container_image", ""))},
+            {"name": "container:layersRead",
+             "value": str(stats.get("container_layers", 0))},
+            {"name": "container:findingsEffective",
+             "value": str(stats.get("container_findings_effective", 0))},
+            {"name": "container:findingsHistorical",
+             "value": str(stats.get("container_findings_historical", 0))},
+        ])
+        if stats.get("container_image_digest"):
+            props.append({"name": "container:imageDigest",
+                          "value": str(stats["container_image_digest"])})
+
+    correlation = stats.get("correlation") or {}
+    if correlation:
+        props.append({"name": "correlation:logicalAssets",
+                      "value": str(correlation.get("logical_assets", 0))})
+        props.append({"name": "correlation:correlatedFindings",
+                      "value": str(correlation.get("correlated_findings", 0))})
+    return props
 
 
 def build(result: ScanResult, findings: Optional[Iterable[Finding]] = None) -> dict[str, Any]:
@@ -234,12 +323,7 @@ def build(result: ScanResult, findings: Optional[Iterable[Finding]] = None) -> d
                 "name": result.target.label or result.target.value,
                 "description": f"{result.target.kind}: {result.target.value}",
             },
-            "properties": [
-                {"name": "sih:problemStatement", "value": config.PS_ID},
-                {"name": "sih:organisation", "value": config.PS_ORG},
-                {"name": "scan:durationSeconds", "value": str(round(result.duration, 2))},
-                {"name": "scan:findings", "value": str(len(findings))},
-            ],
+            "properties": _metadata_properties(result, findings),
         },
         "components": [component_for(f) for f in findings],
     }

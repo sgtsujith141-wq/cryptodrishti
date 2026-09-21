@@ -17,7 +17,7 @@ import time
 import traceback
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import (
@@ -26,7 +26,10 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import auth, cbom, config, fspolicy, netpolicy, orchestrator, report, store
+from . import (
+    auth, cbom, config, container, fspolicy, netpolicy, orchestrator, report, store,
+)
+from .container import ContainerError
 from .engine import recommend, risk
 from .fspolicy import PathRefused
 from .knowledge import algorithms as K
@@ -83,6 +86,11 @@ class ScanRequest(BaseModel):
     # Bounded at the schema so an oversized list is rejected before it reaches
     # the policy layer; the policy then vets each entry that survives.
     endpoints: list[str] = Field(default_factory=list, max_length=64)
+    # A container archive is a different kind of target, not a directory with
+    # an odd name, so it is selected explicitly rather than sniffed. `image`
+    # names which manifest to read when the archive holds more than one.
+    target_kind: Literal["directory", "image"] = "directory"
+    image: str = Field("", max_length=300)
 
 
 class QDayRequest(BaseModel):
@@ -133,15 +141,21 @@ def _run_scan(scan_id: str, req: ScanRequest) -> None:
             _set_job(scan_id, progress=pct, phase=phase, detail=detail,
                      tick=counter["n"])
 
-        result = orchestrator.scan_target(
-            req.path,
-            label=req.label,
-            endpoints=req.endpoints,
-            sensors=req.sensors,
-            profile=req.profile,
-            max_files=req.max_files,
-            progress=progress,
-        )
+        if req.target_kind == "image":
+            result = orchestrator.scan_image(
+                req.path, image=req.image, label=req.label,
+                profile=req.profile, progress=progress,
+            )
+        else:
+            result = orchestrator.scan_target(
+                req.path,
+                label=req.label,
+                endpoints=req.endpoints,
+                sensors=req.sensors,
+                profile=req.profile,
+                max_files=req.max_files,
+                progress=progress,
+            )
         result.id = scan_id
 
         summary = risk.portfolio_summary(result.findings)
@@ -152,9 +166,10 @@ def _run_scan(scan_id: str, req: ScanRequest) -> None:
                  findings=len(result.findings), duration=round(result.duration, 2),
                  complete=result.stats.get("complete", True),
                  warnings=_scan_warnings(result.stats))
-    except PathRefused as exc:
-        # A policy refusal is the operator's problem to fix, so it is reported
-        # verbatim rather than flattened into a generic error.
+    except (PathRefused, ContainerError) as exc:
+        # A policy refusal or an unreadable archive is the operator's problem
+        # to fix, and the message names what to do, so it is reported verbatim
+        # rather than flattened into a generic error.
         _set_job(scan_id, state="error", error=str(exc), refused=True)
     except Exception as exc:
         # The operator gets the error class, the message and a reference; the
@@ -167,6 +182,25 @@ def _run_scan(scan_id: str, req: ScanRequest) -> None:
                  hint="Full traceback is in the server log under this reference.")
     finally:
         _SCAN_SLOTS.release()
+
+
+def _container_summary(stats: dict[str, Any]) -> dict[str, Any]:
+    """Image provenance for the console, or {} for a directory scan."""
+    if not stats.get("container_format"):
+        return {}
+    return {
+        "format": stats.get("container_format"),
+        "format_description": stats.get("container_format_description"),
+        "image": stats.get("container_image"),
+        "image_digest": stats.get("container_image_digest"),
+        "platform": stats.get("container_platform"),
+        "images_available": stats.get("container_images_available") or [],
+        "layers": stats.get("container_layers"),
+        "files_analysed": stats.get("container_files_analysed"),
+        "findings_effective": stats.get("container_findings_effective"),
+        "findings_historical": stats.get("container_findings_historical"),
+        "archive": stats.get("container_archive_stats") or {},
+    }
 
 
 def _scan_warnings(stats: dict[str, Any]) -> list[str]:
@@ -185,24 +219,64 @@ def _scan_warnings(stats: dict[str, Any]) -> list[str]:
     fs = stats.get("filesystem_policy") or {}
     for reason, count in (fs.get("skipped") or {}).items():
         out.append(f"{count} path(s) skipped: {reason}")
+    archive = stats.get("container_archive_stats") or {}
+    for reason, count in (archive.get("refused") or {}).items():
+        out.append(f"{count} archive member(s) refused: {reason}")
+    if archive.get("truncated"):
+        out.append(f"image archive: {archive['truncated']}")
+    for note in archive.get("notes") or []:
+        out.append(f"image archive: {note}")
     return out
 
 
 @app.post("/api/scan")
 def start_scan(req: ScanRequest) -> dict[str, Any]:
-    # Vet the root synchronously so a bad target is a 400 the operator sees
-    # immediately, not a background job that fails a second later.
+    # Vet the target synchronously so a bad one is a 400 the operator sees
+    # immediately, not a background job that fails a second later. For an
+    # image this also settles the manifest question up front: an ambiguous
+    # archive is rejected here, with the available images named.
     try:
         root = fspolicy.resolve_root(req.path)
     except PathRefused as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    result = ScanResult(target=ScanTarget(kind="repository", value=str(root)))
+    if req.target_kind == "image":
+        try:
+            archive = container.open_archive(root)
+            try:
+                container.select_image(archive, req.image)
+            finally:
+                archive.close()
+        except ContainerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    kind = "image" if req.target_kind == "image" else "repository"
+    result = ScanResult(target=ScanTarget(kind=kind, value=str(root)))
     scan_id = result.id
     _set_job(scan_id, state="queued", progress=0, phase="Queued",
-             label=req.label or root.name)
+             target_kind=req.target_kind,
+             label=req.label or (req.image or root.name))
     threading.Thread(target=_run_scan, args=(scan_id, req), daemon=True).start()
     return {"scan_id": scan_id}
+
+
+@app.get("/api/container/inspect")
+def inspect_container(path: str = Query("", max_length=4096)) -> dict[str, Any]:
+    """Describe a local image archive without reading a single layer.
+
+    Cheap enough to drive the console's image picker, and it is where an
+    unsupported file fails with a reason instead of halfway through a scan.
+    """
+    if not path:
+        raise HTTPException(400, "A path to a local image archive is required.")
+    try:
+        resolved = fspolicy.resolve_root(path)
+    except PathRefused as exc:
+        raise HTTPException(400, str(exc))
+    try:
+        return container.inspect(resolved)
+    except ContainerError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.get("/api/scan/{scan_id}/status")
@@ -281,6 +355,11 @@ def scan_payload(scan_id: str, min_score: float = 0.0, quantum_class: str = "",
         # tool can produce, so it is never something you have to go looking for.
         "complete": stats.get("complete", True),
         "warnings": _scan_warnings(stats),
+        # Correlation is a view over the findings, not a change to them, so it
+        # travels beside them rather than being folded in.
+        "correlation": stats.get("correlation") or {},
+        "logical_assets": stats.get("logical_assets") or [],
+        "container": _container_summary(stats),
     }
 
 
@@ -527,6 +606,10 @@ def meta() -> dict[str, Any]:
             "max_entries": config.MAX_ENTRIES,
             "access_control": "token" if auth.configured_token() else "none (localhost only)",
         },
+        # Advertised so the console never offers a format the sensor cannot
+        # actually read, and so the documented coverage has one source.
+        "container_formats": container.SUPPORTED_FORMATS,
+        "container_suffixes": list(container.SUPPORTED_SUFFIXES),
     }
 
 

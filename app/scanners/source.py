@@ -425,6 +425,29 @@ def _scan_patterns(text: str, lang: str, rel: str,
     return out
 
 
+def analyse_text(text: str, rel: str, filename: str = "") -> list[Finding]:
+    """Run both passes over source held in memory.
+
+    Split out of ``scan_file`` so a caller that already has the bytes -- the
+    container sensor reading a layer -- gets exactly the same detection as a
+    file on disk, rather than a second implementation that drifts from it.
+    """
+    lang = rs.language_for(filename or rel)
+    if lang is None or not text.strip():
+        return []
+
+    findings: list[Finding] = []
+    skip: set[int] = set()
+
+    if lang == "python":
+        ast_findings = _scan_python_ast(None, text, rel)
+        findings.extend(ast_findings)
+        skip = {e.line for f in ast_findings for e in f.evidence if e.line}
+
+    findings.extend(_scan_patterns(text, lang, rel, skip))
+    return findings
+
+
 def scan_file(path: Path, root: Path) -> list[Finding]:
     lang = rs.language_for(path.name)
     if lang is None:
@@ -433,24 +456,13 @@ def scan_file(path: Path, root: Path) -> list[Finding]:
         text = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
-    if not text.strip():
-        return []
 
     try:
         rel = str(path.relative_to(root))
     except ValueError:
         rel = str(path)
 
-    findings: list[Finding] = []
-    skip: set[int] = set()
-
-    if lang == "python":
-        ast_findings = _scan_python_ast(path, text, rel)
-        findings.extend(ast_findings)
-        skip = {e.line for f in ast_findings for e in f.evidence if e.line}
-
-    findings.extend(_scan_patterns(text, lang, rel, skip))
-    return findings
+    return analyse_text(text, rel, path.name)
 
 
 def scan(root: str | Path, max_files: int = config.MAX_FILES,

@@ -151,68 +151,86 @@ def scan(root: str | Path, max_files: int = 500,
         except ValueError:
             rel = str(path)
 
-        for package, version in _extract(text, kind, path):
-            key = package.lower().strip()
-            entry = CRYPTO_LIBRARIES.get(key)
-            if entry is None:
-                # Match a coordinate like org.bouncycastle:bcprov-jdk18on
-                key = key.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
-                entry = CRYPTO_LIBRARIES.get(key)
-            if entry is None:
-                continue
-
-            algorithms, pqc_min, note = entry
-            detail = note
-            if pqc_min and version:
-                if _version_tuple(version) < _version_tuple(pqc_min):
-                    detail += (f" Detected {version}, which is below {pqc_min}; "
-                               f"post-quantum algorithms are unavailable until upgrade.")
-                else:
-                    detail += f" Detected {version}, which has post-quantum support."
-            elif pqc_min:
-                detail += f" Post-quantum support requires {pqc_min} or later."
-
-            # The dependency itself is DECLARED: the manifest is a statement
-            # of intent that this library is linked, and the line in the
-            # manifest is the thing you would change.
-            findings.append(Finding(
-                algorithm="unknown", asset_type=ASSET_LIBRARY, scanner=SCANNER,
-                title=f"Cryptographic library: {package}"
-                      + (f" {version}" if version else ""),
-                detail=detail, rule_id="dep.library",
-                evidence=[Evidence(location=rel, symbol=package,
-                                   technique=TECH_MANIFEST, confidence=0.9,
-                                   context=f"{kind} manifest"
-                                           + (f", version {version}" if version else ""),
-                                   assurance=ASSURANCE_DECLARED)],
-                extra={"library": key, "version": version, "ecosystem": kind,
-                       "provides": algorithms},
-            ))
-
-            # What the library *can* do is CAPABILITY and nothing stronger.
-            # Depending on a package that implements RSA is not evidence that
-            # RSA is used, and an inventory that counts it as use inflates
-            # every total it reports. The finding is still worth recording --
-            # it is the reachable surface -- but it must be labelled for what
-            # it is so a reader never mistakes it for a call site.
-            for alg in algorithms:
-                findings.append(Finding(
-                    algorithm=alg, asset_type=ASSET_LIBRARY, scanner=SCANNER,
-                    title=f"{alg} reachable via {package}",
-                    detail=(f"Provided by the {package} dependency declared in {rel}. "
-                            f"This shows the algorithm is reachable, not that any code "
-                            f"calls it; confirm against a call site before treating it "
-                            f"as part of the estate in use."),
-                    rule_id="dep.provides",
-                    purpose=K.default_purpose(alg),
-                    purpose_evidence=("implied by the algorithm where it serves only "
-                                      "one purpose; the manifest itself says nothing "
-                                      "about use"),
-                    evidence=[Evidence(location=rel, symbol=f"{package}:{alg}",
-                                       technique=TECH_MANIFEST, confidence=0.55,
-                                       context="library capability, not a call site",
-                                       assurance=ASSURANCE_CAPABILITY)],
-                    extra={"library": key, "version": version},
-                ))
+        findings.extend(analyse_manifest(text, kind, rel))
 
     return findings, {"manifests_scanned": n}
+
+
+def manifest_kind(filename: str) -> Optional[str]:
+    """Which ecosystem a manifest filename belongs to, if any."""
+    return MANIFESTS.get(filename)
+
+
+def analyse_manifest(text: str, kind: str, rel: str) -> list[Finding]:
+    """Read a manifest held in memory, for callers without a file.
+
+    Split out so the container sensor reads a layer's requirements.txt with
+    the same code, and therefore the same assurance semantics: the manifest
+    declares a dependency and the algorithms it provides remain capability.
+    """
+    findings: list[Finding] = []
+    for package, version in _extract(text, kind, None):
+        key = package.lower().strip()
+        entry = CRYPTO_LIBRARIES.get(key)
+        if entry is None:
+            # Match a coordinate like org.bouncycastle:bcprov-jdk18on
+            key = key.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
+            entry = CRYPTO_LIBRARIES.get(key)
+        if entry is None:
+            continue
+
+        algorithms, pqc_min, note = entry
+        detail = note
+        if pqc_min and version:
+            if _version_tuple(version) < _version_tuple(pqc_min):
+                detail += (f" Detected {version}, which is below {pqc_min}; "
+                           f"post-quantum algorithms are unavailable until upgrade.")
+            else:
+                detail += f" Detected {version}, which has post-quantum support."
+        elif pqc_min:
+            detail += f" Post-quantum support requires {pqc_min} or later."
+
+        # The dependency itself is DECLARED: the manifest is a statement
+        # of intent that this library is linked, and the line in the
+        # manifest is the thing you would change.
+        findings.append(Finding(
+            algorithm="unknown", asset_type=ASSET_LIBRARY, scanner=SCANNER,
+            title=f"Cryptographic library: {package}"
+                  + (f" {version}" if version else ""),
+            detail=detail, rule_id="dep.library",
+            evidence=[Evidence(location=rel, symbol=package,
+                               technique=TECH_MANIFEST, confidence=0.9,
+                               context=f"{kind} manifest"
+                                       + (f", version {version}" if version else ""),
+                               assurance=ASSURANCE_DECLARED)],
+            extra={"library": key, "version": version, "ecosystem": kind,
+                   "provides": algorithms},
+        ))
+
+        # What the library *can* do is CAPABILITY and nothing stronger.
+        # Depending on a package that implements RSA is not evidence that
+        # RSA is used, and an inventory that counts it as use inflates
+        # every total it reports. The finding is still worth recording --
+        # it is the reachable surface -- but it must be labelled for what
+        # it is so a reader never mistakes it for a call site.
+        for alg in algorithms:
+            findings.append(Finding(
+                algorithm=alg, asset_type=ASSET_LIBRARY, scanner=SCANNER,
+                title=f"{alg} reachable via {package}",
+                detail=(f"Provided by the {package} dependency declared in {rel}. "
+                        f"This shows the algorithm is reachable, not that any code "
+                        f"calls it; confirm against a call site before treating it "
+                        f"as part of the estate in use."),
+                rule_id="dep.provides",
+                purpose=K.default_purpose(alg),
+                purpose_evidence=("implied by the algorithm where it serves only "
+                                  "one purpose; the manifest itself says nothing "
+                                  "about use"),
+                evidence=[Evidence(location=rel, symbol=f"{package}:{alg}",
+                                   technique=TECH_MANIFEST, confidence=0.55,
+                                   context="library capability, not a call site",
+                                   assurance=ASSURANCE_CAPABILITY)],
+                extra={"library": key, "version": version},
+            ))
+
+    return findings
