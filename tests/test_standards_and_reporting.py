@@ -660,22 +660,49 @@ def test_the_whole_tree_parses_under_the_oldest_supported_python():
 
     Found the hard way: an f-string expression containing a backslash is legal
     from 3.12 (PEP 701) and a syntax error before it. Local development runs a
-    newer interpreter, so nothing but CI caught it — and CI catches it as an
+    newer interpreter, so nothing but CI caught it -- and CI catches it as an
     import failure in an unrelated test, which is a slow way to learn.
+
+    The file list comes from git rather than a directory walk. A walk picks up
+    whatever happens to be sitting in the tree -- `demo/targets/` holds local
+    clones of third-party projects during development -- and third-party code
+    is not ours to hold to our own language floor.
     """
     import ast
+    import subprocess
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
+    try:
+        listing = subprocess.run(
+            ["git", "ls-files", "-co", "--exclude-standard", "*.py"],
+            cwd=root, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):  # pragma: no cover
+        pytest.skip("git is unavailable, so the file list cannot be trusted")
+    if listing.returncode != 0:  # pragma: no cover
+        pytest.skip("not a git checkout")
+
+    # `Report/snapshot` is excluded deliberately: it is a frozen copy of an
+    # earlier state, kept as a record, and holding a snapshot to today's
+    # language floor would be wrong.
+    paths = [root / name for name in listing.stdout.split("\n")
+             if name.strip() and not name.startswith("Report/snapshot/")]
+
     problems = []
-    for directory in ("app", "tests"):
-        for path in (root / directory).rglob("*.py"):
-            try:
-                ast.parse(path.read_text(encoding="utf-8"),
-                          filename=str(path), feature_version=(3, 11))
-            except SyntaxError as exc:
-                problems.append(
-                    f"{path.relative_to(root)}:{exc.lineno}: {exc.msg}")
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            ast.parse(path.read_text(encoding="utf-8"),
+                      filename=str(path), feature_version=(3, 11))
+        except SyntaxError as exc:
+            problems.append(
+                f"{path.relative_to(root)}:{exc.lineno}: {exc.msg}")
     assert not problems, (
         "syntax not valid on Python 3.11, the oldest version this project "
         "supports:\n  " + "\n  ".join(problems))
+    # A guard that has quietly stopped seeing most of the tree is worse than
+    # no guard, because it still reports success.
+    assert len(paths) >= 55, (
+        f"only {len(paths)} Python files were checked; the guard has lost "
+        "sight of the tree it is supposed to cover")

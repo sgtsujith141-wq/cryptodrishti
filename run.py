@@ -67,6 +67,80 @@ def demo_reset(seed_path: str = "", endpoints_csv: str = "") -> int:
     return 0
 
 
+def build_demo(endpoints_csv: str = "") -> int:
+    """One command: build the fixtures, run both scans, save an override.
+
+    Leaves the console showing every behaviour the presenter script walks
+    through — an RSA signing finding and an RSA key-transport finding from the
+    same algorithm, a capability-only dependency, a container image with a
+    deleted key in a historical layer, an operator override, and a partial
+    scan. Offline: nothing here opens a socket unless the operator names an
+    endpoint themselves.
+    """
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent / "demo"))
+    import build as demo_build                       # noqa: E402
+
+    from app import assessment, orchestrator, store  # noqa: E402
+    from app.engine import risk                      # noqa: E402
+
+    store.init()
+    print("\n  building demo fixtures (offline, synthetic) ...")
+    built = demo_build.build(quiet=True)
+
+    for scan in store.list_scans():
+        store.delete_scan(scan["id"])
+    print("  cleared previous scans")
+
+    endpoints = [e.strip() for e in endpoints_csv.split(",") if e.strip()]
+    if not endpoints:
+        # Demonstration 8: a partial scan. This address is the cloud metadata
+        # service; the destination policy refuses it, the scan completes with
+        # the findings it did get, and the console says it is incomplete.
+        endpoints = ["169.254.169.254"]
+
+    print(f"  scanning the estate at {built['estate']} ...")
+    estate = orchestrator.scan_target(
+        built["estate"], label="demo-estate", endpoints=endpoints,
+        progress=lambda pct, phase, detail="": None)
+    store.save_scan(estate, risk.portfolio_summary(estate.findings))
+    print(f"    {len(estate.findings)} assets"
+          f"  complete={estate.stats.get('complete')}")
+
+    print(f"  scanning the container image {built['image'].name} ...")
+    image = orchestrator.scan_image(built["image"], label="checkout-service:2.4")
+    store.save_scan(image, risk.portfolio_summary(image.findings))
+    historical = image.stats.get("container_findings_historical", 0)
+    print(f"    {len(image.findings)} assets across "
+          f"{image.stats.get('container_layers')} layers"
+          f"  ({historical} historical)")
+
+    # Demonstration 7: a saved operator override on the RSA signing asset.
+    signing = next((f for f in estate.findings
+                    if f.algorithm.startswith("rsa")
+                    and f.purpose == "signature"), None)
+    if signing is not None:
+        key = assessment.asset_key(signing)
+        store.save_override(assessment.AssetOverride(
+            asset_key=key, shelf_life_years=25.0, criticality=1.8,
+            sensitivity="restricted", constraints=["hardware-backed"],
+            note="payments signing key, HSM-backed — set for the demo"))
+        rescored = orchestrator.scan_target(
+            built["estate"], label="demo-estate", endpoints=endpoints,
+            progress=lambda pct, phase, detail="": None)
+        rescored.id = estate.id
+        store.save_scan(rescored, risk.portfolio_summary(rescored.findings))
+        print(f"    saved an operator override on {key[:12]} and rescored")
+    else:
+        print("    WARNING: no RSA signing asset found; override not saved",
+              file=sys.stderr)
+
+    print("\n  demo ready. Start the console with:  python run.py\n")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default=config.HOST)
@@ -79,6 +153,12 @@ def main() -> int:
     ap.add_argument("--open", action="store_true", help="open a browser")
     ap.add_argument("--preflight", action="store_true",
                     help="check everything the demo depends on, then exit")
+    ap.add_argument("--preflight-offline", action="store_true",
+                    help="check the demo's fixtures and dependencies without "
+                         "needing the server to be running")
+    ap.add_argument("--demo", action="store_true",
+                    help="build the demo fixtures, run both scans and save an "
+                         "override, then exit. Offline.")
     ap.add_argument("--demo-reset", action="store_true",
                     help="wipe scans and re-seed the exact demo state, then exit")
     args = ap.parse_args()
@@ -96,9 +176,13 @@ def main() -> int:
         print(f"\n  {exc}\n", file=sys.stderr)
         return 2
 
-    if args.preflight:
+    if args.preflight or args.preflight_offline:
         from app.preflight import run as preflight_run
-        return preflight_run(f"http://{args.host}:{args.port}")
+        return preflight_run(f"http://{args.host}:{args.port}",
+                             demo_only=args.preflight_offline)
+
+    if args.demo:
+        return build_demo(args.seed_endpoints)
 
     if args.demo_reset:
         return demo_reset(args.seed_path, args.seed_endpoints)

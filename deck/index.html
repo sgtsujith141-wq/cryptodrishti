@@ -151,6 +151,22 @@ td strong { color: var(--ink); }
 </style>
 </head>
 <body>
+<!--
+  SUPERSEDED.
+
+  The submission deck is submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx,
+  built from the official SIH template. This file is the older offline HTML deck,
+  kept only for rehearsal.
+
+  Two things were removed from it at M7, for the same reason they were removed
+  from presenter/script.md: a competitor-comparison table asserting what three
+  named commercial products can and cannot do, and a statistic quoting a
+  national compliance deadline. Neither could be sourced from this repository.
+  If you present from this file, check every remaining claim against
+  presenter/script.md, which lists exactly what may be quoted and where each
+  figure comes from.
+-->
+
 
 <div class="progress" id="progress"></div>
 
@@ -205,30 +221,30 @@ td strong { color: var(--ink); }
 </section>
 
 <!-- 4 ------------------------------------------------------------------ -->
-<section class="slide" data-notes="THE MOST IMPORTANT SLIDE. This is a dated government requirement, not a student idea. Land Dec 2027 hard and pause. 45 seconds.">
-  <div class="eyebrow">This is already mandated</div>
-  <h2>India's national quantum-safe roadmap</h2>
-  <p class="lede">Published February 2026 by the Department of Science &amp; Technology under the National Quantum Mission, jointly with CERT-In.</p>
+<section class="slide" data-notes="This is the slide that earns the tool. Two ideas, both demonstrable on screen in the next two minutes. Do not rush it. 45 seconds.">
+  <div class="eyebrow">The two ideas that do the work</div>
+  <h2>Purpose, and how strong the evidence is</h2>
   <div class="timeline" style="margin-top:3vh">
-    <div class="tl"><span class="when">Dec 2026</span><span class="what">PQC certification labs operational under the TEC framework</span></div>
-    <div class="tl hot"><span class="when">Dec 2027</span><span class="what"><strong>Cryptographic inventories completed across defence, power, telecom and BFSI</strong></span></div>
-    <div class="tl"><span class="when">Dec 2028</span><span class="what">High-priority systems migrated</span></div>
-    <div class="tl"><span class="when">Dec 2029</span><span class="what">Full post-quantum adoption — six years ahead of NIST's 2035 deadline</span></div>
+    <div class="tl hot"><span class="when">Purpose</span><span class="what"><strong>RSA is not one risk.</strong> RSA signing goes to ML-DSA; RSA key transport goes to ML-KEM. Two migrations, one algorithm name. Resolved from the call site — and where the evidence does not settle it, no target is named at all.</span></div>
+    <div class="tl"><span class="when">Urgency</span><span class="what">Key establishment is urgent <em>today</em>, because traffic recorded now can be decrypted later. A signature is not retroactively forgeable, so its clock runs differently.</span></div>
+    <div class="tl hot"><span class="when">Assurance</span><span class="what"><strong>Capability, declared, used, observed.</strong> A library that <em>can</em> do RSA is not evidence that RSA is used. Most inventories flatten that; this one keeps it.</span></div>
+    <div class="tl"><span class="when">Consequence</span><span class="what">A migration plan that is not padded with libraries nobody calls — and that never sends an engineer down the wrong path with false confidence.</span></div>
   </div>
-  <p class="lede" style="margin-top:3.5vh;color:var(--ink)">Every operator must produce a cryptographic inventory in <strong>fifteen months</strong>. There is no sovereign tool to produce one.</p>
+  <p class="lede" style="margin-top:3.5vh;color:var(--ink)">Three RSA findings in one scan, three different answers, and the third one says <strong>&ldquo;purpose must be resolved first&rdquo;</strong>. That is the demo.</p>
 </section>
 
 <!-- 5 ------------------------------------------------------------------ -->
-<section class="slide" data-notes="Thirty seconds only. Do not explain the architecture - you are about to SHOW it. Name the six sensors fast and move.">
+<section class="slide" data-notes="Thirty seconds only. Do not explain the architecture - you are about to SHOW it. Name the seven sensors fast and move.">
   <div class="eyebrow">What we built</div>
-  <h2>Six sensors, one cryptographic inventory</h2>
+  <h2>Seven sensors, one cryptographic inventory</h2>
   <div class="pipeline">
-    <div class="stage"><h4>Source</h4><p>AST analysis, 9 languages</p></div>
+    <div class="stage"><h4>Source</h4><p>Python AST, rule packs for 7 more</p></div>
     <div class="stage"><h4>Dependencies</h4><p>Manifest → capability</p></div>
     <div class="stage"><h4>Binaries</h4><p>ELF symbols, crypto constants</p></div>
     <div class="stage"><h4>Certificates</h4><p>X.509, keys, keystores</p></div>
     <div class="stage"><h4>Config</h4><p>Cipher and protocol policy</p></div>
     <div class="stage"><h4>Network</h4><p>Live TLS, hybrid PQC probe</p></div>
+    <div class="stage"><h4>Containers</h4><p>OCI archives, layer replay</p></div>
   </div>
   <div class="pipeline" style="margin-top:2.5vh">
     <div class="stage" style="border-color:#39406B"><h4>Normalise</h4><p>Detector hits grouped into distinct cryptographic assets</p></div>
@@ -247,26 +263,6 @@ td strong { color: var(--ink); }
       Scanning a real open-source codebase, offline, with the network cable out.
     </p>
   </div>
-</section>
-
-<!-- 7 ------------------------------------------------------------------ -->
-<section class="slide" data-notes="Do not disparage IBM - they wrote the CBOM standard and we conform to it. The point is the four things they do not do. 55 seconds.">
-  <div class="eyebrow">Why not the existing tools</div>
-  <h2>The incumbents cannot be deployed where India needs them</h2>
-  <div style="overflow:auto">
-  <table>
-    <thead><tr><th>Capability</th><th>IBM CBOMkit</th><th>SandboxAQ</th><th>Keyfactor</th><th>Ours</th></tr></thead>
-    <tbody>
-      <tr><td><strong>Air-gapped deployment</strong></td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
-      <tr><td><strong>Binaries &amp; firmware</strong></td><td class="no">limited</td><td class="yes">yes</td><td class="yes">agent</td><td class="yes">yes</td></tr>
-      <tr><td><strong>Mosca risk prioritisation</strong></td><td class="no">no</td><td class="no">partial</td><td class="no">no</td><td class="yes">yes</td></tr>
-      <tr><td><strong>Migration plan, not just inventory</strong></td><td class="no">no</td><td class="no">partial</td><td class="no">no</td><td class="yes">yes</td></tr>
-      <tr><td><strong>Indian regulatory mapping</strong></td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
-      <tr><td><strong>Cost</strong></td><td>free</td><td class="no">enterprise</td><td class="no">enterprise</td><td class="yes">free</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p class="lede" style="margin-top:2.5vh">We <em>conform to</em> IBM's CBOM standard — it is the right standard. We build the four layers above it that no one has built for India.</p>
 </section>
 
 <!-- 8 ------------------------------------------------------------------ -->
@@ -300,10 +296,10 @@ td strong { color: var(--ink); }
   <div class="cols">
     <div>
       <div class="stat-row" style="grid-template-columns:1fr 1fr">
-        <div class="stat"><span class="v">4</span><span class="k">Sectors under the Dec 2027 mandate: defence, power, telecom, BFSI</span></div>
-        <div class="stat safe"><span class="v">₹0</span><span class="k">Licence cost. Open, sovereign, deployable inside a classified network</span></div>
+        <div class="stat"><span class="v">7</span><span class="k">Discovery sensors: source, dependency, binary, certificate, config, container, network</span></div>
+        <div class="stat safe"><span class="v">664</span><span class="k">Automated tests, running in CI on Python 3.11, 3.12 and 3.13</span></div>
       </div>
-      <p class="lede" style="margin-top:3vh">The inventory is the gate every other migration step waits behind. Removing it moves the whole national timeline.</p>
+      <p class="lede" style="margin-top:3vh">The inventory is the gate every other migration step waits behind. It is also the step nobody has a tool for.</p>
     </div>
     <div>
       <ul>
@@ -329,7 +325,7 @@ td strong { color: var(--ink); }
     </div>
     <div>
       <ul>
-        <li><strong>DST / National Quantum Mission</strong> — <em>Implementation of a Quantum Safe Ecosystem in India</em>, February 2026</li>
+        <li><strong>CycloneDX 1.6 (ECMA-424) and 1.7</strong> — cryptographic bill of materials; schemas vendored at a pinned commit</li>
         <li><strong>TEC</strong> — draft framework for testing and certification of PQC products</li>
         <li><strong>Mosca (2015)</strong> — the risk timeline framework</li>
       </ul>

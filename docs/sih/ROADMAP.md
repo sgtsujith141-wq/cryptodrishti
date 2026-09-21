@@ -311,20 +311,78 @@ as PARTIAL, and no secret in any output. 664 tests pass.
 
 
 
-Closes R9.1–R9.3, R7.2, R7.4, R7.8.
+## M7 — Submission readiness  *(complete, with two items open)*
 
-A labelled corpus with positives **and negatives** (crypto-adjacent code that
-must not fire), a harness that computes precision/recall/F1 per detector, and
-publication of whatever the real numbers turn out to be. UI work on partial
-failures, evidence drill-down and scan history.
+Closed R10.1–R10.10, R10.12, R10.14. **R10.11 is BLOCKED and R10.13 is a GAP** —
+see below.
 
-## M7 — Submission readiness  *(next)*
+**What shipped.**
 
-Closes R10.2, R10.5, R10.6, R10.10, R10.11.
+*Architecture.* `docs/architecture/architecture.mmd` is the editable source;
+SVG and PNG are rendered from it. It shows container archive processing as its
+own input, and draws the TLS probe dashed because it is the only path that
+leaves the machine. It has no box for a cloud provider, a KMS, an HSM or a
+registry, because none of those integrations exists.
 
-Architecture diagram asset, benchmark reproduction instructions, shipped demo
-fixtures, the official six-section deck exported as a six-page PDF, and a
-video script describing only what the product actually does.
+*Demo.* `python run.py --demo` builds a container image and certificates from
+committed synthetic fixtures, scans a synthetic estate — deliberately including
+one endpoint the destination policy refuses, so the scan finishes PARTIAL with
+its reason — scans the image with layer replay, and saves an operator override
+that survives the rescan. `--preflight-offline` checks every dependency the
+demo needs without touching the network, and fails if any file carrying a
+`PRIVATE KEY` marker is not also marked synthetic.
+
+*Deck.* `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`, built by
+script from the official template. Exactly six slides: the template ships a
+seventh whose own text says to keep the deck to six, so the build removes it.
+The template's backgrounds, branding, section titles, footer and numbering are
+untouched. `submission/build/check_deck.py` fails if any shape leaves the
+canvas, collides with another or runs into the footer bar, and counts the
+portal fields still unfilled.
+
+*Benchmark presentation.* The README now gives both result sets separately —
+the like-for-like improvement on the unchanged original corpus, and the current
+corpus — each traceable to a committed JSON file, each with the sentence saying
+it measures a synthetic corpus and not real-world accuracy, and with the corpus
+gaps named.
+
+**What the audit removed, which was the more useful half.** `presenter/script.md`
+and `presenter/qa.md` asserted a set of specific national policy deadlines, a
+fixed year by which recorded traffic would be read, and what three named
+commercial products could and could not do. None of it could be sourced from
+this repository, so it was removed rather than reworded. Three documentation
+claims were also corrected against the code:
+
+1. The source rule packs cover **eight** languages with specific rules, not ten.
+   Rust and Swift are recognised by extension but reach only the four
+   language-agnostic rules, so they are effectively uncovered — now stated as a
+   limitation.
+2. The algorithm registry holds **74** entries, not 52. The README's
+   classification counts were wrong in three places.
+3. `python -m app.cli` runs the **source sensor only**. The README presented it
+   as a general scan, so its CBOM was a silent subset — 7 assets against the
+   console's 23 for the same directory. Documented, not quietly widened.
+
+The Python 3.11 syntax guard was widened from `app/` and `tests/` to every
+Python file git tracks, driven by `git ls-files` so it cannot wander into the
+third-party clones under `demo/targets/`.
+
+**Open, and recorded as open.**
+
+- **R10.11 — six-page submission PDF: BLOCKED.** The problem-statement title,
+  theme, team ID and team name are not recoverable from this repository. The
+  build writes each as a visible `[FILL FROM SIH PORTAL]` marker and refuses to
+  guess; `check_deck.py` counts them and says the deck is not submittable while
+  the count is above zero.
+- **R10.13 — demonstration video: GAP.** `presenter/video.md` is a script and a
+  shot list. No recording exists, and nothing in the repository says otherwise.
+
+**Verified.** 664 tests pass. The benchmark reproduces 116/0/0 at P = R = F1 =
+1.000 with the committed ground truth unmodified. Both CBOM versions pass
+official schema validation. The demo runs end to end from a clean database:
+23 assets PARTIAL for the estate, 15 COMPLETE for the image. A repository-wide
+check of every file git would commit finds no unmarked key material, cloud
+credential or token. All 91 tracked Python files parse under Python 3.11.
 
 ---
 

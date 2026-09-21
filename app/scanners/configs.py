@@ -45,16 +45,32 @@ CONFIG_SUFFIXES = {".conf", ".cnf", ".cfg", ".properties"}
 #
 # `SHA` with no digit is OpenSSL's name for HMAC-SHA1 -- `DES-CBC-SHA` is a
 # SHA-1 suite -- so it maps to sha1 rather than being missed.
+# (display name, match pattern, registry key).
+#
+# The display name is separate from the pattern because some patterns carry a
+# lookahead and a finding titled "SHA(?![0-9]) permitted by ssl_ciphers" tells
+# the reader about our regex instead of their configuration.
 _CIPHER_TOKENS = [
-    ("3DES", "3des"), ("DES-CBC3", "3des"), ("TRIPLEDES", "3des"),
-    ("DESEDE", "3des"),
-    ("RC4", "rc4"),
-    ("DES(?!-CBC3|EDE)", "des"),
-    ("MD5", "md5"), ("SHA1", "sha1"), ("SHA(?![0-9])", "sha1"),
-    ("SHA256", "sha256"), ("SHA384", "sha384"),
-    ("NULL", "unknown"), ("EXPORT", "unknown"), ("ANON", "unknown"),
-    ("AES128", "aes-128"), ("AES256", "aes-256"),
-    ("ECDHE", "ecdh"), ("DHE", "dh"), ("RSA", "rsa"),
+    ("3DES", "3DES", "3des"),
+    ("DES-CBC3", "DES-CBC3", "3des"),
+    ("TripleDES", "TRIPLEDES", "3des"),
+    ("DESede", "DESEDE", "3des"),
+    ("RC4", "RC4", "rc4"),
+    ("DES", "DES(?!-CBC3|EDE)", "des"),
+    ("MD5", "MD5", "md5"),
+    ("SHA1", "SHA1", "sha1"),
+    # OpenSSL writes HMAC-SHA1 as a bare `-SHA` suffix.
+    ("SHA (HMAC-SHA1)", "SHA(?![0-9])", "sha1"),
+    ("SHA256", "SHA256", "sha256"),
+    ("SHA384", "SHA384", "sha384"),
+    ("NULL", "NULL", "unknown"),
+    ("EXPORT", "EXPORT", "unknown"),
+    ("ANON", "ANON", "unknown"),
+    ("AES128", "AES128", "aes-128"),
+    ("AES256", "AES256", "aes-256"),
+    ("ECDHE", "ECDHE", "ecdh"),
+    ("DHE", "DHE", "dh"),
+    ("RSA", "RSA", "rsa"),
 ]
 
 # Protocol names, longest first. The trailing negative lookahead is what stops
@@ -178,18 +194,18 @@ def analyse_text(text: str, rel: str, kind: str) -> list[Finding]:
         elements = [e.strip() for e in upper.split(":") if e.strip()]
         permitted = " ".join(e for e in elements if not e.startswith(("!", "-")))
 
-        for token, alg in _CIPHER_TOKENS:
-            # A token may carry its own lookahead, so it is not escaped here;
-            # every entry in the table is written as a deliberate pattern.
-            if not re.search(rf"(?<![A-Z0-9]){token}(?![A-Z0-9])", permitted):
+        for label, pattern, alg in _CIPHER_TOKENS:
+            # The pattern may carry its own lookahead, so it is not escaped
+            # here; every entry in the table is written as a deliberate regex.
+            if not re.search(rf"(?<![A-Z0-9]){pattern}(?![A-Z0-9])", permitted):
                 continue
             if alg in seen:
                 continue
             seen.add(alg)
             findings.append(Finding(
                 algorithm=alg, asset_type=ASSET_ALGORITHM, scanner=SCANNER,
-                title=f"{token} permitted by {directive}",
-                detail=(f"Configuration permits {token}. This is declared policy: the "
+                title=f"{label} permitted by {directive}",
+                detail=(f"Configuration permits {label}. This is declared policy: the "
                         f"suite is allowed, not necessarily negotiated. Cipher policy "
                         f"is usually the cheapest part of a migration to change -- one "
                         f"line and a service reload."),
@@ -199,7 +215,7 @@ def analyse_text(text: str, rel: str, kind: str) -> list[Finding]:
                                   "but does not show it was negotiated"),
                 evidence=[Evidence(location=rel, line=line_no, symbol=directive,
                                    snippet=value[:180], technique=TECH_CONFIG,
-                                   confidence=0.8, context=token,
+                                   confidence=0.8, context=label,
                                    assurance=ASSURANCE_DECLARED)],
             ))
 

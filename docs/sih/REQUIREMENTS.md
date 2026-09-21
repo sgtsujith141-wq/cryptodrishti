@@ -302,30 +302,60 @@ its structural properties are asserted instead.
 
 ## R10 — Submission readiness
 
-| ID | Requirement | Baseline |
-|---|---|---|
-| R10.1 | README | DONE — 422 lines, honest limitations |
-| R10.2 | Architecture diagram | PARTIAL — Mermaid in README, no standalone asset |
-| R10.3 | Install / run instructions | DONE |
-| R10.4 | Test instructions | DONE |
-| R10.5 | Benchmark instructions | GAP |
-| R10.6 | Demo fixtures | PARTIAL — `tests/conftest.py` has a synthetic tree; no shipped fixture corpus |
-| R10.7 | Genuine screenshots | DONE — 9 in `Report/assets/screenshots/` |
-| R10.8 | Limitations | DONE |
-| R10.9 | Demonstration script | DONE — `presenter/script.md` |
-| R10.10 | Six-section official deck exported as a six-page PDF | GAP — `deck/index.html` exists but is not the official six-section structure |
-| R10.11 | Real-product video script | GAP |
+| ID | Requirement | Implementation | State |
+|---|---|---|---|
+| R10.1 | README | `README.md` | **DONE** — rewritten at M7: demo quickstart, benchmark reproduction, real diagram, current screenshots, submission-asset index |
+| R10.2 | Architecture diagram | `docs/architecture/` | **DONE** — editable `.mmd` source plus SVG and PNG exports; shows container archive processing and distinguishes the TLS probe from offline scanning; no cloud, KMS, HSM or registry box, because none is implemented |
+| R10.3 | Install / run instructions | `README.md` | **DONE** |
+| R10.4 | Test instructions | `README.md` | **DONE** — 664 tests |
+| R10.5 | Benchmark instructions | `README.md`, `benchmark/README.md` | **DONE** — both result sets presented separately, each traceable to a committed JSON file |
+| R10.6 | Demo fixtures | `demo/` | **DONE** — committed synthetic estate, generated container image and certificates, one-command setup, offline preflight |
+| R10.7 | Genuine screenshots | `submission/screenshots/` | **DONE** — 7 captures of the running console, from the demo database |
+| R10.8 | Limitations | `README.md` | **DONE** — now names obfuscated call sites, vendored trees, Mach-O/PE, SHA-1 certificates and the source-only CLI |
+| R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
+| R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
+| R10.11 | Six-page submission PDF | — | **BLOCKED** — four portal fields (problem-statement title, theme, team ID, team name) are not recoverable from this repository and must not be invented. See `submission/README.md`. |
+| R10.12 | Video script and shot list | `presenter/video.md` | **DONE** as a script |
+| R10.13 | Recorded demonstration video | — | **GAP** — no recording has been produced. Nothing in this repository claims otherwise. |
+| R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
+
 
 ---
 
 ## Summary at baseline
 
-| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 |
-|---|---|---|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 |
-| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 |
-| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 |
-| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** |
+| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 | M7 |
+|---|---|---|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 | 97 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 | 4 |
+| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 | 3 |
+| BLOCKED | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** | **0** |
+
+**How the M7 column is derived.** M7 touched only the R10 rows, so every
+non-R10 count is carried forward from M6 unchanged. R10 went from 11 rows
+(6 DONE, 2 PARTIAL, 3 GAP) to 14 rows (12 DONE, 1 BLOCKED, 1 GAP), which is
+where the movement comes from. The arithmetic is stated rather than asserted
+because the per-requirement tables above record each row's state at the
+baseline commit, not its state today — reading a current total straight off
+them would double-count.
+
+`BLOCKED` is new at M7 and means exactly one thing: the work is finished except
+for a fact this repository does not hold and must not guess. There is one such
+row, R10.11, and together with R10.13 it is why the submission is not complete.
+
+M7 produced the submission assets: the six-slide official deck, the
+architecture diagram as a standalone editable asset, a one-command reproducible
+demo, and rewritten presenter material. Its most useful output was subtractive.
+An audit of `presenter/script.md` and `presenter/qa.md` removed a set of
+specific national policy deadlines, three named-competitor capability claims and
+a fixed quantum-arrival year, none of which could be sourced from this
+repository. Three factual errors in the documentation were also corrected
+against the code: the rule packs cover eight languages with specific rules and
+not ten, the registry holds 74 algorithms and not 52, and the command-line entry
+point runs the source sensor only — which the README had not said. Two
+submission items remain open and are recorded as such: the six-page PDF is
+blocked on portal fields, and no video has been recorded.
 
 M6 measured detection accuracy for the first time. The benchmark found seven
 detector defects that reading the code had not — four false negatives from one

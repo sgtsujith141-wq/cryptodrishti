@@ -15,16 +15,16 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CycloneDX 1.6 + 1.7](https://img.shields.io/badge/CBOM-CycloneDX%201.6%20%2B%201.7-brightgreen)](https://cyclonedx.org/)
 [![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](#testing)
 
-![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
+![CryptoDrishti console](submission/screenshots/01-assessment.png)
 
 ---
 
 ## The problem
 
-Post-quantum migration is mandated before anyone is ready for it. NIST has
-published the replacement algorithms (ML-KEM, ML-DSA, SLH-DSA) and set
-deprecation milestones in IR 8547, but an organisation cannot migrate what it
-cannot enumerate. In practice nobody knows where their cryptography actually
+The replacement cryptography is finished and almost nothing has moved. NIST
+published ML-KEM, ML-DSA and SLH-DSA in 2024 as FIPS 203, 204 and 205, and
+NIST IR 8547 sets out the transition to them. The mathematics is not the
+blocker: an organisation cannot migrate what it cannot enumerate. In practice nobody knows where their cryptography actually
 is: it is scattered across application source, transitive dependencies,
 compiled binaries with no source available, certificate stores, deployment
 configuration and live TLS endpoints.
@@ -65,53 +65,37 @@ described under [Security](#security).
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph Input
-        T["Target<br/>directory · binaries · certs · endpoint"]
-    end
+![CryptoDrishti architecture](docs/architecture/architecture.png)
 
-    subgraph Sensors["Seven sensors (app/scanners/)"]
-        direction LR
-        S1["source<br/><i>Python AST + 10-language rules</i>"]
-        S2["dependency<br/><i>package manifests</i>"]
-        S3["binary<br/><i>ELF symbols + constants</i>"]
-        S4["certificate<br/><i>X.509 / PEM / DER</i>"]
-        S5["config<br/><i>nginx · sshd · OpenSSL</i>"]
-        S6["network<br/><i>live TLS handshake</i>"]
-    end
+Editable source: [`docs/architecture/architecture.mmd`](docs/architecture/architecture.mmd).
+Rendering instructions and a note on what the diagram deliberately omits are in
+[`docs/architecture/README.md`](docs/architecture/README.md).
 
-    subgraph Engine["Analysis engine (app/engine/)"]
-        N["normalize.py<br/>merge hits into distinct assets<br/>weight by production / test / vendored"]
-        R["risk.py<br/>Mosca X+Y&gt;Z · Q-Day distribution<br/>transparent factor product"]
-        C["recommend.py<br/>NIST target per deployment profile<br/>+ size delta"]
-    end
+Read it left to right in five bands:
 
-    K["knowledge/algorithms.py<br/><b>52-algorithm registry</b><br/>the single source of truth"]
+1. **Inputs** — a directory or repository, a container image archive, or a TLS
+   endpoint the operator names. All three are local; nothing is fetched.
+2. **Security and target validation** — every input passes a gate before any
+   sensor sees it. The filesystem boundary refuses symlink escapes and vets
+   archive members; the destination policy resolves, vets every resolved
+   address, then connects to the vetted literal.
+3. **Seven discovery sensors** — source, dependency, binary, certificate,
+   config, container and network. The network sensor is drawn dashed because it
+   is the only one that leaves the machine.
+4. **Evidence and analysis** — hits are normalised into distinct assets
+   (purpose and assurance are part of an asset's identity, not annotations on
+   it), correlated across sensors, scored, and matched to a target.
+5. **Persistence and output** — SQLite, the console, the CBOM, and a
+   self-contained HTML report.
 
-    subgraph Output
-        W["Web console<br/><i>vanilla JS, zero deps</i>"]
-        B["cbom.py<br/><b>CycloneDX 1.6</b> + validator"]
-        P["report.py<br/>migration programme"]
-    end
-
-    DB[("SQLite<br/>scan history")]
-
-    T --> Sensors
-    S1 & S2 & S3 & S4 & S5 & S6 --> N
-    N --> R --> C
-    K -.classifies.-> R
-    K -.selects target.-> C
-    C --> W & B & P
-    C --> DB
-    DB --> W
-```
+**There is no box for a cloud provider, a KMS, an HSM or a container
+registry.** None of those integrations exist, so none is drawn.
 
 **The registry is the load-bearing piece.** Every finding resolves to an entry
-in `app/knowledge/algorithms.py`, and that entry decides how it is classified,
-scored and remediated. Getting a classification wrong there is wrong
-everywhere downstream, which is why it is the most heavily tested module in the
-project.
+in `app/knowledge/algorithms.py` (74 algorithms), and that entry decides how it
+is classified, scored and remediated. Getting a classification wrong there is
+wrong everywhere downstream, which is why it is the most heavily tested module
+in the project.
 
 ## Verified features
 
@@ -122,7 +106,7 @@ commands given in [Testing](#testing).
 
 | Sensor | Technique | Strength of evidence |
 |---|---|---|
-| `source` | Python AST analysis; curated rule packs for Java, C/C++, Go, JS/TS, C#, Ruby, PHP | AST resolves parameters (`key_size=1024`); regex packs do not |
+| `source` | Python AST analysis; curated rule packs for C/C++, C#, Go, Java, JavaScript, PHP, Python and Ruby; four language-agnostic rules (inline private key, inline certificate, hardcoded secret, ECB mode) apply to every recognised file | AST resolves parameters (`key_size=1024`); rule packs do not. Rust and Swift files are recognised and scanned, but only by the four language-agnostic rules |
 | `dependency` | Package manifests mapped to library crypto capability and PQC support | Capability, not proof of use |
 | `binary` | ELF symbol tables, cryptographic constant matching, version banners | Symbols are strong; raw strings are weak |
 | `certificate` | X.509, PEM/DER, private key material, including PQC certificates | Parsed, not guessed |
@@ -132,15 +116,16 @@ commands given in [Testing](#testing).
 
 ### Classification
 
-52 algorithms, split the standard three ways — and the split is the point:
+74 algorithms, split the standard three ways — and the split is the point:
 
-- **Shor-broken** (20) — RSA, DSA, DH, ECDH, ECDSA, Ed25519, X25519. A total
+- **Shor-broken** (22) — RSA, DSA, DH, ECDH, ECDSA, Ed25519, X25519. A total
   break. **Increasing the key size does not help**, which is why RSA-4096 and
   RSA-1024 are both classified broken.
-- **Grover-weakened** (12) — AES-128, 3DES, SHA-1, MD5, RC4. Effective security
+- **Grover-weakened** (23) — AES-128, 3DES, SHA-1, MD5, RC4. Effective security
   halves, so the fix is a **parameter change, not an algorithm change**.
-- **Quantum-safe** (18) — ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-256, SHA-384/512.
-- **Hybrid** (1) — X25519 + ML-KEM-768, and **unresolved** (1).
+- **Quantum-safe** (27) — ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-256, SHA-384/512.
+- **Hybrid** (1) — X25519 + ML-KEM-768 — and **unresolved** (1), which is never
+  treated as safe.
 
 The distinction that drives the whole recommender: `AES-128` is weakened but
 `AES-256` is safe, so symmetric findings get a key-length fix; RSA at any size
@@ -175,31 +160,47 @@ JSON-Schema validation**.
 
 ## Screenshots
 
-All captured from the running application scanning real repositories.
+Every image below is a capture of the running application, taken from the
+database that `python run.py --demo` produces. Reproduce them by running that
+command and opening the console. No interface here is a mock-up.
 
 **Assessment** — estate composition, and Mosca's inequality shown as arithmetic
 rather than a verdict:
 
-![Assessment](Report/assets/screenshots/assessment.png)
+![Assessment](submission/screenshots/01-assessment.png)
 
-**Inventory** — every asset ranked, each with its class, evidence location,
-recommended replacement and call-site count:
+**Inventory** — the point of the whole tool in one screen: the same `rsa`
+algorithm resolved to three different purposes, with three different
+recommendations, and the third refusing to name a target at all:
 
-![Inventory](Report/assets/screenshots/inventory.png)
+![Inventory](submission/screenshots/04-inventory.png)
 
-**Remediation programme** — grouped by replacement algorithm, because that is
-how a migration is actually staffed and budgeted:
+**Evidence** — every finding opens onto what produced it: file, line, technique,
+confidence, assurance grade, and the exposure arithmetic behind its score:
 
-![Remediation](Report/assets/screenshots/remediation.png)
+![Evidence drawer](submission/screenshots/07-evidence-drawer.png)
 
 <details>
-<summary>More views — light theme, folder picker, live progress, exposure model, CBOM output</summary>
+<summary>More views — exposure window, migration programme, CBOM export, scan history</summary>
 
-| | |
-|---|---|
-| ![Light theme](Report/assets/screenshots/console-light.png) | ![Folder picker](Report/assets/screenshots/picker.png) |
-| ![Scan progress](Report/assets/screenshots/progress.png) | ![Exposure window](Report/assets/screenshots/exposure.png) |
-| ![CBOM output](Report/assets/screenshots/output.png) | |
+**Exposure window** — X, Y and Z, each labelled with where its value came from:
+
+![Exposure window](submission/screenshots/02-exposure.png)
+
+**Remediation programme** — grouped by replacement algorithm, because that is
+how a migration is actually staffed:
+
+![Migration plan](submission/screenshots/03-migration-plan.png)
+
+**Machine-readable output** — CBOM export and live schema validation on the same
+screen:
+
+![CBOM export](submission/screenshots/05-cbom-export.png)
+
+**Scan history** — a partial scan is labelled `PARTIAL` with its reason, never
+presented as a complete inventory:
+
+![Scan history](submission/screenshots/06-scan-history.png)
 
 </details>
 
@@ -218,30 +219,124 @@ python3 -m venv .venv
 
 Open <http://127.0.0.1:8000> and point the console at any directory.
 
-To start with the console already populated:
+### Demo quickstart — one command
 
 ```bash
-./.venv/bin/python run.py --seed --seed-path /path/to/some/repo
+./.venv/bin/python run.py --preflight-offline   # check the demo's dependencies
+./.venv/bin/python run.py --demo                # build, scan, assess
+./.venv/bin/python run.py                       # console on 127.0.0.1:8000
 ```
+
+`--demo` needs no network and no credentials. It:
+
+1. builds a container image archive and a pair of certificates from the
+   committed fixtures in [`demo/`](demo/);
+2. scans the synthetic service estate — and is deliberately pointed at one
+   endpoint the destination policy refuses, so the scan finishes **PARTIAL**
+   with its reason recorded;
+3. scans the container image archive, replaying layers so a key deleted by a
+   later layer is reported as **historical**;
+4. saves an operator override on the RSA signing asset (25-year shelf life,
+   restricted, hardware-backed) and rescores against it.
+
+What you should see: **23 assets, 16 quantum-vulnerable, PARTIAL** for
+`demo-estate`, and **15 assets, 9 quantum-vulnerable, COMPLETE** for
+`checkout-service:2.4`. The fixtures and what each one demonstrates are listed
+in [`demo/README.md`](demo/README.md).
+
+Every key in the demo fixtures is synthetic and marked as such; the preflight
+check fails if any file carrying a `PRIVATE KEY` marker is not.
+
+`--preflight` is the same check including the network-dependent paths, and
+`--demo-reset` rebuilds the exact demo state if you have scanned over it.
 
 ### Command line
 
 ```bash
-# Scan a tree, print the ranked inventory, write a CBOM
-./.venv/bin/python -m app.cli scan /path/to/repo --cbom cbom.json
+# Scan source, print the ranked inventory, write a CBOM
+./.venv/bin/python -m app.cli scan /path/to/repo --cbom cbom.json --cbom-version 1.7
 ```
 
-### Demonstration targets
+> **The CLI runs the source sensor only.** It does not read dependency
+> manifests, configuration, certificates, binaries or container images, so its
+> CBOM is a subset of what the console produces for the same directory. Scanning
+> `demo/estate` gives 7 assets from the CLI and 23 from the console, and the
+> difference is entirely sensors the CLI does not invoke. Use the console, or
+> `run.py --demo`, for a full inventory.
 
-`demo/targets/` held local clones of OpenSSL, Django, Paramiko and Shiro during
-development. They are third-party repositories totalling several hundred
-megabytes and are **not committed**. Clone whichever you want:
+### Scanning something real
+
+The committed demo in [`demo/`](demo/) is synthetic by design: it is small
+enough to read, and every finding in it is one we can point at a line for. To
+see the tool against real code, clone anything and scan it:
 
 ```bash
-mkdir -p demo/targets
-git clone --depth 1 https://github.com/paramiko/paramiko demo/targets/paramiko
-git clone --depth 1 https://github.com/openssl/openssl   demo/targets/openssl
+git clone --depth 1 https://github.com/paramiko/paramiko /tmp/paramiko
+./.venv/bin/python -m app.cli scan /tmp/paramiko
 ```
+
+Third-party repositories are **not committed** to this repository.
+
+### Reproducing the accuracy figures
+
+```bash
+./.venv/bin/python -m benchmark.run                                   # measure
+./.venv/bin/python -m benchmark.run --baseline benchmark/results/baseline-382e7d1.json
+```
+
+Two results, measured on two different corpora. They are reported separately
+because comparing them to each other would be meaningless.
+
+**A — like-for-like.** The same corpus (manifest 1.0.0), before and after the
+fixes the benchmark prompted. This is the number that says whether the work
+improved the detectors:
+
+| | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| Before (`baseline-382e7d1.json`) | 79 | 5 | 5 | 0.941 | 0.941 | **0.941** |
+| After (`after-m6-same-corpus.json`) | 84 | 3 | 0 | 0.966 | 1.000 | **0.983** |
+
+Recall reached 1.000 and three false positives remain. Those three were later
+found to be *correct detections the original labelling had missed* — an OpenSSL
+suite name that states its own digest, and a Go import that the language
+guarantees is used. They were relabelled in corpus 1.1.0, with the reason and
+the effect on the score written into `benchmark/manifest.json`'s changelog, so
+the change is auditable rather than invisible. **Labels were never changed in
+the other direction**: every finding the tool produced that the corpus does not
+justify still counts against it, and two such defects were fixed in the
+detectors instead.
+
+**B — current corpus.** Manifest 1.2.0, expanded to cover the binary,
+certificate and container sensors, which the original corpus did not exercise
+at all:
+
+| | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| `after-m6.json` | 116 | 0 | 0 | 1.000 | 1.000 | **1.000** |
+
+Purpose is correct on 114 of 114 scored cases (2 excluded as genuinely
+ambiguous); assurance on 116 of 116.
+
+#### What these numbers are not
+
+- **They are not real-world accuracy.** This is a synthetic corpus written by
+  the same person who wrote the detectors. It measures this corpus and nothing
+  else. Accuracy on real enterprise code is **unmeasured** and is not claimed
+  anywhere in this project.
+- **A score of 1.000 is a statement about the corpus, not the tool.** It means
+  the corpus has stopped finding defects — which is a reason to write harder
+  cases, not to stop.
+- **Network accuracy is excluded entirely.** What a TLS handshake negotiates
+  depends on the local OpenSSL build, so it cannot carry a stable expected
+  result. The network sensor is exercised by the harness and reported
+  separately, never folded into precision or recall.
+- **Known gaps in the corpus**, each of which would lower the score if added:
+  obfuscated or dynamically dispatched call sites, vendored third-party trees,
+  Mach-O and PE binaries, and SHA-1-signed certificates.
+
+The ground truth was written by reading the fixtures, never by running
+CryptoDrishti — `benchmark/manifest.json` records that, and the matching rules,
+in the file itself.
 
 ## Configuration
 
@@ -264,16 +359,24 @@ in `app/config.py` and are overridable per scan from the console.
 ./.venv/bin/pytest
 ```
 
-**226 tests, all passing** in under a second locally, covering:
+**664 tests, all passing**, covering:
 
 | Suite | Tests | What it pins |
 |---|---|---|
-| `test_knowledge.py` | 38 | Classification of all 52 algorithms; RSA key size is irrelevant; AES-128 vs AES-256; unresolved is never treated as safe |
-| `test_risk.py` | 30 | Mosca arithmetic, exposure floors, monotonicity, determinism; Shor-broken outranks Grover-weakened; production outranks test fixtures |
-| `test_recommend.py` | 77 | Every algorithm yields an actionable target; no vulnerable algorithm is ever recommended as a replacement; profile changes the answer |
-| `test_normalize.py` | 28 | Hit merging, path classification, sensor corroboration is not collapsed |
-| `test_cbom.py` | 17 | CycloneDX 1.6 conformance — **and that the validator rejects malformed documents** |
-| `test_scan_end_to_end.py` | 21 | Real fixture files in, scored findings and a valid CBOM out; survives unparseable and binary files |
+| `test_recommend.py` | 111 | Every algorithm yields an actionable target; no vulnerable algorithm is ever recommended as a replacement; purpose and profile change the answer |
+| `test_security.py` | 91 | Destination policy, filesystem boundary, access control, redaction — including that a fixture secret never reaches an export |
+| `test_assessment.py` | 70 | Per-asset risk inputs, their provenance, overrides surviving a rescan |
+| `test_detection_correctness.py` | 61 | The purpose, hash-identity and TLS corrections, each pinned against the defect it fixed |
+| `test_standards_and_reporting.py` | 61 | CycloneDX 1.6 and 1.7 against the official schemas; the full report reaches every finding |
+| `test_container_scan.py` | 43 | Layer replay, whiteouts, effective vs historical assets |
+| `test_knowledge.py` | 38 | Classification of all 74 algorithms; RSA key size is irrelevant; AES-128 vs AES-256; unresolved is never treated as safe |
+| `test_container_security.py` | 32 | Archive member vetting, size budgets, nothing extracted to disk |
+| `test_risk.py` | 30 | Mosca arithmetic, mode vs median, determinism, exposure models per purpose |
+| `test_normalize.py` | 29 | Hit merging; scanner, purpose and assurance stay part of asset identity |
+| `test_benchmark_regressions.py` | 29 | One test per defect the benchmark found |
+| `test_scan_end_to_end.py` | 21 | Real fixture files in, scored findings and a valid CBOM out |
+| `test_cbom.py` | 17 | CBOM structure — **and that the validator rejects malformed documents** |
+| `test_benchmark_harness.py` | 16 | The harness itself: dedupe, one-to-one matching, no double counting |
 | `test_api.py` | 15 | Every HTTP route the console calls, against a temporary database |
 
 The suite writes to a temporary database, never to `data/`.
@@ -743,9 +846,12 @@ Stated plainly, because a security tool that overstates its coverage is
 actively harmful.
 
 - **Language coverage is uneven.** Full AST analysis is Python only. The other
-  nine languages use curated regex rule packs, so recall is lower and
-  parameters (key sizes, modes) often go unresolved. A Java finding is weaker
-  evidence than a Python one.
+  seven languages with rule packs — C/C++, C#, Go, Java, JavaScript, PHP and
+  Ruby — use curated patterns, so recall is lower and parameters (key sizes,
+  modes) often go unresolved. A Java finding is weaker evidence than a Python
+  one. **Rust and Swift are recognised but effectively uncovered**: they are
+  scanned only by the four language-agnostic rules, so a Rust file calling RSA
+  through a crate will not be detected.
 - **Binary analysis is ELF-only.** Mach-O and PE binaries fall back to raw
   string scanning. A string match is not proof of linkage and is reported with
   lower confidence, but it is still weaker evidence than a symbol table.
@@ -765,6 +871,9 @@ actively harmful.
 - **Token access control, not a user system.** There is one shared token, no
   per-user authorization and no audit log. Scan history is a local SQLite file
   with no migrations. This is a single-operator tool.
+- **The command-line entry point is source-only.** `app/cli.py` invokes the
+  source scanner and nothing else. Everything the other six sensors find is
+  reachable from the console and the API, but not from `python -m app.cli`.
 - **Not packaged for distribution.** Run it from the source tree.
 - **`app/api.py` uses the deprecated FastAPI `on_event` startup hook**, which
   emits two warnings. Harmless today; needs migrating to lifespan handlers.
@@ -772,6 +881,18 @@ actively harmful.
   images, no zstd layers, no signature or attestation verification. Layer
   replay handles whiteouts; it does not reconstruct a squashed image any other
   way. The exact supported set is in [Container images](#container-images).
+- **Obfuscated and dynamically dispatched call sites are not detected.** A
+  cipher name assembled at runtime, fetched from configuration, or hidden
+  behind a wrapper whose argument is not a literal produces no finding. The
+  benchmark corpus does not contain these cases, so they do not lower its
+  score — which is a limitation of the measurement as much as of the tool.
+- **Vendored third-party trees are weighted down, not analysed differently.**
+  A copy of a crypto library inside `vendor/` is scanned like any other source,
+  so it can inflate an inventory with findings nobody maintains. There is no
+  corpus case for it.
+- **SHA-1-signed certificates are classified but not corpus-tested.** The
+  certificate sensor reads signature algorithms and the registry classifies
+  SHA-1, but no labelled fixture exercises that path end to end.
 - **The accuracy figures are for a synthetic corpus.** They say the detectors
   do what their author intended on fixtures their author wrote. Real-world
   precision and recall are unmeasured, and a corpus scoring 1.000 is a corpus
@@ -794,8 +915,9 @@ actively harmful.
 
 ## Future development
 
-- Migrate the remaining nine languages from regex rule packs to real parsers
-  (tree-sitter would cover all of them with one dependency).
+- Migrate the seven rule-pack languages to real parsers, and give Rust and
+  Swift rule packs at all (tree-sitter would cover all of them with one
+  dependency).
 - Mach-O and PE symbol-table parsing, to bring non-Linux binaries up to the
   evidence quality of ELF — and, by the same change, images built on them.
 - zstd layer support, and image signature verification.
@@ -824,12 +946,27 @@ app/
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
 tests/                      664 tests
-benchmark/                  labelled corpus, accuracy harness and results
-deck/index.html             offline presentation deck (arrow keys, P for notes)
-presenter/                  timed script and Q&A sheet
-Report/                     project report, design history and screenshots
-docs/                       industry brief and build kit
+benchmark/                  labelled corpus, accuracy harness and committed results
+demo/                       synthetic estate fixtures; build.py makes the rest
+docs/architecture/          architecture diagram — editable source and exports
+docs/sih/                   baseline, requirements matrix and roadmap
+submission/                 official six-slide deck, its build and QA scripts,
+                            the screenshots, and the unmodified SIH template
+presenter/                  presentation script, video script and Q&A sheet
+deck/index.html             older offline HTML deck, kept for rehearsal
+Report/                     project report and design history
 ```
+
+## Submission assets
+
+| What | Where | State |
+|---|---|---|
+| Six-slide idea presentation | [`submission/`](submission/) | built from the official template, QA-clean |
+| Final submission PDF | — | **not produced** — four portal fields are still unknown; see [`submission/README.md`](submission/README.md) |
+| Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
+| Presentation script, video script, Q&A | [`presenter/`](presenter/) | scripts only — **no video has been recorded** |
+| Screenshots | [`submission/screenshots/`](submission/screenshots/) | genuine captures of the running console |
+| Requirements matrix and roadmap | [`docs/sih/`](docs/sih/) | tracked per milestone |
 
 ## Tech stack
 

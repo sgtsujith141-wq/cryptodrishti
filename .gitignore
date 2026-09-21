@@ -46,3 +46,6 @@ credentials.json
 # Node (the web console is dependency-free, but keep this defensive)
 node_modules/
 dist/
+
+# Generated demo artefacts — rebuilt by `python run.py --demo`
+demo/built/

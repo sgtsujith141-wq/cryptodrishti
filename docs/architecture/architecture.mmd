@@ -1,0 +1,80 @@
+flowchart TB
+    subgraph IN["Inputs — local only"]
+        direction LR
+        D1["Directory or repository"]
+        D2["Container image archive<br/><i>OCI layout · OCI tar · docker save</i>"]
+        D3["TLS endpoint<br/><i>named by the operator</i>"]
+    end
+
+    subgraph GATE["Security and target validation"]
+        direction LR
+        G1["fspolicy<br/><i>root boundary · symlink escape<br/>credential denylist · budgets</i>"]
+        G2["container<br/><i>per-member vetting · bounded streaming<br/>nothing extracted to disk</i>"]
+        G3["netpolicy<br/><i>resolve → vet every address → connect<br/>to the vetted literal</i>"]
+        G4["auth<br/><i>open on loopback; token required<br/>off it, or refuses to start</i>"]
+    end
+
+    subgraph SENSE["Discovery sensors"]
+        S1["source<br/><i>Python AST + 10-language rules</i>"]
+        S2["dependency<br/><i>13 manifest formats</i>"]
+        S3["binary<br/><i>ELF symbols · constants · banners</i>"]
+        S4["certificate<br/><i>X.509 · PEM/DER · KeyUsage</i>"]
+        S5["config<br/><i>nginx · sshd · OpenSSL · Java</i>"]
+        S6["container<br/><i>layer replay with whiteouts<br/>reuses the five sensors above</i>"]
+        S7["network<br/><i>live TLS handshake</i>"]
+    end
+
+    subgraph CORE["Evidence and analysis"]
+        direction LR
+        N1["normalize<br/><i>hits → assets<br/>purpose and assurance are part of identity</i>"]
+        N2["correlate<br/><i>links on a shared concrete artefact<br/>never merges · never promotes</i>"]
+        N3["risk<br/><i>purpose-specific exposure models<br/>Mosca X+Y&gt;Z · operator inputs</i>"]
+        N4["recommend<br/><i>purpose-correct PQC target<br/>latency and cost stay unknown</i>"]
+    end
+
+    subgraph OUT["Persistence and output"]
+        direction LR
+        P1[("SQLite<br/><i>scans · findings<br/>operator overrides</i>")]
+        A1["FastAPI + console<br/><i>inventory · evidence · assessment<br/>history · partial-scan state</i>"]
+        X1["CBOM<br/><i>CycloneDX 1.6 and 1.7</i>"]
+        X2["HTML report<br/><i>self-contained · print to PDF</i>"]
+        V1{{"Official JSON Schema<br/><i>vendored · pinned · offline</i>"}}
+    end
+
+    D1 --> G1
+    D2 --> G2
+    D3 --> G3
+
+    G1 --> S1 & S2 & S3 & S4 & S5
+    G2 --> S6
+    G3 --> S7
+
+    S1 & S2 & S3 & S4 & S5 & S6 & S7 --> N1
+    N1 --> N2 --> N3 --> N4
+    N4 --> P1
+    P1 <--> A1
+    P1 --> X1 & X2
+    X1 --> V1
+
+    G4 -.guards.-> A1
+
+    classDef input fill:#EEF2FF,stroke:#4338CA,color:#1E1B4B
+    classDef gate fill:#FEF2F2,stroke:#B91C1C,color:#450A0A
+    classDef sensor fill:#F0FDF4,stroke:#15803D,color:#052E16
+    classDef core fill:#FFFBEB,stroke:#B45309,color:#451A03
+    classDef out fill:#F8FAFC,stroke:#334155,color:#0F172A
+    classDef offline stroke-dasharray: 4 3
+
+    class D1,D2,D3 input
+    class G1,G2,G3,G4 gate
+    class S1,S2,S3,S4,S5,S6 sensor
+    class S7 sensor
+    class N1,N2,N3,N4 core
+    class P1,A1,X1,X2,V1 out
+    class S7 offline
+
+    style IN fill:#FFFFFF,stroke:#CBD5E1
+    style GATE fill:#FFFFFF,stroke:#CBD5E1
+    style SENSE fill:#FFFFFF,stroke:#CBD5E1
+    style CORE fill:#FFFFFF,stroke:#CBD5E1
+    style OUT fill:#FFFFFF,stroke:#CBD5E1

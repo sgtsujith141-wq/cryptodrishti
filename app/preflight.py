@@ -67,11 +67,85 @@ def _post(url: str, payload: dict, timeout: float = 30.0):
         return r.status, json.loads(r.read())
 
 
-def run(base: str = "") -> int:
+def check_demo(rep: "Report") -> None:
+    """Everything the demonstration depends on, checked before it is needed.
+
+    Runs without the server, so it can be used to diagnose a machine that is
+    not ready rather than only one where the console is already up.
+    """
+    from pathlib import Path as _P
+
+    root = _P(config.ROOT)
+
+    # ---- the committed estate -------------------------------------------
+    estate = root / "demo" / "estate"
+    required = [
+        ("svc-payments/signing.py", "RSA signing"),
+        ("svc-gateway/transport.py", "RSA key establishment"),
+        ("svc-gateway/requirements.txt", "capability-only dependency"),
+        ("svc-cache/digest.py", "hash identity"),
+        ("legacy/nginx.conf", "declared configuration"),
+    ]
+    missing = [name for name, _ in required if not (estate / name).is_file()]
+    rep.add(OK if not missing else FAIL, "Demo estate present",
+            f"{len(required) - len(missing)} of {len(required)} fixtures"
+            + (f" -- missing {', '.join(missing)}" if missing else ""))
+
+    # ---- things the demo needs to be able to build -----------------------
+    try:
+        from cryptography import x509  # noqa: F401
+        rep.add(OK, "Certificate generation available", "cryptography installed")
+    except ImportError:
+        rep.add(FAIL, "Certificate generation available",
+                "pip install -r requirements.txt")
+
+    try:
+        import jsonschema  # noqa: F401
+        rep.add(OK, "Official schema validation available", "jsonschema installed")
+    except ImportError:
+        rep.add(WARN, "Official schema validation available",
+                "jsonschema missing -- CBOM validation will report 'not run'")
+
+    from app import schema_validation as _sv
+    drift = _sv.verify_checksums()
+    rep.add(OK if not drift else FAIL, "Vendored CycloneDX schemas intact",
+            "checksums match" if not drift else "; ".join(drift))
+
+    # ---- the generated fixtures ------------------------------------------
+    built = root / "demo" / "built"
+    image = built / "checkout-service.tar"
+    if image.is_file():
+        rep.add(OK, "Demo container image built", f"{image.stat().st_size:,} bytes")
+    else:
+        rep.add(WARN, "Demo container image built",
+                "not built yet -- run: python run.py --demo")
+
+    # ---- nothing in the demo may be a real key ---------------------------
+    leaked = []
+    for path in list(estate.rglob("*")) + list(built.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            continue
+        if b"PRIVATE KEY" in blob and b"U1lOVEhFVElD" not in blob:
+            leaked.append(str(path.relative_to(root)))
+    rep.add(OK if not leaked else FAIL, "No real key material in the demo",
+            "all synthetic" if not leaked else f"suspect: {', '.join(leaked)}")
+
+
+def run(base: str = "", demo_only: bool = False) -> int:
     base = base or f"http://{config.HOST}:{config.PORT}"
     rep = Report()
 
     print(f"\n{BOLD}  {config.PRODUCT_NAME} preflight{RESET}  {DIM}{base}{RESET}\n")
+
+    check_demo(rep)
+
+    if demo_only:
+        rep.render()
+        return 1 if rep.failures else 0
 
     # ---- 1. Is the server up at all? ------------------------------------
     try:

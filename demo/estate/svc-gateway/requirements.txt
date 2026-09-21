@@ -1,0 +1,5 @@
+# Demonstration 3: a CAPABILITY-only dependency. pycryptodome implements RSA,
+# AES, Triple-DES and MD5. That makes them reachable. It does not show that any
+# code calls them, and the inventory must say so rather than counting them as use.
+pycryptodome==3.19.0
+cryptography==41.0.7
