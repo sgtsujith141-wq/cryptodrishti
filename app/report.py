@@ -147,14 +147,17 @@ def _correlation_section(findings: list, stats: dict[str, Any]) -> str:
     for a in assets[:40]:
         conflicts = "".join(f"<div class='muted warn'>{_e(c)}</div>"
                             for c in (a.get("conflicts") or []))
+        # Built outside the f-string: a backslash in an f-string *expression*
+        # is a syntax error before Python 3.12, and this project supports 3.11.
+        corroborated = ("<div class='muted'>capability corroborated by "
+                        "observed use</div>") if a.get("corroborated_by_use") else ""
         rows.append(
             f"<tr><td class='mono'>{_e(a.get('algorithm', ''))}"
             f"<div class='muted'>{_e(a.get('purpose', ''))}</div></td>"
             f"<td class='mono small'>{_e(', '.join(a.get('basis') or []))}</td>"
             f"<td class='small'>{_e(', '.join(a.get('detectors') or []))}</td>"
             f"<td class='small'>{_e(str(a.get('assurance_states') or {}))}"
-            f"{'<div class=\'muted\'>capability corroborated by observed use</div>' if a.get('corroborated_by_use') else ''}"
-            f"{conflicts}</td></tr>")
+            f"{corroborated}{conflicts}</td></tr>")
     return (
         "<h2>Correlated evidence</h2>"
         "<p class='sub'>Findings that more than one detector appears to have seen. "

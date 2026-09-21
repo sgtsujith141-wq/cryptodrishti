@@ -649,3 +649,33 @@ def test_directory_and_container_exports_still_validate(tmp_path):
             assert valid, (result.target.kind, version, problems)
             structural, sproblems = cbom.validate(doc)
             assert structural, (result.target.kind, version, sproblems)
+
+
+# ==========================================================================
+# Language-version compatibility
+# ==========================================================================
+
+def test_the_whole_tree_parses_under_the_oldest_supported_python():
+    """The README and CI both claim Python 3.11+. This holds us to it.
+
+    Found the hard way: an f-string expression containing a backslash is legal
+    from 3.12 (PEP 701) and a syntax error before it. Local development runs a
+    newer interpreter, so nothing but CI caught it — and CI catches it as an
+    import failure in an unrelated test, which is a slow way to learn.
+    """
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    problems = []
+    for directory in ("app", "tests"):
+        for path in (root / directory).rglob("*.py"):
+            try:
+                ast.parse(path.read_text(encoding="utf-8"),
+                          filename=str(path), feature_version=(3, 11))
+            except SyntaxError as exc:
+                problems.append(
+                    f"{path.relative_to(root)}:{exc.lineno}: {exc.msg}")
+    assert not problems, (
+        "syntax not valid on Python 3.11, the oldest version this project "
+        "supports:\n  " + "\n  ".join(problems))
