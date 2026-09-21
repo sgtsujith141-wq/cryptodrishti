@@ -256,7 +256,60 @@ where a schema can be shipped or vendored; full chain report
 (asset → evidence → classification → risk → recommendation → action)
 including incomplete scans and unresolved findings.
 
-## M6 — Benchmark and product experience  *(next)*
+## M6 — Benchmark and product experience  *(complete)*
+
+Closed R9.1–R9.4, R7.2, R7.4, R7.8.
+
+**What shipped.** `benchmark/` holds a hand-labelled corpus — source in five
+languages, dependency manifests, configuration, generated binaries,
+certificates and an OCI image — with a versioned manifest whose changelog
+records every label correction, its justification and its effect on the score.
+Binaries, certificates and images are generated at benchmark time rather than
+committed, because a committed private key is a private key in a repository
+however loudly the filename says otherwise.
+
+`benchmark/run.py` measures TP, FP, FN, precision, recall and F1 per scanner
+and overall, with purpose and assurance scored separately over the true
+positives. Matching is one-to-one on a distinct `(file, line, algorithm)` with
+exact algorithm keys; duplicates are collapsed first so one artefact reported
+by two rules cannot inflate the score. CI runs it and fails below a floor.
+
+**Seven detector defects, none of which reading the code had found:**
+
+1. A hyphen inside a cipher name treated as an OpenSSL exclusion marker, so
+   `ECDHE-RSA-AES256` silently dropped RSA and AES-256 — four false negatives,
+   all in the direction that makes an estate look cleaner than it is.
+2. `TLSv1` matching inside `TLSv1.2`, because `\b` treats the dot as a word
+   boundary. TLS 1.0 reported as enabled on a server offering only 1.2 and 1.3.
+3. `DES` matching inside `DES-CBC3`, which is Triple DES.
+4. `HmacSHA256` unresolved — a MAC whose name states exactly what it is.
+5. The ECB rule asserting `aes` for every match, producing an AES finding from
+   `RSA/ECB/OAEPPadding` in a file with no AES in it.
+6. Certificate signature digests inventoried only when broken, so a healthy
+   estate's CBOM listed no certificate hash functions at all.
+7. Binary symbols whose names state the operation — `RSA_sign` — leaving the
+   purpose unresolved. The M2 purpose work had never reached the sensor that
+   exists to read vendor binaries where no source is available.
+
+Defect 7's first fix introduced 7b: every `_encrypt` mapped to key
+establishment, which claimed `AES_encrypt` was wrapping keys. The next run
+caught it. A double-count in the harness itself was found by its own tests —
+negative-file hits were counted twice, understating precision.
+
+**UI.** Scene 06 lists every stored scan with target, date, kind, status and
+count, and reopens any of them with its report and CBOM. A partial scan now
+says so in a banner above the verdict rather than leaving it in the payload.
+Correlated findings are shown as followable peers with their own evidence: a
+link you can follow is evidence, a link you cannot is an assertion. Loading,
+empty and error states are real, and a refused scan reports its reason and the
+server-log reference rather than "failed".
+
+**Verified.** A live server on port 8126: a partial scan with a refused
+endpoint, 29 assets, both CBOM versions passing official schema validation with
+zero problems, a 169 KB report with 29 traced chains, history listing the scan
+as PARTIAL, and no secret in any output. 664 tests pass.
+
+
 
 Closes R9.1–R9.3, R7.2, R7.4, R7.8.
 
@@ -265,7 +318,7 @@ must not fire), a harness that computes precision/recall/F1 per detector, and
 publication of whatever the real numbers turn out to be. UI work on partial
 failures, evidence drill-down and scan history.
 
-## M7 — Submission readiness
+## M7 — Submission readiness  *(next)*
 
 Closes R10.2, R10.5, R10.6, R10.10, R10.11.
 

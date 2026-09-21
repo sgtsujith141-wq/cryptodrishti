@@ -353,6 +353,30 @@ def _parse_certificate(der_or_pem: bytes, rel: str, mods) -> list[Finding]:
                                context=sig_name, assurance=ASSURANCE_OBSERVED)],
             extra={"format": "X.509", "trust_verified": False},
         ))
+    # The digest inside the signature is its own cryptographic asset. Only the
+    # broken ones were inventoried, which meant a CBOM of a healthy estate
+    # listed no hash functions at all from its certificates -- and "which
+    # digest are our certificates signed with" is a question a migration
+    # programme has to answer for every certificate, not only the bad ones.
+    if sig_digest not in ("unknown", "n/a", "") and sig_digest not in ("sha1", "md5"):
+        out.append(Finding(
+            algorithm=sig_digest, asset_type=ASSET_CERTIFICATE, scanner=SCANNER,
+            title=f"Certificate signature digest ({sig_digest.upper()})",
+            detail=(f"This certificate's signature is computed over a "
+                    f"{sig_digest.upper()} digest. The digest is a migration unit "
+                    f"in its own right: re-issuing with a different signature "
+                    f"algorithm changes it."),
+            rule_id="cert.digest",
+            purpose=P.HASHING,
+            purpose_evidence="the digest inside the certificate signature algorithm",
+            evidence=[Evidence(location=rel, symbol=sig_name,
+                               technique=TECH_CERT_PARSE, confidence=0.98,
+                               context=f"{sig_name} over {sig_digest}",
+                               assurance=ASSURANCE_OBSERVED)],
+            extra={"format": "X.509", "trust_verified": False,
+                   "digest": sig_digest},
+        ))
+
     if sig_digest in ("sha1", "md5"):
         out.append(Finding(
             algorithm=sig_digest, asset_type=ASSET_CERTIFICATE, scanner=SCANNER,

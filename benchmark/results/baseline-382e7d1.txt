@@ -1,0 +1,35 @@
+CryptoDrishti detection benchmark
+========================================================================
+corpus manifest 1.0.0
+
+Synthetic fixtures. These numbers measure this corpus and nothing else. They are NOT an estimate of accuracy on real-world enterprise code, which this project has never measured.
+
+scanner           TP    FP    FN   precision    recall      F1
+------------------------------------------------------------------------
+config             8     2     4       0.800     0.667   0.727
+dependency        15     0     0       1.000     1.000   1.000
+source            56     3     1       0.949     0.983   0.966
+------------------------------------------------------------------------
+OVERALL           79     5     5       0.941     0.941   0.941
+
+purpose    77/77 correct  (1.000)
+           2 case(s) excluded as genuinely ambiguous
+assurance  79/79 correct  (1.000)
+
+false negatives: 5   false positives: 5   hits in negative files: 0
+
+MISSED (false negatives):
+  - md5            config/legacy.conf:3
+  - sha1           config/legacy.conf:3
+  - aes-256        config/nginx.conf:4
+  - rsa            config/nginx.conf:4
+  - hmac           source/java/Uses.java:25
+
+SPURIOUS (false positives):
+  - tls1.0         config/nginx.conf:3   via cfg.protocol
+  - des            config/nginx.conf:4   via cfg.cipher
+  - md5            source/go/uses.go:8   via go.weakhash
+  - aes            source/java/Uses.java:7   via py.ast.hazmat.algorithms
+  - unknown        source/java/Uses.java:25   via java.mac
+
+results written to benchmark/results/baseline-382e7d1.json

@@ -30,7 +30,10 @@ import imagelab as L
 
 def rich_image(tmp_path: Path, name: str = "rich.tar") -> Path:
     """An image with something for every analyser, plus a deleted key."""
-    libcrypto = (L.fake_elf([b"RSA_sign", b"SHA256_Init", b"MD5_Init"])
+    # RSA_new alongside RSA_sign on purpose: one symbol states the operation
+    # and one does not, so the image carries both a purpose-resolved RSA asset
+    # and a purpose-unresolved one. Correlation must treat them differently.
+    libcrypto = (L.fake_elf([b"RSA_sign", b"RSA_new", b"SHA256_Init", b"MD5_Init"])
                  + b"OpenSSL 3.0.2 15 Mar 2022\x00")
     layer0 = L.tar_bytes([
         ("etc/nginx.conf", L.NGINX_CONF),
@@ -266,6 +269,30 @@ def test_a_declared_capability_links_to_observed_use_in_the_same_component(tmp_p
     assert asset.basis == ["component:openssl"]
     assert {d.split("/")[1] for d in asset.detectors} == {"binary", "dependency"}
     assert asset.corroborated_by_use is True
+    # It is the purpose-unresolved RSA that links. The dependency declares a
+    # capability and says nothing about what it is for; the binary's RSA_new
+    # says the same. Neither claims more than the other.
+    assert asset.purpose == P.UNKNOWN
+
+
+def test_a_resolved_purpose_does_not_correlate_with_an_unresolved_one(tmp_path):
+    """RSA_sign is signing. A dependency's RSA capability is not established
+    as signing, so linking them would assert a purpose nobody observed.
+
+    This is the M2 purpose guarantee reaching the correlation layer: it was
+    found by the M6 benchmark, which showed the binary sensor throwing away
+    the operation that the symbol name was stating outright.
+    """
+    archive = rich_image(tmp_path)
+    findings, _ = sensor.scan(archive)
+    assets, links = correlated(findings)
+
+    signing = [f for f in assets
+               if f.algorithm == "rsa" and f.purpose == P.SIGNATURE]
+    assert signing, "RSA_sign should resolve to a signing asset"
+    for f in signing:
+        assert "correlation" not in f.extra, (
+            "a signing asset must not be linked to an unresolved capability")
 
 
 def test_a_manifest_declaring_several_libraries_maps_to_none_of_them(tmp_path):

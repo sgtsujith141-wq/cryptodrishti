@@ -213,13 +213,13 @@ scenario and `is_forecast` is emitted as `false` in the CBOM.
 | ID | Requirement | Implementation | Tests | Evidence | Baseline |
 |---|---|---|---|---|---|
 | R7.1 | Scan configuration | `app/web/` + `/api/browse` | `test_api.py` (2) | Folder picker works | DONE |
-| R7.2 | Progress and partial failures | progress DONE; failures **not surfaced** | `test_api.py::a_scan_runs_to_completion` | Tick counter distinguishes slow from stalled | PARTIAL |
+| R7.2 | Progress and partial failures | `renderIntegrity` banner above the verdict; error and refusal states in `poll` | | A partial scan says so where it cannot be missed | **DONE** |
 | R7.3 | Cryptographic inventory | ledger scene with filters | | | DONE |
-| R7.4 | Evidence inspection | drawer shows purpose, assurance, evidence mix and per-item assurance | | Assurance chips in the ledger; unresolved recommendations styled distinctly | PARTIAL — still no cross-file drill-down |
+| R7.4 | Evidence inspection | drawer shows every evidence item with file, line, technique, confidence and assurance, plus correlated peers as followable findings | | A link you can follow is evidence; a link you cannot is an assertion | **DONE** |
 | R7.5 | Quantum-risk assessment | radial + composition + Mosca scene | | | DONE |
 | R7.6 | Migration planner | plan scene | | | DONE |
 | R7.7 | CBOM export | download + validate buttons | `test_api.py` | | DONE |
-| R7.8 | Reports and history | report button; **no history browser** | | `/api/scans` exists, unused by UI | PARTIAL |
+| R7.8 | Reports and history | scene 06: every stored scan, with target, date, kind, status, count, reopen, report and CBOM | | `/api/scans` had always existed; the console simply never showed it | **DONE** |
 
 ## R8 — Security of the tool itself
 
@@ -255,9 +255,50 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 | ID | Requirement | Baseline |
 |---|---|---|
-| R9.1 | Labelled ground-truth corpus (positive and negative) | **GAP** |
-| R9.2 | Precision / recall / F1 / FP / FN per detector | **GAP — never measured** |
-| R9.3 | Published method and results | **GAP** |
+| R9.1 | Labelled ground-truth corpus | `benchmark/corpus` + `benchmark/manifest.json`, hand-labelled, versioned, with a changelog | 6 | 116 expected findings, 4 negative files, all 6 batch scanners | **DONE** |
+| R9.2 | Precision / recall / F1 / FP / FN per detector | `benchmark/run.py` | 12 | Per scanner and overall; purpose and assurance scored separately | **DONE** |
+| R9.3 | Published method and results | `benchmark/README.md`, `benchmark/results/` | 2 | Baseline preserved; CI enforces a floor | **DONE** |
+| R9.4 | Benchmark cannot silently rot | `tests/test_benchmark_harness.py` + a CI step | 16 | Matching honesty is itself tested | **DONE** |
+
+### Measured accuracy
+
+Over `benchmark/corpus`, manifest 1.2.0, 116 hand-labelled findings across six
+scanners:
+
+| Scanner | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| source | 58 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| dependency | 15 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| config | 14 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| container | 14 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| certificate | 10 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| binary | 5 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| **Overall** | **116** | **0** | **0** | **1.000** | **1.000** | **1.000** |
+
+Purpose 114/114, assurance 116/116, with 2 genuinely ambiguous cases excluded
+rather than guessed.
+
+**A perfect score here means the corpus has stopped finding defects, not that
+the tool is perfect.** The same person wrote the fixtures and the detectors.
+These numbers measure this corpus; they are not an estimate of accuracy on
+real-world code, which this project has never measured.
+
+The honest improvement figure is the like-for-like one — the same corpus
+before and after the fixes:
+
+| | Precision | Recall | F1 | TP / FP / FN |
+|---|---|---|---|---|
+| Before (382e7d1) | 0.941 | 0.941 | 0.941 | 79 / 5 / 5 |
+| After, same corpus | 0.966 | 1.000 | 0.983 | 84 / 3 / 0 |
+
+The 3 residual false positives in the after-column are findings the tool got
+right and the first pass of labelling missed; they are expected in manifest
+1.1.0 and the correction is recorded in its changelog.
+
+**The network sensor is excluded from these figures.** What a TLS handshake
+negotiates depends on the local OpenSSL build, so an expected-results label
+would be a label for one machine. It is probed against a loopback server and
+its structural properties are asserted instead.
 
 ## R10 — Submission readiness
 
@@ -279,12 +320,19 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 ## Summary at baseline
 
-| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 |
-|---|---|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 | 73 | 83 |
-| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 |
-| GAP | 17 | 12 | 11 | 9 | 9 | 8 |
-| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** |
+| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 |
+|---|---|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 |
+| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 |
+| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** |
+
+M6 measured detection accuracy for the first time. The benchmark found seven
+detector defects that reading the code had not — four false negatives from one
+regex treating a hyphen as an exclusion marker, a TLS 1.0 finding invented from
+a 1.2-only configuration, an AES finding in a file containing no AES, and the
+M2 purpose work missing entirely from the binary sensor. It also found a
+double-count in the benchmark harness itself. Test count rose from 618 to 664.
 
 M5 made the CBOM independently schema-valid against the official CycloneDX
 schemas, added genuine 1.7 export, and found eight emitter defects by audit —

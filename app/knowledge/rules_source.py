@@ -123,6 +123,12 @@ def _norm_alg(raw: str) -> str:
     if m:
         return f"{m.group(1)}-{m.group(2)}"
 
+    # HMAC names its digest: HmacSHA256, HMAC-SHA3-512. The construction is
+    # HMAC whichever digest it wraps, and reporting `unknown` for a MAC whose
+    # name states exactly what it is was a plain miss.
+    if flat.startswith("hmac"):
+        return "hmac"
+
     # An indivisible name that did not match above is genuinely unrecognised.
     # Truncating it would manufacture a different algorithm's identity.
     if flat.startswith(_ATOMIC_PREFIXES):
@@ -203,6 +209,25 @@ def resolve_java_signature(m: re.Match) -> dict:
     flat = re.sub(r"[^a-z0-9]", "", low)
     out["algorithm"] = _SIGNATURE_NAMES.get(flat) or _norm_alg(raw)
     return out
+
+
+def resolve_ecb(m: re.Match) -> dict:
+    """Resolve the cipher an ECB match actually applies to.
+
+    This rule used to report ``aes`` for every ECB match, whatever the
+    surrounding transform said. On ``Cipher.getInstance("RSA/ECB/OAEPPadding")``
+    that invented an AES finding in a file with no AES in it -- and the ECB
+    there is a JCE naming artefact for an asymmetric cipher rather than a
+    block-cipher mode at all.
+
+    The algorithm now comes from the match when the match contains it, and is
+    ``unknown`` when it does not. ``MODE_ECB`` on its own genuinely does not
+    say which cipher; reporting the mode and admitting the rest is the honest
+    answer, and the mode is what the finding is about.
+    """
+    raw = (m.groupdict().get("alg") or "").strip()
+    alg = _norm_alg(raw) if raw else "unknown"
+    return {"algorithm": alg, "mode": "ecb", "context": m.group(0)[:80]}
 
 
 def resolve_named(alg: str) -> Callable[[re.Match], dict]:
@@ -695,8 +720,8 @@ _add(
       0.7, ASSET_MATERIAL, assurance=ASSURANCE_OBSERVED),
 
     R("any.ecb.mode", ("*",),
-      r'(?i)\b(?:MODE_ECB|/ECB/|["\']ecb["\']|AES_ECB)\b',
-      resolve_named("aes"),
+      r'(?i)(?:\b(?P<alg>[A-Za-z0-9_]{2,12})[/_])?\b(?:MODE_ECB|ECB/|["\']ecb["\']|ECB)\b',
+      resolve_ecb,
       "ECB mode of operation",
       "ECB leaks plaintext structure because identical blocks encrypt identically. "
       "It is a defect regardless of key size or quantum threat.",

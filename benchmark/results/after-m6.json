@@ -1,0 +1,127 @@
+{
+  "assurance_accuracy": {
+    "accuracy": 1.0,
+    "correct": 116,
+    "scored": 116
+  },
+  "assurance_errors": [],
+  "false_negatives": [],
+  "false_positives": [],
+  "manifest_version": "1.2.0",
+  "negative_file_hits": [],
+  "network": {
+    "endpoints_probed": 1,
+    "excluded_from_metrics": true,
+    "observations": [
+      {
+        "algorithm": "tls1.3",
+        "assurance": "observed",
+        "purpose": "transport",
+        "rule": "net.tlsversion",
+        "title": "TLSv1.3 accepted"
+      },
+      {
+        "algorithm": "tls1.2",
+        "assurance": "observed",
+        "purpose": "transport",
+        "rule": "net.tlsversion",
+        "title": "TLSv1.2 accepted"
+      },
+      {
+        "algorithm": "unknown",
+        "assurance": "observed",
+        "purpose": "transport",
+        "rule": "net.ciphersuite",
+        "title": "Cipher suite negotiated: TLS_AES_256_GCM_SHA384"
+      },
+      {
+        "algorithm": "x25519-ml-kem-768",
+        "assurance": "observed",
+        "purpose": "key-establishment",
+        "rule": "net.pqgroup",
+        "title": "Hybrid post-quantum key exchange negotiated"
+      },
+      {
+        "algorithm": "rsa-2048",
+        "assurance": "observed",
+        "purpose": "unknown",
+        "rule": "net.cert",
+        "title": "Certificate presented by live endpoint"
+      }
+    ],
+    "ran": true,
+    "structural_checks": {
+      "certificate_trust_not_assumed": true,
+      "reported_cipher_suite_separately": true,
+      "reported_key_exchange_separately": true,
+      "reported_protocol_versions": true
+    },
+    "why_excluded": "negotiated TLS parameters depend on the local OpenSSL build, so they cannot carry a stable expected-results label"
+  },
+  "overall": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 116
+  },
+  "per_scanner": {
+    "binary": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 5
+    },
+    "certificate": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 10
+    },
+    "config": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 14
+    },
+    "container": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 14
+    },
+    "dependency": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 15
+    },
+    "source": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 58
+    }
+  },
+  "purpose_accuracy": {
+    "accuracy": 1.0,
+    "correct": 114,
+    "scored": 114
+  },
+  "purpose_ambiguous_excluded": 2,
+  "purpose_errors": [],
+  "scope_note": "Synthetic fixtures. These numbers measure this corpus and nothing else. They are NOT an estimate of accuracy on real-world enterprise code, which this project has never measured."
+}

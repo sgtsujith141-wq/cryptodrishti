@@ -103,10 +103,48 @@ CONSTANTS: list[ConstantSignature] = [
 # symbol prefix/name -> (algorithm key, human label, confidence)
 SYMBOLS: dict[str, tuple[str, str, float]] = {}
 
+# Symbols whose *name* states what the algorithm is doing. `RSA_sign` is a
+# signing call however little else the binary tells us, and leaving RSA's
+# purpose unresolved there threw away evidence that was sitting in the symbol
+# table -- the same purpose distinction M2 fixed for source, missing from the
+# sensor that reaches vendor binaries where no source exists.
+SYMBOL_PURPOSE: dict[str, str] = {}
+
+_SIGN_TOKENS = ("_sign", "_verify", "digestsign", "digestverify")
+_ENCRYPT_TOKENS = ("_encrypt", "_decrypt")
+_AGREE_TOKENS = ("compute_key", "_derive", "_encaps", "_decaps")
+
+# Algorithms for which encrypt/decrypt means key transport rather than bulk
+# encryption. `RSA_public_encrypt` wraps a session key; `AES_encrypt` encrypts
+# data. Mapping both to key establishment -- which an earlier version of this
+# function did -- claimed AES was doing something it never does.
+_ASYMMETRIC = ("rsa", "elgamal")
+
+
+def _purpose_from_name(name: str, algorithm: str) -> str:
+    """Read the operation off the symbol name, or return an empty string.
+
+    Only names that *state* the operation resolve anything. `RSA_new` says a
+    key exists and nothing about what it is for, so it stays unresolved --
+    which is the same answer the source sensor gives for key generation.
+    """
+    lowered = name.lower()
+    if any(t in lowered for t in _SIGN_TOKENS):
+        return "signature"
+    if any(t in lowered for t in _AGREE_TOKENS):
+        return "key-establishment"
+    if any(t in lowered for t in _ENCRYPT_TOKENS):
+        return ("key-establishment" if algorithm.startswith(_ASYMMETRIC)
+                else "encryption")
+    return ""
+
 
 def _syms(names: list[str], algorithm: str, label: str, conf: float = 0.92) -> None:
     for n in names:
         SYMBOLS[n] = (algorithm, label, conf)
+        purpose = _purpose_from_name(n, algorithm)
+        if purpose:
+            SYMBOL_PURPOSE[n] = purpose
 
 
 _syms(["RSA_new", "RSA_free", "RSA_generate_key", "RSA_generate_key_ex",

@@ -241,9 +241,12 @@ def analyse_bytes(data: bytes, rel: str, kind: str) -> list[Finding]:
                     "not parsed, so the name could in principle appear without the "
                     "routine being called. Reported at reduced confidence."),
             rule_id="bin.symbol",
-            purpose=K.default_purpose(alg),
-            purpose_evidence=("implied by the algorithm; a linked symbol names the "
-                              "routine but not what the caller does with it"),
+            purpose=rb.SYMBOL_PURPOSE.get(sym) or K.default_purpose(alg),
+            purpose_evidence=(
+                f"the symbol name {sym!r} states the operation"
+                if sym in rb.SYMBOL_PURPOSE else
+                "implied by the algorithm; a linked symbol names the routine "
+                "but not what the caller does with it"),
             evidence=[Evidence(location=rel, symbol=sym, technique=technique,
                                confidence=round(conf * conf_scale, 2), context=origin,
                                assurance=ASSURANCE_USED)],

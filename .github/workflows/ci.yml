@@ -154,6 +154,27 @@ jobs:
               sys.exit(1)
           PY
 
+      - name: Measure detection accuracy against the labelled corpus
+        run: |
+          python benchmark/run.py --no-tls --json benchmark-results.json
+          python - <<'PY'
+          import json, sys
+          r = json.load(open("benchmark-results.json"))
+          o = r["overall"]
+          # A floor, not a target. Falling below it means a detector regressed,
+          # and that is worth failing a build for.
+          bad = []
+          if o["precision"] < 0.95: bad.append(f"precision {o['precision']}")
+          if o["recall"] < 0.95: bad.append(f"recall {o['recall']}")
+          if r["negative_file_hits"]:
+              bad.append(f"{len(r['negative_file_hits'])} hit(s) in negative files")
+          if bad:
+              print("benchmark regressed:", "; ".join(bad))
+              sys.exit(1)
+          print(f"benchmark OK: P={o['precision']} R={o['recall']} F1={o['f1']} "
+                f"over {o['tp'] + o['fn']} labelled findings")
+          PY
+
       - name: Upload the CBOMs
         uses: actions/upload-artifact@v4
         with:
@@ -161,3 +182,4 @@ jobs:
           path: |
             cbom.json
             container-cbom-*.json
+            benchmark-results.json

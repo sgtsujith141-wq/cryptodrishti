@@ -37,18 +37,35 @@ CONFIG_SUFFIXES = {".conf", ".cnf", ".cfg", ".properties"}
 
 # Weak primitives that commonly appear inside cipher strings and key exchange
 # lists. Order matters: longer names first so RC4 does not shadow nothing.
+# Tokens that appear inside cipher strings and key-exchange lists.
+#
+# `DES` carries a negative lookahead for the Triple-DES spellings: `DES-CBC3`
+# and `DESede` are 3DES, and reporting single DES for them invents an
+# algorithm the configuration does not permit.
+#
+# `SHA` with no digit is OpenSSL's name for HMAC-SHA1 -- `DES-CBC-SHA` is a
+# SHA-1 suite -- so it maps to sha1 rather than being missed.
 _CIPHER_TOKENS = [
     ("3DES", "3des"), ("DES-CBC3", "3des"), ("TRIPLEDES", "3des"),
-    ("RC4", "rc4"), ("DES", "des"), ("MD5", "md5"), ("SHA1", "sha1"),
+    ("DESEDE", "3des"),
+    ("RC4", "rc4"),
+    ("DES(?!-CBC3|EDE)", "des"),
+    ("MD5", "md5"), ("SHA1", "sha1"), ("SHA(?![0-9])", "sha1"),
+    ("SHA256", "sha256"), ("SHA384", "sha384"),
     ("NULL", "unknown"), ("EXPORT", "unknown"), ("ANON", "unknown"),
     ("AES128", "aes-128"), ("AES256", "aes-256"),
     ("ECDHE", "ecdh"), ("DHE", "dh"), ("RSA", "rsa"),
 ]
 
+# Protocol names, longest first. The trailing negative lookahead is what stops
+# `TLSv1` matching inside `TLSv1.2`: `\b` treats the dot as a word boundary, so
+# a plain word-boundary match reported TLS 1.0 as enabled on a server that
+# offers only 1.2 and 1.3 -- a deprecated protocol invented out of nothing.
 _PROTOCOL_TOKENS = {
     "SSLv2": "tls1.0", "SSLv3": "tls1.0",
-    "TLSv1": "tls1.0", "TLSv1.0": "tls1.0", "TLSv1.1": "tls1.1",
+    "TLSv1.0": "tls1.0", "TLSv1.1": "tls1.1",
     "TLSv1.2": "tls1.2", "TLSv1.3": "tls1.3",
+    "TLSv1": "tls1.0",
 }
 
 _DIRECTIVES = re.compile(
@@ -129,7 +146,8 @@ def analyse_text(text: str, rel: str, kind: str) -> list[Finding]:
         seen: set[str] = set()
 
         for token, proto in _PROTOCOL_TOKENS.items():
-            if re.search(rf"\b{re.escape(token)}\b", value, re.IGNORECASE):
+            # (?![.\d]) so a bare `TLSv1` does not match the start of `TLSv1.2`.
+            if re.search(rf"\b{re.escape(token)}(?![.\d])", value, re.IGNORECASE):
                 if proto in seen:
                     continue
                 seen.add(proto)
@@ -152,11 +170,18 @@ def analyse_text(text: str, rel: str, kind: str) -> list[Finding]:
                     extra={"protocol_type": "tls", "version": token},
                 ))
 
+        # OpenSSL cipher strings are colon-separated lists. An element that
+        # begins with '!' or '-' is an exclusion; a hyphen *inside* an element
+        # is a component separator. Treating every hyphen as an exclusion
+        # marker silently dropped AES256, RSA and MD5 out of suites that
+        # plainly permit them, because they sit mid-name after a hyphen.
+        elements = [e.strip() for e in upper.split(":") if e.strip()]
+        permitted = " ".join(e for e in elements if not e.startswith(("!", "-")))
+
         for token, alg in _CIPHER_TOKENS:
-            if not re.search(rf"(?<![A-Z0-9]){re.escape(token)}(?![A-Z0-9])", upper):
-                continue
-            # A leading '!' or '-' in an OpenSSL cipher string excludes it.
-            if re.search(rf"[!\-]{re.escape(token)}\b", upper):
+            # A token may carry its own lookahead, so it is not escaped here;
+            # every entry in the table is written as a deliberate pattern.
+            if not re.search(rf"(?<![A-Z0-9]){token}(?![A-Z0-9])", permitted):
                 continue
             if alg in seen:
                 continue

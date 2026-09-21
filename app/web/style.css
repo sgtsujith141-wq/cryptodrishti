@@ -619,6 +619,57 @@ td.ctx { font-size: 11.5px; color: var(--ink-3); }
 .assess-actions { display: flex; gap: .4rem; margin-top: .6rem; }
 .assess-out { margin: .45rem 0 0; font-size: 11.5px; font-family: var(--mono); }
 
+/* Scan integrity. A partial inventory that does not say so is the most
+   damaging thing this console can display, so it is stated above the verdict
+   rather than tucked into a panel. */
+.integrity {
+  margin: 0 0 .8rem; padding: .5rem .7rem; font-size: 12px;
+  border-left: 3px solid currentColor;
+}
+.integrity.partial { color: var(--i-broken); }
+.integrity.warn    { color: var(--i-weakened); }
+.integrity ul { margin: .35rem 0 0; padding-left: 1.1rem; }
+.integrity li { margin: .12rem 0; }
+.integrity .muted { margin: .4rem 0 0; color: var(--ink-3); font-size: 11.5px; }
+
+/* Correlated peers, shown as followable findings rather than opaque ids. */
+.peers { margin-top: .5rem; }
+.peer { border-left: 2px solid var(--rule); padding: .35rem 0 .35rem .6rem;
+        margin-bottom: .45rem; }
+.peer-h { display: flex; align-items: baseline; gap: .45rem; font-size: 12px; }
+.peer-t { font-size: 11.5px; color: var(--ink-2); margin-top: .1rem; }
+.peer-e { font-size: 10.5px; color: var(--ink-3); margin-top: .1rem; }
+.peer button { margin-top: .3rem; }
+
+/* Scan history. */
+.history { list-style: none; margin: .8rem 0 0; padding: 0; }
+.hist {
+  border: 1px solid var(--rule); border-left: 3px solid var(--ink-4);
+  padding: .55rem .75rem; margin-bottom: .5rem;
+}
+.hist.is-current { border-left-color: var(--i-safe); }
+.hist-h { display: flex; align-items: baseline; gap: .6rem; }
+.hist-label { font-size: 13px; font-weight: 600; }
+.hist-state {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em;
+  padding: 0 .3rem; border: 1px solid currentColor; border-radius: 2px;
+}
+.hist-state.ok { color: var(--i-safe); }
+.hist-state.partial { color: var(--i-broken); }
+.hist-m { font-size: 11.5px; color: var(--ink-3); margin-top: .15rem; }
+.hist-p { font-size: 11px; color: var(--ink-4); margin-top: .1rem;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-why { margin: .3rem 0 0; padding-left: 1.1rem; font-size: 11px;
+            color: var(--i-broken); }
+.hist-a { display: flex; gap: .35rem; margin-top: .45rem; }
+.hist-a a { text-decoration: none; }
+
+/* Real states: loading, empty, error. Never a decorative spinner over
+   nothing. */
+.state { font-size: 12px; color: var(--ink-3); padding: .7rem 0; }
+.state.empty { color: var(--ink-4); }
+.state.error { color: var(--i-broken); }
+
 /* Target-kind selector and the image picker it reveals. */
 .aim-kind { display: flex; gap: 1.1rem; margin: .5rem 0 .35rem; }
 .aim-kind label {

@@ -1,0 +1,4 @@
+# Negative: a DISABLE list. These algorithms are prohibited here, not in use.
+# A scanner that reports them as findings has inverted the meaning of the file.
+jdk.tls.disabledAlgorithms=SSLv3, RC4, DES, MD5withRSA, DH keySize < 1024
+jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer

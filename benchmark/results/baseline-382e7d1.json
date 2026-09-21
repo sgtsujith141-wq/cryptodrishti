@@ -1,0 +1,186 @@
+{
+  "assurance_accuracy": {
+    "accuracy": 1.0,
+    "correct": 79,
+    "scored": 79
+  },
+  "assurance_errors": [],
+  "false_negatives": [
+    {
+      "algorithm": "md5",
+      "assurance": "declared",
+      "file": "config/legacy.conf",
+      "line": 3,
+      "purpose": "hashing",
+      "scanner": "config"
+    },
+    {
+      "algorithm": "sha1",
+      "assurance": "declared",
+      "file": "config/legacy.conf",
+      "line": 3,
+      "purpose": "hashing",
+      "scanner": "config"
+    },
+    {
+      "algorithm": "aes-256",
+      "assurance": "declared",
+      "file": "config/nginx.conf",
+      "line": 4,
+      "purpose": "encryption",
+      "scanner": "config"
+    },
+    {
+      "algorithm": "rsa",
+      "assurance": "declared",
+      "file": "config/nginx.conf",
+      "line": 4,
+      "purpose": "unknown",
+      "scanner": "config"
+    },
+    {
+      "algorithm": "hmac",
+      "assurance": "used",
+      "file": "source/java/Uses.java",
+      "line": 25,
+      "purpose": "authentication",
+      "scanner": "source"
+    }
+  ],
+  "false_positives": [
+    {
+      "findings": [
+        {
+          "algorithm": "tls1.0",
+          "assurance": "declared",
+          "file": "config/nginx.conf",
+          "line": 3,
+          "purpose": "transport",
+          "rule_id": "cfg.protocol",
+          "scanner": "config"
+        }
+      ],
+      "key": [
+        "config/nginx.conf",
+        3,
+        "tls1.0"
+      ]
+    },
+    {
+      "findings": [
+        {
+          "algorithm": "des",
+          "assurance": "declared",
+          "file": "config/nginx.conf",
+          "line": 4,
+          "purpose": "encryption",
+          "rule_id": "cfg.cipher",
+          "scanner": "config"
+        }
+      ],
+      "key": [
+        "config/nginx.conf",
+        4,
+        "des"
+      ]
+    },
+    {
+      "findings": [
+        {
+          "algorithm": "md5",
+          "assurance": "used",
+          "file": "source/go/uses.go",
+          "line": 8,
+          "purpose": "hashing",
+          "rule_id": "go.weakhash",
+          "scanner": "source"
+        }
+      ],
+      "key": [
+        "source/go/uses.go",
+        8,
+        "md5"
+      ]
+    },
+    {
+      "findings": [
+        {
+          "algorithm": "aes",
+          "assurance": "used",
+          "file": "source/java/Uses.java",
+          "line": 7,
+          "purpose": "encryption",
+          "rule_id": "py.ast.hazmat.algorithms",
+          "scanner": "source"
+        }
+      ],
+      "key": [
+        "source/java/Uses.java",
+        7,
+        "aes"
+      ]
+    },
+    {
+      "findings": [
+        {
+          "algorithm": "unknown",
+          "assurance": "used",
+          "file": "source/java/Uses.java",
+          "line": 25,
+          "purpose": "authentication",
+          "rule_id": "java.mac",
+          "scanner": "source"
+        }
+      ],
+      "key": [
+        "source/java/Uses.java",
+        25,
+        "unknown"
+      ]
+    }
+  ],
+  "manifest_version": "1.0.0",
+  "negative_file_hits": [],
+  "overall": {
+    "f1": 0.9405,
+    "fn": 5,
+    "fp": 5,
+    "precision": 0.9405,
+    "recall": 0.9405,
+    "tp": 79
+  },
+  "per_scanner": {
+    "config": {
+      "f1": 0.7273,
+      "fn": 4,
+      "fp": 2,
+      "precision": 0.8,
+      "recall": 0.6667,
+      "tp": 8
+    },
+    "dependency": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 15
+    },
+    "source": {
+      "f1": 0.9655,
+      "fn": 1,
+      "fp": 3,
+      "precision": 0.9492,
+      "recall": 0.9825,
+      "tp": 56
+    }
+  },
+  "purpose_accuracy": {
+    "accuracy": 1.0,
+    "correct": 77,
+    "scored": 77
+  },
+  "purpose_ambiguous_excluded": 2,
+  "purpose_errors": [],
+  "scope_note": "Synthetic fixtures. These numbers measure this corpus and nothing else. They are NOT an estimate of accuracy on real-world enterprise code, which this project has never measured."
+}

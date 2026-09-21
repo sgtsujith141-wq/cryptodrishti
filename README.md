@@ -13,7 +13,7 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6 + 1.7](https://img.shields.io/badge/CBOM-CycloneDX%201.6%20%2B%201.7-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-617%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -428,6 +428,64 @@ What correlation may never do:
 A path maps to a component only when every library-naming finding there
 agrees. A `requirements.txt` listing six packages is a list, not a component.
 
+## Measured accuracy
+
+Until M6 this project had never measured its own detection accuracy, and said
+so. It now has a hand-labelled corpus and a reproducible harness.
+
+```bash
+python benchmark/run.py                        # measure
+python benchmark/run.py --baseline results/baseline-382e7d1.json
+```
+
+Over `benchmark/corpus` (manifest 1.2.0, 116 labelled findings, six scanners):
+
+| Scanner | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| source | 58 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| dependency | 15 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| config | 14 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| container | 14 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| certificate | 10 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| binary | 5 | 0 | 0 | 1.000 | 1.000 | 1.000 |
+| **Overall** | **116** | **0** | **0** | **1.000** | **1.000** | **1.000** |
+
+**Read that with the caveat it deserves.** A perfect score means the corpus has
+stopped finding defects, not that the tool is perfect. The same person wrote
+the fixtures and the detectors and knows what they look for. These numbers
+measure this corpus and nothing else; they are **not** an estimate of accuracy
+on real-world code, which this project still has not measured.
+
+The number worth looking at is the like-for-like one — the same corpus, before
+and after the fixes the benchmark prompted:
+
+| | Precision | Recall | F1 |
+|---|---|---|---|
+| Before | 0.941 | 0.941 | 0.941 |
+| After | 0.966 | 1.000 | 0.983 |
+
+### What measuring found that reading did not
+
+Seven detector defects, none visible by inspection:
+
+- A hyphen inside a cipher name was treated as an OpenSSL exclusion marker, so
+  `ECDHE-RSA-AES256` silently dropped RSA and AES-256 — four false negatives,
+  every one in the direction that makes an estate look cleaner than it is.
+- `TLSv1` matched inside `TLSv1.2` (`\b` treats the dot as a boundary), so TLS
+  1.0 was reported as enabled on a server offering only 1.2 and 1.3.
+- `DES` matched inside `DES-CBC3`, which is Triple DES.
+- `HmacSHA256` did not resolve — a MAC whose name states what it is.
+- The ECB rule asserted `aes` for every match, inventing an AES finding from
+  `RSA/ECB/OAEPPadding` in a file with no AES in it.
+- Certificate signature digests were inventoried only when broken, so a healthy
+  estate's CBOM listed no certificate hash functions at all.
+- Binary symbols that state their operation (`RSA_sign`) left the purpose
+  unresolved: the M2 purpose work had never reached the sensor whose whole job
+  is vendor binaries with no source.
+
+Each has a regression test. The corpus also caught a double-count in the
+benchmark harness itself.
+
 ## Standards conformance
 
 Two checks exist, and conflating them would be the overclaim this whole tool
@@ -714,6 +772,10 @@ actively harmful.
   images, no zstd layers, no signature or attestation verification. Layer
   replay handles whiteouts; it does not reconstruct a squashed image any other
   way. The exact supported set is in [Container images](#container-images).
+- **The accuracy figures are for a synthetic corpus.** They say the detectors
+  do what their author intended on fixtures their author wrote. Real-world
+  precision and recall are unmeasured, and a corpus scoring 1.000 is a corpus
+  that needs harder cases, not a finished one.
 - **Schema conformance is against a pinned copy.** It is the official schema,
   vendored and checksummed, but it is a snapshot. Upstream moves; updating is
   a deliberate, reviewable change, not something that happens on its own.
@@ -761,7 +823,8 @@ app/
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      617 tests
+tests/                      664 tests
+benchmark/                  labelled corpus, accuracy harness and results
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots

@@ -78,6 +78,7 @@ const PHASE_OF = { source: "source code", dependency: "dependency", certificate:
 const SECTIONS = [
   ["s-verdict", "Assessment"], ["s-clock", "Exposure"],
   ["s-plan", "Remediation"], ["s-record", "Inventory"], ["s-out", "Output"],
+  ["s-history", "History"],
 ];
 let _dialDrawn = false;
 const FIGS = [
@@ -202,6 +203,7 @@ async function boot() {
 
   loadAssessmentMeta();
   buildFigures(); buildArray(); buildIndex(); initTheme();
+  loadHistory();
 
   initPicker();
   $("run-scan").addEventListener("click", startScan);
@@ -450,12 +452,21 @@ function poll(id) {
       $("run-detail").textContent = ""; $("run-detail").classList.remove("stalled");
       $("run-scan").disabled = false;
       await loadScan(id);
+      loadHistory();
       $("s-verdict").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
-    } else if (job.state === "error") {
+    } else if (job.state === "error" || job.state === "refused") {
       clearInterval(state.pollTimer); stopClock();
+      $("run-bar").hidden = true; $("run-pct").textContent = "";
       $("run-scan").disabled = false;
-      $("array-state").textContent = "Failed — " + (job.error || "unknown error");
-      console.error(job.trace || job.error);
+      /* The server sends the reason and an 8-character reference; the
+         traceback stays in the server log. Show the reason — an operator who
+         is told only "failed" cannot act. */
+      const reason = job.error || "unknown error";
+      $("array-state").textContent =
+        (job.state === "refused" ? "Refused — " : "Failed — ") + reason;
+      $("run-detail").textContent = job.error_ref
+        ? `server log reference ${job.error_ref}` : "";
+      $("run-detail").classList.add("stalled");
     }
   }, 400);
 }
@@ -626,11 +637,17 @@ function applyScan(id, data) {
   state.findings = data.findings;
   state.summary = data.summary;
   state.scanMeta = data.scan;
+  state.payload = data;
   state.classFilter = null;
   $("filter-class").value = "";
   $("validate-result").hidden = true;
+  renderIntegrity(data);
   renderAll();
 }
+
+/* The history panel's entry point. Named separately so it reads as what it
+   is at the call site: adopting a stored assessment, not starting one. */
+const adoptScan = applyScan;
 
 async function reconcile() {
   const m = state.findings[0]?.extra?.mosca;
@@ -1345,6 +1362,135 @@ function qdayBody() {
            latest: state.qday?.latest ?? 2044 };
 }
 
+/* ─── 06 scan history ───────────────────────────────────────────────
+   Every stored scan, reopenable. The store has always had these; the console
+   simply never showed them, so an operator could not get back to an
+   assessment they had already made. */
+async function loadHistory() {
+  const host = $("history-list");
+  const state = $("history-state");
+  if (!host) return;
+
+  state.hidden = false;
+  state.className = "state";
+  state.textContent = "Loading…";
+  host.textContent = "";
+
+  try {
+    const { scans } = await api("/api/scans");
+    if (!scans.length) {
+      state.className = "state empty";
+      state.textContent = "No scans stored yet. Run one above and it will appear here.";
+      return;
+    }
+    state.hidden = true;
+    $("x-history").textContent = `${scans.length} stored`;
+
+    for (const scan of scans) {
+      host.appendChild(historyRow(scan));
+    }
+  } catch (e) {
+    state.className = "state error";
+    state.textContent = "Could not load scan history: " + e.message;
+  }
+}
+
+function historyRow(scan) {
+  const stats = scan.stats || {};
+  const summary = scan.summary || {};
+  const complete = stats.complete !== false;
+
+  const li = document.createElement("li");
+  li.className = "hist" + (scan.id === state.scanId ? " is-current" : "");
+
+  const when = scan.started_at
+    ? new Date(scan.started_at * 1000).toLocaleString()
+    : "—";
+
+  const head = el("div", "hist-h");
+  head.appendChild(el("span", "hist-label", scan.target_label || scan.target_value));
+  const badge = el("span", "hist-state " + (complete ? "ok" : "partial"),
+                   complete ? "COMPLETE" : "PARTIAL");
+  badge.title = complete
+    ? "Every selected sensor ran and nothing was refused."
+    : (stats.incomplete_reasons || []).join("; ");
+  head.appendChild(badge);
+  li.appendChild(head);
+
+  li.appendChild(el("div", "hist-m",
+    `${when} · ${scan.target_kind || "repository"} · `
+    + `${scan.finding_count ?? summary.total ?? 0} asset(s)`
+    + (summary.quantum_vulnerable !== undefined
+        ? ` · ${summary.quantum_vulnerable} quantum-vulnerable` : "")));
+
+  const path = el("div", "hist-p mono", scan.target_value || "");
+  path.title = scan.target_value || "";
+  li.appendChild(path);
+
+  if (!complete && (stats.incomplete_reasons || []).length) {
+    const why = el("ul", "hist-why");
+    for (const reason of stats.incomplete_reasons.slice(0, 4)) {
+      why.appendChild(el("li", null, reason));
+    }
+    li.appendChild(why);
+  }
+
+  const actions = el("div", "hist-a");
+  const open = el("button", "btn-s", "Reopen");
+  open.addEventListener("click", () => reopenScan(scan.id));
+  const report = el("a", "btn-q", "Report");
+  report.href = `/api/scan/${scan.id}/report`;
+  report.target = "_blank"; report.rel = "noopener";
+  const cbom = el("a", "btn-q", "CBOM");
+  cbom.href = `/api/scan/${scan.id}/cbom?download=true`;
+  actions.append(open, report, cbom);
+  li.appendChild(actions);
+  return li;
+}
+
+async function reopenScan(id) {
+  const state_el = $("history-state");
+  state_el.hidden = false;
+  state_el.className = "state";
+  state_el.textContent = "Loading that scan…";
+  try {
+    const payload = await api(`/api/scan/${id}`);
+    adoptScan(id, payload);
+    state_el.hidden = true;
+    loadHistory();
+    document.getElementById("s-verdict").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    state_el.className = "state error";
+    state_el.textContent = "Could not reopen that scan: " + e.message;
+  }
+}
+
+/* Show whether the assessment on screen is complete, and if not, why. */
+function renderIntegrity(payload) {
+  const box = $("integrity");
+  if (!box) return;
+  const warnings = payload.warnings || [];
+  if (payload.complete !== false && !warnings.length) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  box.className = "integrity" + (payload.complete === false ? " partial" : " warn");
+  box.textContent = "";
+  box.appendChild(el("strong", null,
+    payload.complete === false
+      ? "PARTIAL SCAN — this inventory is incomplete."
+      : "This scan completed with warnings."));
+  const ul = el("ul", null);
+  for (const w of warnings.slice(0, 6)) ul.appendChild(el("li", null, w));
+  box.appendChild(ul);
+  if (payload.complete === false) {
+    box.appendChild(el("p", "muted",
+      "Findings from the sensors that did run are valid. Absence of a finding "
+      + "is not evidence of absence."));
+  }
+}
+
 function sec(t) { const s = el("div", "d-sec"); s.appendChild(el("h3", null, t)); return s; }
 function kv(pairs) {
   const dl = el("dl", "kv");
@@ -1475,6 +1621,39 @@ function openDrawer(f, isRefresh) {
       "Linked because the same concrete artefact was cited by more than one "
       + "detector. The link does not change this finding's assurance or "
       + "confidence."));
+
+    /* The peers themselves, not just their ids. A link you cannot follow is
+       an assertion; a link you can follow is evidence. */
+    const peers = (link.peers || [])
+      .map((id) => state.findings.find((x) => x.id === id))
+      .filter(Boolean);
+    if (peers.length) {
+      const list = el("div", "peers");
+      for (const peer of peers) {
+        const row = el("div", "peer");
+        const head = el("div", "peer-h");
+        head.appendChild(el("span", "mono", peer.algorithm));
+        head.appendChild(el("span", "prov prov-" + (peer.assurance || ""),
+                            ASSURANCE_LABEL[peer.assurance] || peer.assurance));
+        head.appendChild(el("span", "muted", peer.scanner || ""));
+        row.appendChild(head);
+        row.appendChild(el("div", "peer-t", peer.title || ""));
+        for (const ev of (peer.evidence || []).slice(0, 3)) {
+          row.appendChild(el("div", "peer-e mono",
+            (ev.line ? `${ev.location}:${ev.line}` : ev.location)
+            + ` · ${ev.technique} · conf ${Number(ev.confidence).toFixed(2)}`));
+        }
+        const open = el("button", "btn-q", "Open this finding");
+        open.addEventListener("click", () => openDrawer(peer));
+        row.appendChild(open);
+        list.appendChild(row);
+      }
+      s.appendChild(list);
+    } else if ((link.peers || []).length) {
+      s.appendChild(el("p", "said muted",
+        "The linked findings are filtered out of the current view. Clear the "
+        + "filters in the inventory to see them."));
+    }
     if (link.corroborated_by_use) {
       s.appendChild(el("p", "said act",
         "A declared capability here is corroborated by evidence of actual use "

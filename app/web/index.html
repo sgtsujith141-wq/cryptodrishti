@@ -149,6 +149,7 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
         </figure>
 
         <div class="verdict-r">
+          <p class="integrity" id="integrity" hidden role="status"></p>
           <p class="head-s" id="v-line">Run a scan to assess an estate.</p>
           <dl class="figs" id="figs"></dl>
           <div class="comp-wrap">
@@ -301,6 +302,20 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
       </div>
     </div>
     <p class="foot"><span id="foot-meta">SIH26164 · NTRO</span><span>NIST IR 8547 · FIPS 203/204/205</span></p>
+    </div>
+  </section>
+
+  <!-- 06 · scan history ------------------------------------------------ -->
+  <section class="scene" id="s-history" tabindex="-1">
+    <div class="scene-in wide">
+    <header class="sh">
+      <span class="sh-n">06</span><h2 class="sh-t">Scan history</h2>
+      <span class="sh-r"></span><span class="sh-x" id="x-history"></span>
+    </header>
+    <p class="sub">Every scan this console has stored. Reopening one loads the
+      assessment exactly as it was saved, including whether it was complete.</p>
+    <div id="history-state" class="state" role="status">Loading…</div>
+    <ol class="history" id="history-list"></ol>
     </div>
   </section>
 

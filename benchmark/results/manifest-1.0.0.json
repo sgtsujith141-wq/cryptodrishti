@@ -1,0 +1,717 @@
+{
+  "manifest_version": "1.0.0",
+  "created": "2026-09-21",
+  "labelled_by": "hand, from the fixture source",
+  "provenance_note": "These labels were written by reading the fixtures and deciding what each line is. They were NOT produced by running CryptoDrishti. Where the tool and this manifest disagree, the disagreement is the measurement.",
+  "matching": {
+    "unit": "distinct (file, line, algorithm)",
+    "algorithm_match": "exact registry key",
+    "line_match": "exact, except where line is null (file-level)",
+    "dedupe": "actual findings are reduced to distinct (file, line, algorithm) before matching, so one artefact reported by two rules counts once"
+  },
+  "scope_note": "Synthetic fixtures. These numbers measure this corpus and nothing else. They are NOT an estimate of accuracy on real-world enterprise code, which this project has never measured.",
+  "snapshot_note": "A frozen copy of the original ground truth, kept so the effect of the detector fixes can be measured on the SAME corpus. The headline before/after also grew the corpus; this file is how that is separated.",
+  "expected": [
+    {
+      "file": "source/python/uses.py",
+      "line": 13,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "hashlib.md5 call"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 14,
+      "algorithm": "sha1",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 15,
+      "algorithm": "sha256",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 16,
+      "algorithm": "sha512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 17,
+      "algorithm": "sha3-256",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 18,
+      "algorithm": "sha3-512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 19,
+      "algorithm": "blake2b",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 20,
+      "algorithm": "blake2s",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 21,
+      "algorithm": "shake256",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 23,
+      "algorithm": "rsa-2048",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "key generation does not reveal what the key is for"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 24,
+      "algorithm": "rsa-1024",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 26,
+      "algorithm": "rsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "PSS signs and nothing else"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 27,
+      "algorithm": "rsa",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "OAEP encrypts"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 28,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "PKCS#1 v1.5 is used for both signing and encryption"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 30,
+      "algorithm": "ecdsa-p-256",
+      "purpose": "signature",
+      "purpose_ambiguous": true,
+      "assurance": "used",
+      "scanner": "source",
+      "note": "a bare curve object serves ECDSA or ECDH; purpose is excluded from scoring"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 31,
+      "algorithm": "ecdsa-p-384",
+      "purpose": "signature",
+      "purpose_ambiguous": true,
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 33,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "the API names no key size"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 34,
+      "algorithm": "3des",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 35,
+      "algorithm": "chacha20",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 36,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "ECB mode of the cipher above"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 37,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 39,
+      "algorithm": "sha3-512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/python/uses.py",
+      "line": 40,
+      "algorithm": "blake2b",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 4,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 5,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 6,
+      "algorithm": "3des",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 7,
+      "algorithm": "rsa",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "an asymmetric algorithm via the Cipher API is key transport"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 10,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 11,
+      "algorithm": "sha256",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 12,
+      "algorithm": "sha3-512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 15,
+      "algorithm": "rsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 16,
+      "algorithm": "ecdsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 19,
+      "algorithm": "ecdh",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 22,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "generation settles nothing"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 25,
+      "algorithm": "hmac",
+      "purpose": "authentication",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/java/Uses.java",
+      "line": 28,
+      "algorithm": "weak-rng",
+      "purpose": "randomness",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 11,
+      "algorithm": "rsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 12,
+      "algorithm": "rsa",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 13,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 14,
+      "algorithm": "ecdsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 15,
+      "algorithm": "ed25519",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/go/uses.go",
+      "line": 16,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 4,
+      "algorithm": "aes-256",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 5,
+      "algorithm": "aes-128",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 6,
+      "algorithm": "rsa",
+      "purpose": "signature",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 7,
+      "algorithm": "rsa",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 8,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 9,
+      "algorithm": "dh",
+      "purpose": "key-establishment",
+      "assurance": "used",
+      "scanner": "source",
+      "note": "ECDH_compute_key; the tool's rule groups EC and FF Diffie-Hellman"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 10,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/c/uses.c",
+      "line": 11,
+      "algorithm": "sha3-512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 3,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 4,
+      "algorithm": "sha256",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 5,
+      "algorithm": "sha3-512",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 6,
+      "algorithm": "blake2b",
+      "purpose": "hashing",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 7,
+      "algorithm": "aes-256",
+      "purpose": "encryption",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 8,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "source/js/uses.js",
+      "line": 9,
+      "algorithm": "weak-rng",
+      "purpose": "randomness",
+      "assurance": "used",
+      "scanner": "source"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "capability",
+      "scanner": "dependency",
+      "note": "provided by cryptography/pycryptodome/paramiko; reachable, not shown to be used"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "ecdsa",
+      "purpose": "signature",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "sha256",
+      "purpose": "hashing",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "3des",
+      "purpose": "encryption",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "ed25519",
+      "purpose": "signature",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/requirements.txt",
+      "line": null,
+      "algorithm": "unknown",
+      "purpose": "unknown",
+      "assurance": "declared",
+      "scanner": "dependency",
+      "note": "the library rows themselves"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "aes",
+      "purpose": "encryption",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "sha1",
+      "purpose": "hashing",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "ecdsa",
+      "purpose": "signature",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "hmac",
+      "purpose": "authentication",
+      "assurance": "capability",
+      "scanner": "dependency"
+    },
+    {
+      "file": "deps/package.json",
+      "line": null,
+      "algorithm": "unknown",
+      "purpose": "unknown",
+      "assurance": "declared",
+      "scanner": "dependency"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 3,
+      "algorithm": "tls1.2",
+      "purpose": "transport",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 3,
+      "algorithm": "tls1.3",
+      "purpose": "transport",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 4,
+      "algorithm": "ecdh",
+      "purpose": "key-establishment",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 4,
+      "algorithm": "rsa",
+      "purpose": "unknown",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 4,
+      "algorithm": "aes-256",
+      "purpose": "encryption",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/nginx.conf",
+      "line": 4,
+      "algorithm": "3des",
+      "purpose": "encryption",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 2,
+      "algorithm": "tls1.0",
+      "purpose": "transport",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 2,
+      "algorithm": "tls1.1",
+      "purpose": "transport",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 3,
+      "algorithm": "rc4",
+      "purpose": "encryption",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 3,
+      "algorithm": "md5",
+      "purpose": "hashing",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 3,
+      "algorithm": "des",
+      "purpose": "encryption",
+      "assurance": "declared",
+      "scanner": "config"
+    },
+    {
+      "file": "config/legacy.conf",
+      "line": 3,
+      "algorithm": "sha1",
+      "purpose": "hashing",
+      "assurance": "declared",
+      "scanner": "config"
+    }
+  ],
+  "negative_files": [
+    {
+      "file": "source/python/negatives.py",
+      "why": "prose, comments, and identifiers that merely resemble algorithm names"
+    },
+    {
+      "file": "source/java/Negatives.java",
+      "why": "commented-out crypto calls and crypto-shaped identifiers"
+    },
+    {
+      "file": "config/java.security",
+      "why": "a DISABLE list: these algorithms are prohibited here, not in use"
+    }
+  ]
+}

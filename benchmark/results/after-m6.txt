@@ -1,0 +1,36 @@
+CryptoDrishti detection benchmark
+========================================================================
+corpus manifest 1.2.0
+
+Synthetic fixtures. These numbers measure this corpus and nothing else. They are NOT an estimate of accuracy on real-world enterprise code, which this project has never measured.
+
+scanner           TP    FP    FN   precision    recall      F1
+------------------------------------------------------------------------
+binary             5     0     0       1.000     1.000   1.000
+certificate       10     0     0       1.000     1.000   1.000
+config            14     0     0       1.000     1.000   1.000
+container         14     0     0       1.000     1.000   1.000
+dependency        15     0     0       1.000     1.000   1.000
+source            58     0     0       1.000     1.000   1.000
+------------------------------------------------------------------------
+OVERALL          116     0     0       1.000     1.000   1.000
+
+purpose    114/114 correct  (1.000)
+           2 case(s) excluded as genuinely ambiguous
+assurance  116/116 correct  (1.000)
+
+false negatives: 0   false positives: 0   hits in negative files: 0
+
+NETWORK SENSOR (local loopback TLS, excluded from the metrics above)
+  negotiated TLS parameters depend on the local OpenSSL build, so they cannot carry a stable expected-results label
+    PASS  reported protocol versions
+    PASS  reported cipher suite separately
+    PASS  reported key exchange separately
+    PASS  certificate trust not assumed
+    observed  net.tlsversion   tls1.3               TLSv1.3 accepted
+    observed  net.tlsversion   tls1.2               TLSv1.2 accepted
+    observed  net.ciphersuite  unknown              Cipher suite negotiated: TLS_AES_256_GCM_SHA38
+    observed  net.pqgroup      x25519-ml-kem-768    Hybrid post-quantum key exchange negotiated
+    observed  net.cert         rsa-2048             Certificate presented by live endpoint
+
+results written to benchmark/results/after-m6.json
