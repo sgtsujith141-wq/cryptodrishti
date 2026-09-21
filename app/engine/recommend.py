@@ -26,7 +26,7 @@ wrong.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Any, Optional
 
 from ..knowledge import algorithms as K
@@ -70,6 +70,24 @@ class Recommendation:
     unresolved: bool = False
     # What must be established or checked before acting.
     validate_before: str = ""
+
+    # ---- M4: the parts of a recommendation a reader can act on ----------
+    #
+    # Every one of these is either grounded in something the tool measured or
+    # explicitly marked unknown. Latency and cost in particular are left
+    # unknown by default and stay that way: this tool has never run a
+    # benchmark or priced an engineer, and a plausible-looking number in
+    # either field would be the most quotable thing in the report and the
+    # least defensible.
+    evidence_summary: str = ""
+    exposure_explanation: str = ""
+    compatibility: list[str] = field(default_factory=list)
+    latency: dict[str, Any] = field(default_factory=dict)
+    cost: dict[str, Any] = field(default_factory=dict)
+    validation_steps: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
+    constraints_applied: list[str] = field(default_factory=list)
+    constraint_warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -415,8 +433,227 @@ def _recommend_protocol() -> Recommendation:
 
 
 
-def recommend_all(findings: list[Finding], profile: str = PROFILE_GENERAL) -> list[Finding]:
+def recommend_all(findings: list[Finding], profile: str = PROFILE_GENERAL,
+                  overrides: Optional[dict] = None) -> list[Finding]:
+    overrides = overrides or {}
     for f in findings:
         rec = recommend(f, profile)
+        if rec:
+            override = overrides.get((f.extra or {}).get("asset_key"))
+            rec = enrich(f, rec, getattr(override, "constraints", None))
         f.recommendation = rec.to_dict() if rec else None
     return findings
+
+
+# --------------------------------------------------------------------------
+# M4: grounding a recommendation in this specific asset
+#
+# The target algorithm is only part of an answer. The rest is what supports
+# the finding, why it is exposed, what will break, what has to be checked, and
+# — the part most tools get wrong — what is simply not known.
+# --------------------------------------------------------------------------
+
+UNKNOWN_LATENCY = {
+    "status": "not-measured",
+    "value": None,
+    "note": ("This tool has not benchmarked either algorithm on your hardware, "
+             "so it reports no latency figure. Published figures vary by more "
+             "than an order of magnitude across platforms and implementations; "
+             "measure on the target before planning around a number."),
+}
+
+UNKNOWN_COST = {
+    "status": "not-estimated",
+    "value": None,
+    "currency": None,
+    "note": ("No cost estimate is produced. Cost depends on engineer day rates, "
+             "release cadence, hardware refresh cycles and vendor terms — none "
+             "of which this tool has. The migration-effort band and the "
+             "occurrence count below are the inputs to your own estimate."),
+}
+
+
+def _evidence_summary(f: Finding) -> str:
+    """One sentence a reader can check against the evidence list."""
+    if not f.evidence:
+        return "No evidence recorded."
+    first = f.evidence[0]
+    files = (f.extra or {}).get("files") or len({e.location for e in f.evidence})
+    where = first.location + (f":{first.line}" if first.line else "")
+    techniques = sorted({e.technique for e in f.evidence})
+    return (f"{f.occurrences} occurrence(s) across {files} file(s), first at "
+            f"{where}, via {', '.join(techniques)}. Assurance: {f.assurance} — "
+            f"{'shows the algorithm is reached' if f.proves_use else 'reachable or declared, not shown to be called'}.")
+
+
+def _exposure_explanation(f: Finding) -> str:
+    """Why this asset is exposed, in the terms of its own exposure model."""
+    alg = K.get(f.algorithm)
+    mosca = (f.extra or {}).get("mosca") or {}
+    model = (f.extra or {}).get("exposure_model") or {}
+
+    if alg.quantum_class == K.SAFE:
+        return "No quantum exposure at the detected parameters."
+    if alg.quantum_class == K.HYBRID:
+        return "Hybrid construction: holds if either component holds."
+
+    head = {
+        K.BROKEN: (f"{alg.name} rests on factoring or discrete logarithms, "
+                   f"both of which Shor's algorithm solves in polynomial time. "
+                   f"Key size does not help."),
+        K.WEAKENED: (f"{alg.name} is weakened rather than broken: Grover halves "
+                     f"effective strength, so a larger parameter set restores "
+                     f"the margin."),
+    }.get(alg.quantum_class,
+          "The algorithm was not resolved, so its exposure is undetermined.")
+
+    if not mosca:
+        return head
+
+    tail = (f" Under the selected scenario, X={mosca.get('shelf_life')}y "
+            f"({model.get('x_label', 'lifetime')}) plus Y="
+            f"{mosca.get('migration_years')}y against Z="
+            f"{mosca.get('years_to_qday')}y leaves "
+            f"{mosca.get('exposure_years')}y of exposure. "
+            f"{model.get('consequence', '')}")
+    return head + tail
+
+
+def _compatibility(alg, target_key: str, f: Finding) -> list[str]:
+    """Concrete things that break, drawn from registry data rather than prose."""
+    out: list[str] = []
+    if not target_key:
+        return out
+    target = K.get(target_key)
+
+    if target.signature_bytes and alg.signature_bytes:
+        if target.signature_bytes > alg.signature_bytes:
+            out.append(
+                f"Signatures grow from {alg.signature_bytes:,} to "
+                f"{target.signature_bytes:,} bytes. Any fixed-width database "
+                f"column, protocol field or certificate size limit must be "
+                f"widened first.")
+    if target.public_key_bytes and alg.public_key_bytes:
+        if target.public_key_bytes > alg.public_key_bytes:
+            out.append(
+                f"Public keys grow from {alg.public_key_bytes:,} to "
+                f"{target.public_key_bytes:,} bytes.")
+    if target.standard and "draft" in target.standard.lower():
+        out.append(
+            f"{target.name} rests on {target.standard}. A draft standard can "
+            f"still change; adopting it now means accepting a possible "
+            f"re-migration.")
+    if f.asset_type == "certificate":
+        out.append(
+            "Certificates must be re-issued, not reconfigured, and every "
+            "relying party has to accept the new algorithm before the old one "
+            "can be withdrawn.")
+    if (f.extra or {}).get("container"):
+        out.append(
+            "This asset lives in a container image. Replacing it means "
+            "rebuilding and re-publishing the image, not patching a host.")
+    return out
+
+
+def _validation_steps(alg, target_key: str, f: Finding) -> list[str]:
+    """What to confirm before acting. Deliberately not automated."""
+    steps: list[str] = []
+    if not f.proves_use:
+        steps.append(
+            "Confirm this algorithm is actually reached. The evidence shows it "
+            "is available or declared, not that any code path calls it.")
+    if target_key:
+        steps.append(
+            f"Confirm the runtime and every peer can negotiate {K.get(target_key).name} "
+            f"before removing the current algorithm; run both in parallel first.")
+        steps.append(
+            "Measure handshake or signing latency on the target hardware. This "
+            "tool has not measured it and will not guess.")
+    if f.asset_type == "related-crypto-material":
+        steps.append(
+            "Key material must be regenerated, not re-encoded. Rotate and "
+            "revoke the old key; a migrated wrapper around the same secret is "
+            "not a migration.")
+    steps.append(
+        "Apply the change through review and release. This tool does not "
+        "rewrite cryptographic code and no unattended rewrite should be "
+        "scheduled from its output.")
+    return steps
+
+
+def _unknowns(f: Finding, rec: Recommendation) -> list[str]:
+    """What is genuinely not known. Listing it is the point."""
+    out: list[str] = []
+    inputs = (f.extra or {}).get("risk_inputs") or {}
+    defaulted = [name for name, value in inputs.items()
+                 if value.get("provenance") == "default"]
+    if defaulted:
+        out.append(
+            f"Risk inputs still at their defaults: {', '.join(sorted(defaulted))}. "
+            f"The score is provisional until someone who knows this system "
+            f"reviews them.")
+    if rec.unresolved:
+        out.append("The cryptographic purpose is unresolved, so no target is named.")
+    if not f.proves_use:
+        out.append("Whether this algorithm is executed at run time.")
+    state = ((f.extra or {}).get("container") or {}).get("effective")
+    if state is False:
+        out.append(
+            "Whether this historical layer artefact is still reachable in any "
+            "deployed image. It is not in the final filesystem, but it remains "
+            "extractable from the archive.")
+    out.append("Latency and cost on your hardware and in your organisation.")
+    return out
+
+
+def _apply_constraints(rec: Recommendation, constraints: list[str]) -> None:
+    """Warn where an operator-declared constraint fights the recommendation."""
+    if not constraints:
+        return
+    rec.constraints_applied = list(constraints)
+    target = K.get(rec.target) if rec.target else None
+
+    if "constrained-link" in constraints and target and target.signature_bytes:
+        if target.signature_bytes > 1500:
+            rec.constraint_warnings.append(
+                f"You marked this a constrained link, and {target.name} "
+                f"signatures are {target.signature_bytes:,} bytes. Validate "
+                f"against the MTU; this may need a hardware refresh rather "
+                f"than an algorithm swap.")
+    if "fips-required" in constraints and target:
+        if target.standard and "draft" in target.standard.lower():
+            rec.constraint_warnings.append(
+                f"You require FIPS validation, but {target.name} rests on "
+                f"{target.standard}. Choose a finalised standard instead.")
+    if "no-code-change" in constraints and rec.effort != "low":
+        rec.constraint_warnings.append(
+            "You marked this configuration-only, but this change is not a "
+            "configuration change. It needs a rebuild or a vendor update.")
+    if "third-party" in constraints:
+        rec.constraint_warnings.append(
+            "You marked this vendor-owned. The migration date is theirs, not "
+            "yours; the action here is to obtain their roadmap in writing.")
+    if "hardware-backed" in constraints:
+        rec.constraint_warnings.append(
+            "You marked this key hardware-backed. Confirm the HSM or secure "
+            "element supports the target algorithm before planning; many do "
+            "not yet, and firmware may not be upgradeable.")
+
+
+def enrich(f: Finding, rec: Recommendation,
+           constraints: Optional[list[str]] = None) -> Recommendation:
+    """Ground a chosen target in this asset's own evidence and constraints."""
+    alg = K.get(f.algorithm)
+    rec.evidence_summary = _evidence_summary(f)
+    rec.exposure_explanation = _exposure_explanation(f)
+    rec.compatibility = _compatibility(alg, rec.target, f)
+    rec.validation_steps = _validation_steps(alg, rec.target, f)
+    # Never invented. Both stay unknown unless something actually measured them.
+    rec.latency = dict(UNKNOWN_LATENCY)
+    rec.cost = dict(UNKNOWN_COST)
+    rec.cost["effort_band"] = rec.effort
+    rec.cost["occurrences"] = f.occurrences
+    rec.cost["files"] = (f.extra or {}).get("files")
+    _apply_constraints(rec, constraints or [])
+    rec.unknowns = _unknowns(f, rec)
+    return rec

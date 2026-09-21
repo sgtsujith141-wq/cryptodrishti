@@ -178,6 +178,7 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
     <p class="sub">Mosca's inequality: if <b class="m">X + Y &gt; Z</b>, data recorded
       today is readable before you have finished migrating.</p>
 
+    <p class="assess-banner" id="assess-banner" hidden role="status"></p>
     <div class="mosca" id="mosca-eq"></div>
 
     <p class="plain" id="mosca-plain"></p>
@@ -195,6 +196,9 @@ if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)
           <div class="par-r">
             <input type="range" id="qday-likely" min="2028" max="2050" step="1" value="2034">
             <output id="qday-out">2034</output>
+            <p class="qday-note">The <em>most likely</em> year is the mode of a
+              triangular scenario, not its median. An operator-chosen scenario,
+              not a forecast.</p>
           </div>
         </div>
         <div class="par">

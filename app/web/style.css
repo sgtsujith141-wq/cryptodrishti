@@ -566,6 +566,53 @@ td.ctx { font-size: 11.5px; color: var(--ink-3); }
 .foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
         margin-top: 1.5rem; font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); }
 
+/* Preview versus saved.
+   The single most important state in the assessment workflow, so it is a
+   banner and not a subtlety: quoting an unsaved what-if as a saved figure is
+   quoting a number nobody kept. */
+.assess-banner {
+  margin: 0 0 .7rem; padding: .35rem .6rem; font-size: 11.5px;
+  font-family: var(--mono); letter-spacing: .03em;
+  border-left: 3px solid currentColor;
+}
+.assess-banner.is-saved   { color: var(--i-safe); }
+.assess-banner.is-preview { color: var(--i-weakened); }
+
+.qday-note { margin: .35rem 0 0; font-size: 11px; color: var(--ink-3); max-width: 34rem; }
+
+/* Input provenance. Weight tracks how much the number can be relied on:
+   observed is solid, an unreviewed default is faint on purpose. */
+.inputs { margin: .5rem 0; }
+.input-row {
+  display: flex; align-items: baseline; gap: .5rem; padding: .18rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.input-k { flex: 1; font-size: 12px; color: var(--ink-2); }
+.input-v { font-family: var(--mono); font-size: 12px; }
+.prov {
+  font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: .05em; padding: 0 .28rem; border: 1px solid currentColor;
+  border-radius: 2px; white-space: nowrap;
+}
+.prov-observed { color: var(--ink); }
+.prov-operator { color: var(--i-safe); }
+.prov-derived  { color: var(--ink-3); }
+.prov-default  { color: var(--ink-4); opacity: .8; }
+
+/* The editor. Plain by intent — four inputs, a preview and an explicit save. */
+.assess { margin-top: .8rem; border-top: 1px solid var(--rule); padding-top: .6rem; }
+.assess.is-preview { border-left: 3px solid var(--i-weakened); padding-left: .55rem; }
+.assess-state { margin: 0 0 .5rem; font-size: 11.5px; color: var(--ink-3); }
+.assess.is-preview .assess-state { color: var(--i-weakened); }
+.assess-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .35rem; }
+.assess-row > span { flex: 1; font-size: 11.5px; color: var(--ink-2); }
+.assess-row input[type="number"], .assess-row select { width: 8.5rem; }
+.assess-cons { align-items: flex-start; }
+.cons-box { display: flex; flex-wrap: wrap; gap: .3rem .7rem; width: 15rem; }
+.cons { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+.assess-actions { display: flex; gap: .4rem; margin-top: .6rem; }
+.assess-out { margin: .45rem 0 0; font-size: 11.5px; font-family: var(--mono); }
+
 /* Target-kind selector and the image picker it reveals. */
 .aim-kind { display: flex; gap: 1.1rem; margin: .5rem 0 .35rem; }
 .aim-kind label {

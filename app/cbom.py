@@ -11,9 +11,15 @@ added specifically so a scanner can say *where* it saw something and *how sure*
 it is.
 
 ``validate()`` performs structural checks against the specification's required
-shapes. It is not a full JSON-Schema validation (we ship no schema file to
-keep the tool dependency-free and offline), and it says so plainly rather than
-overclaiming.
+shapes. It is **not** a full JSON-Schema validation -- we ship no schema file,
+to keep the tool dependency-free and offline -- and it says so plainly rather
+than overclaiming.
+
+Detection facts and operator assumptions are kept in separate property
+namespaces. ``detection:*`` and ``container:*`` are things the tool observed;
+``assessment:*`` are inputs a person supplied or a default filled in. A
+consumer that cannot tell the two apart will read a score built from four
+guesses as though it were measured.
 """
 
 from __future__ import annotations
@@ -225,6 +231,65 @@ def component_for(f: Finding) -> dict[str, Any]:
             comp["properties"].append(
                 {"name": "container:platform", "value": str(provenance["platform"])})
 
+    # Assessment. Kept in its own namespace because these are *assumptions*,
+    # not detections. A consumer must be able to tell what this tool measured
+    # from what a person supplied or a default filled in, and a single flat
+    # property list would make the two indistinguishable.
+    mosca = f.extra.get("mosca") or {}
+    model = f.extra.get("exposure_model") or {}
+    inputs = f.extra.get("risk_inputs") or {}
+    meta = f.extra.get("assessment") or {}
+
+    if mosca:
+        comp["properties"].extend([
+            {"name": "assessment:exposureModel", "value": str(model.get("key", ""))},
+            {"name": "assessment:exposureModelMeaningOfX",
+             "value": str(model.get("x_label", ""))},
+            {"name": "assessment:retroactive",
+             "value": "true" if model.get("retroactive") else "false"},
+            {"name": "assessment:confidentialityLifetimeYears",
+             "value": str(mosca.get("shelf_life", ""))},
+            {"name": "assessment:migrationYears",
+             "value": str(mosca.get("migration_years", ""))},
+            {"name": "assessment:yearsToQDay",
+             "value": str(mosca.get("years_to_qday", ""))},
+            {"name": "assessment:exposureYears",
+             "value": str(mosca.get("exposure_years", ""))},
+            # Labelled at the point of use, because this number is the most
+            # quotable thing in the document and means nothing without it.
+            {"name": "assessment:probabilityExposedConditional",
+             "value": str(mosca.get("probability_exposed", ""))},
+            {"name": "assessment:probabilityConditionalOn",
+             "value": str(mosca.get("conditional_on", ""))},
+        ])
+
+    for name, value in sorted(inputs.items()):
+        comp["properties"].append(
+            {"name": f"assessment:input:{name}",
+             "value": f"{value.get('value')} ({value.get('provenance')})"})
+
+    if meta.get("operator_inputs"):
+        comp["properties"].append(
+            {"name": "assessment:operatorSuppliedInputs",
+             "value": ", ".join(meta["operator_inputs"])})
+    if meta.get("deployment_state") and meta["deployment_state"] != "not-a-container-asset":
+        comp["properties"].append(
+            {"name": "assessment:deploymentState",
+             "value": str(meta["deployment_state"])})
+
+    rec = f.recommendation or {}
+    for prop, key in (("assessment:latencyStatus", "latency"),
+                      ("assessment:costStatus", "cost")):
+        node = rec.get(key) or {}
+        if node.get("status"):
+            comp["properties"].append({"name": prop, "value": str(node["status"])})
+    for unknown in (rec.get("unknowns") or [])[:5]:
+        comp["properties"].append(
+            {"name": "assessment:unknown", "value": str(unknown)[:400]})
+    for warning in (rec.get("constraint_warnings") or [])[:5]:
+        comp["properties"].append(
+            {"name": "assessment:constraintWarning", "value": str(warning)[:400]})
+
     # Correlation. A link, never a merge: the component's own assurance is
     # emitted above and is unaffected by anything here.
     link = f.extra.get("correlation") or {}
@@ -284,6 +349,29 @@ def _metadata_properties(result: ScanResult, findings: list[Finding]
         if stats.get("container_image_digest"):
             props.append({"name": "container:imageDigest",
                           "value": str(stats["container_image_digest"])})
+
+    # Document-level assumptions. Separated from scan facts above by their
+    # namespace, and carrying the caveat rather than leaving a reader to
+    # supply it.
+    from .engine import risk as _risk
+    props.extend([
+        {"name": "assessment:date", "value": _risk.assessment_date().isoformat()},
+        {"name": "assessment:overridesApplied",
+         "value": str(stats.get("overrides_applied", 0))},
+    ])
+    sample = next((f.extra.get("assessment") for f in findings
+                   if (f.extra or {}).get("assessment")), None)
+    if sample and sample.get("qday"):
+        qday = sample["qday"]
+        props.extend([
+            {"name": "assessment:qdayEarliest", "value": str(qday.get("earliest"))},
+            {"name": "assessment:qdayMostLikelyMode", "value": str(qday.get("likely"))},
+            {"name": "assessment:qdayLatest", "value": str(qday.get("latest"))},
+            {"name": "assessment:qdayMedian", "value": str(qday.get("median_year"))},
+            {"name": "assessment:qdayBasis", "value": str(qday.get("basis"))},
+            {"name": "assessment:qdayIsForecast", "value": "false"},
+            {"name": "assessment:qdayCaveat", "value": str(qday.get("caveat", ""))[:600]},
+        ])
 
     correlation = stats.get("correlation") or {}
     if correlation:

@@ -156,15 +156,54 @@ layer digest and effective state per component. 487 tests pass.
    sensors **while preserving each original evidence item's technique,
    confidence and assurance**. Correlation is presentation, never erasure.
 
-## M4 — Risk and migration intelligence  *(next)*
+## M4 — Risk and migration intelligence  *(complete)*
 
-Closes R4.4–R4.8, R5.9.
+Closed R4.4–R4.16, R5.9, R5.11, R5.12.
+
+**What shipped.** `app/assessment.py` makes confidentiality lifetime,
+migration duration, business criticality, sensitivity and deployment
+constraints per-asset and operator-settable, validated and bounded, persisted
+in their own table outside the scan lifecycle. Every input on screen carries
+its origin — observed, derived, operator-supplied or an unreviewed default —
+because a score built from four guesses and one built from four reviewed
+values look identical unless the tool says which is which.
+
+Override identity is `assessment.asset_key`: algorithm, asset type, purpose,
+scanner and location with line numbers stripped. It survives edits elsewhere
+in the file and a rescan; it deliberately does not survive a file move or a
+newly resolved purpose, because each of those is a different migration.
+
+Three exposure models replace the single confidentiality reading. Signatures
+are no longer described as a confidentiality problem: a CRQC cannot un-sign a
+release, so X becomes a trust horizon and `retroactive` is recorded as false.
+
+**Two mathematical defects, both found by reading the code and confirmed by
+running it:**
+
+1. `QDayModel.years_from` returned `likely - now` and its docstring called it
+   "Z at the median". `likely` is the **mode** of a triangular distribution.
+   For the shipped defaults the true median is 2035.63, not 2034 — a 1.6-year
+   error, always understating exposure. Both are now computed and reported,
+   with the mode kept as the default basis because that is what the slider sets.
+2. `score_finding` wrote its mosca and factor records with `setdefault`, so a
+   rescored finding showed a **new risk score beside the previous
+   assessment's arithmetic**. The API worked around it by popping keys first,
+   which meant every caller had to remember. Now it overwrites.
+
+**Verified against.** A live server on port 8124 over a two-service estate:
+preview changed risk 59.5 → 100.0 and wrote nothing; an explicit save applied
+to one asset and left the other on derived inputs; the override survived a
+server restart and a rescan; the CBOM validated and carried the operator's
+four inputs with provenance alongside `assessment:qdayIsForecast=false`. 557
+tests pass.
+
+**Original plan, for the record:**
 
 Per-asset confidentiality lifetime, migration window and business criticality
 overrides; purpose in the score; explainable factor list rendered next to each
 number; Q-Day assumptions labelled as assumptions everywhere they appear.
 
-## M5 — CBOM and reporting
+## M5 — CBOM and reporting  *(next)*
 
 Closes R2.3, R2.4, R6.2–R6.4.
 

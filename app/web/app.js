@@ -200,6 +200,7 @@ async function boot() {
   });
   $("qday-likely").addEventListener("change", () => scheduleQday(true));
 
+  loadAssessmentMeta();
   buildFigures(); buildArray(); buildIndex(); initTheme();
 
   initPicker();
@@ -659,9 +660,16 @@ async function recomputeQday(persist) {
       const f = byId.get(d.id); if (!f) continue;
       f.risk_score = d.risk_score; f.quantum_class = d.quantum_class;
       f.exposure_years = d.exposure_years; f.extra = f.extra || {};
+      /* Assign, never merge. A stale factor block beside a fresh score is
+         an audit trail that contradicts the number it explains. */
       if (d.mosca) f.extra.mosca = d.mosca;
       if (d.factors) f.extra.factors = d.factors;
+      if (d.risk_inputs) f.extra.risk_inputs = d.risk_inputs;
+      if (d.exposure_model) f.extra.exposure_model = d.exposure_model;
+      if (d.assessment) f.extra.assessment = d.assessment;
+      if (d.asset_key) f.extra.asset_key = d.asset_key;
     }
+    setAssessmentState(data.state, data.overrides_applied, data.assessment_date);
     const rank = new Map(data.order.map((id, i) => [id, i]));
     state.findings.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
     state.summary = data.summary;
@@ -1186,6 +1194,150 @@ function renderLedger() {
 
 let _open = null, _returnTo = null;
 
+/* ─── per-asset assessment editor ──────────────────────────────────
+   Deliberately plain: four inputs, a preview and an explicit save. The
+   distinction that matters is preview versus saved, so it is a banner rather
+   than a subtlety. */
+function assessmentEditor(f, assetKey) {
+  const wrap = el("div", "assess");
+  const state = el("p", "assess-state", "Showing the saved assessment.");
+  const form = el("div", "assess-form");
+
+  const fields = {};
+  const spec = [
+    ["shelf_life_years", "Confidentiality lifetime / trust horizon (years)", "number"],
+    ["migration_years", "Migration duration (years)", "number"],
+    ["criticality", "Business criticality (1.0 = ordinary production)", "number"],
+  ];
+  for (const [name, label, type] of spec) {
+    const row = el("label", "assess-row");
+    row.appendChild(el("span", null, label));
+    const input = document.createElement("input");
+    input.type = type; input.step = "0.1"; input.min = "0";
+    input.placeholder = String(f.extra?.risk_inputs?.[name]?.value ?? "");
+    fields[name] = input;
+    row.appendChild(input);
+    form.appendChild(row);
+  }
+
+  const sensRow = el("label", "assess-row");
+  sensRow.appendChild(el("span", null, "Data sensitivity"));
+  const sens = document.createElement("select");
+  sens.appendChild(new Option("(derived)", ""));
+  for (const k of Object.keys(state_meta()?.sensitivities || {})) {
+    sens.appendChild(new Option(k, k));
+  }
+  fields.sensitivity = sens;
+  sensRow.appendChild(sens);
+  form.appendChild(sensRow);
+
+  const consRow = el("div", "assess-row assess-cons");
+  consRow.appendChild(el("span", null, "Deployment constraints"));
+  const consBox = el("div", "cons-box");
+  const constraints = state_meta()?.constraints || {};
+  const consInputs = [];
+  for (const [key, meaning] of Object.entries(constraints)) {
+    const lab = el("label", "cons");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.value = key;
+    lab.title = meaning;
+    lab.append(cb, document.createTextNode(" " + key));
+    consInputs.push(cb);
+    consBox.appendChild(lab);
+  }
+  consRow.appendChild(consBox);
+  form.appendChild(consRow);
+
+  const body = () => {
+    const out = { constraints: consInputs.filter((c) => c.checked).map((c) => c.value) };
+    for (const [name, input] of Object.entries(fields)) {
+      const v = input.value.trim();
+      if (v !== "") out[name] = input.type === "number" ? Number(v) : v;
+    }
+    return out;
+  };
+
+  const actions = el("div", "assess-actions");
+  const previewBtn = el("button", "btn-s", "Preview");
+  const saveBtn = el("button", "btn-p", "Save assessment");
+  const resetBtn = el("button", "btn-q", "Reset to defaults");
+  actions.append(previewBtn, saveBtn, resetBtn);
+
+  const outcome = el("p", "assess-out");
+
+  previewBtn.addEventListener("click", async () => {
+    try {
+      const q = qdayBody();
+      const r = await api("/api/assessment/preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scan_id: state.scanId, asset_key: assetKey,
+                               ...q, override: body() }),
+      });
+      state_setPreview(true);
+      wrap.classList.add("is-preview");
+      state.textContent = "PREVIEW — nothing has been saved.";
+      outcome.textContent =
+        `Risk ${r.before.risk_score} → ${r.after.risk_score} `
+        + `(${r.after.severity}); exposure ${r.before.exposure_years} → `
+        + `${r.after.exposure_years} years.`;
+    } catch (e) { outcome.textContent = "Rejected: " + e.message; }
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    try {
+      await api("/api/assessment/override/" + encodeURIComponent(assetKey), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body()),
+      });
+      wrap.classList.remove("is-preview");
+      state.textContent = "Saved. This asset now uses your inputs on every rescore.";
+      outcome.textContent = "Re-run the Q-Day control or rescan to see it applied.";
+    } catch (e) { outcome.textContent = "Rejected: " + e.message; }
+  });
+
+  resetBtn.addEventListener("click", async () => {
+    try {
+      await api("/api/assessment/override/" + encodeURIComponent(assetKey),
+                { method: "DELETE" });
+      wrap.classList.remove("is-preview");
+      for (const input of Object.values(fields)) input.value = "";
+      for (const cb of consInputs) cb.checked = false;
+      state.textContent = "Reset. This asset is back to derived and default inputs.";
+      outcome.textContent = "";
+    } catch (e) { outcome.textContent = "Failed: " + e.message; }
+  });
+
+  wrap.append(state, form, actions, outcome);
+  return wrap;
+}
+
+/* The console keeps one copy of the editable-input schema, fetched once. */
+let _inputMeta = null;
+function state_meta() { return _inputMeta; }
+
+/* Whether what is on screen is a saved assessment or an unsaved what-if. This
+   is a banner rather than a subtlety: an operator who quotes a preview as a
+   saved figure has quoted a number nobody kept. */
+function setAssessmentState(kind, overridesApplied, assessedOn) {
+  const host = $("assess-banner");
+  if (!host) return;
+  const saved = kind === "saved";
+  host.hidden = false;
+  host.className = "assess-banner " + (saved ? "is-saved" : "is-preview");
+  host.textContent = saved
+    ? `Saved assessment · ${assessedOn || ""} · ${overridesApplied || 0} asset(s) with operator inputs`
+    : `Unsaved preview · release the Q-Day control to save · ${overridesApplied || 0} asset(s) with operator inputs`;
+}
+function state_setPreview(on) { state.previewing = !!on; }
+async function loadAssessmentMeta() {
+  try { _inputMeta = await api("/api/assessment/inputs"); } catch { _inputMeta = null; }
+}
+function qdayBody() {
+  const likely = Number($("qday-likely").value);
+  return { earliest: state.qday?.earliest ?? 2030, likely,
+           latest: state.qday?.latest ?? 2044 };
+}
+
 function sec(t) { const s = el("div", "d-sec"); s.appendChild(el("h3", null, t)); return s; }
 function kv(pairs) {
   const dl = el("dl", "kv");
@@ -1324,6 +1476,41 @@ function openDrawer(f, isRefresh) {
     for (const c of (link.conflicts || [])) {
       s.appendChild(el("p", "said warn", c));
     }
+    d.appendChild(s);
+  }
+
+  /* ── Assessment: the inputs, where each came from, and an editor ──
+     Every number the score rests on is shown with its origin. A score built
+     from four defaults and one built from four reviewed values look identical
+     unless the tool says which is which. */
+  {
+    const inputs = f.extra?.risk_inputs || {};
+    const model = f.extra?.exposure_model || {};
+    const meta = f.extra?.assessment || {};
+    const assetKey = f.extra?.asset_key;
+    const s = sec("Assessment inputs");
+
+    if (model.label) {
+      s.appendChild(el("p", "said",
+        `Exposure model: ${model.label}. X means ${model.x_label}. `
+        + (model.retroactive
+            ? "Damage is retroactive — data already sealed cannot be un-sealed by migrating later."
+            : "Nothing already signed is invalidated; the risk is forgery from Q-Day onward.")));
+    }
+
+    const rows = el("div", "inputs");
+    for (const [name, input] of Object.entries(inputs)) {
+      const row = el("div", "input-row");
+      row.appendChild(el("span", "input-k", name.replace(/_/g, " ")));
+      row.appendChild(el("span", "input-v", String(input.value)));
+      const tag = el("span", "prov prov-" + input.provenance, input.provenance_label);
+      tag.title = input.source || "";
+      row.appendChild(tag);
+      rows.appendChild(row);
+    }
+    s.appendChild(rows);
+
+    if (assetKey) s.appendChild(assessmentEditor(f, assetKey));
     d.appendChild(s);
   }
 

@@ -27,8 +27,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import (
-    auth, cbom, config, container, fspolicy, netpolicy, orchestrator, report, store,
+    assessment, auth, cbom, config, container, fspolicy, netpolicy,
+    orchestrator, report, store,
 )
+from .assessment import AssetOverride, InvalidOverride
 from .container import ContainerError
 from .engine import recommend, risk
 from .fspolicy import PathRefused
@@ -96,8 +98,9 @@ class ScanRequest(BaseModel):
 class QDayRequest(BaseModel):
     scan_id: str
     earliest: int = config.QDAY_EARLIEST
-    likely: int = config.QDAY_LIKELY
+    likely: int = config.QDAY_LIKELY      # the mode of the scenario, not its median
     latest: int = config.QDAY_LATEST
+    basis: Literal["mode", "median"] = "mode"
     sensitivity: str = config.DEFAULT_SENSITIVITY
     # A slider drag fires many of these. Persisting each one writes the whole
     # scan back to disk for a value the operator is still moving, so the
@@ -391,13 +394,31 @@ def recompute_qday(req: QDayRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400,
                             detail="Require earliest <= likely <= latest")
 
-    model = risk.QDayModel(earliest=req.earliest, likely=req.likely, latest=req.latest)
+    try:
+        model = risk.QDayModel(earliest=req.earliest, likely=req.likely,
+                               latest=req.latest, basis=req.basis)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # The estate-wide sensitivity is a default, not an instruction: an asset
+    # whose lifetime an operator set by hand keeps theirs. Writing it onto
+    # every finding first would silently destroy exactly the input the
+    # operator took the trouble to supply.
+    overrides = store.list_overrides()
     for f in result.findings:
-        f.sensitivity = req.sensitivity
-        f.extra.pop("mosca", None)
-        f.extra.pop("factors", None)
-    risk.score_all(result.findings, model)
+        if not (overrides.get(assessment.asset_key(f)) or
+                AssetOverride(asset_key="")).sensitivity:
+            f.sensitivity = req.sensitivity
+
+    risk.score_all(result.findings, model, overrides=overrides)
     result.findings.sort(key=lambda f: -f.risk_score)
+
+    applied = sum(1 for f in result.findings
+                  if assessment.asset_key(f) in overrides)
+    # Recorded on the result, not just returned, or the CBOM's own summary
+    # would disagree with the components underneath it.
+    result.stats["overrides_applied"] = applied
+    result.stats["assessed_on"] = risk.assessment_date().isoformat()
 
     summary = risk.portfolio_summary(result.findings)
 
@@ -408,18 +429,154 @@ def recompute_qday(req: QDayRequest) -> dict[str, Any]:
         "summary": summary,
         "qday": model.to_dict(),
         "sensitivity": req.sensitivity,
+        # The single most important field in this response. A preview that
+        # looks like a saved assessment is how an operator ends up quoting a
+        # number nobody kept.
+        "persisted": bool(req.persist),
+        "state": "saved" if req.persist else "preview",
+        "assessment_date": risk.assessment_date().isoformat(),
+        "overrides_applied": applied,
         "order": [f.id for f in result.findings],
         "deltas": [
             {
                 "id": f.id,
+                "asset_key": f.extra.get("asset_key"),
                 "risk_score": f.risk_score,
                 "quantum_class": f.quantum_class,
                 "exposure_years": f.exposure_years,
                 "mosca": f.extra.get("mosca"),
                 "factors": f.extra.get("factors"),
+                "risk_inputs": f.extra.get("risk_inputs"),
+                "exposure_model": f.extra.get("exposure_model"),
+                "assessment": f.extra.get("assessment"),
             }
             for f in result.findings
         ],
+    }
+
+
+# --------------------------------------------------------------------------
+# Per-asset assessment
+#
+# Overrides are the only data in this system a human typed. Everything else
+# is a detection that can be reproduced by rescanning, so overrides are kept
+# outside the scan lifecycle: saving one is explicit, previewing one changes
+# nothing on disk, and a rescan picks them back up.
+# --------------------------------------------------------------------------
+
+class OverrideRequest(BaseModel):
+    shelf_life_years: float | None = None
+    migration_years: float | None = None
+    criticality: float | None = None
+    sensitivity: str | None = None
+    constraints: list[str] = Field(default_factory=list, max_length=12)
+    note: str = Field("", max_length=2000)
+
+
+class PreviewRequest(BaseModel):
+    """A what-if for one asset. Never touches disk."""
+
+    scan_id: str
+    asset_key: str = Field(..., min_length=4, max_length=64)
+    earliest: int = config.QDAY_EARLIEST
+    likely: int = config.QDAY_LIKELY
+    latest: int = config.QDAY_LATEST
+    basis: Literal["mode", "median"] = "mode"
+    override: OverrideRequest = Field(default_factory=OverrideRequest)
+
+
+@app.get("/api/assessment/inputs")
+def assessment_inputs() -> dict[str, Any]:
+    """The editable inputs, their bounds and what each provenance state means."""
+    out = assessment.describe_inputs()
+    out["assessment_date"] = risk.assessment_date().isoformat()
+    out["exposure_models"] = {
+        key: model.to_dict() for key, model in risk.EXPOSURE_MODELS.items()}
+    return out
+
+
+@app.get("/api/assessment/overrides")
+def list_asset_overrides() -> dict[str, Any]:
+    return {"overrides": {k: v.to_dict() for k, v in store.list_overrides().items()}}
+
+
+@app.put("/api/assessment/override/{asset_key}")
+def put_asset_override(asset_key: str, req: OverrideRequest) -> dict[str, Any]:
+    """Save one asset's inputs. This is the explicit write."""
+    try:
+        override = AssetOverride.parse(asset_key, req.model_dump(exclude_none=True))
+    except InvalidOverride as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    store.save_override(override)
+    return {"asset_key": asset_key, "override": override.to_dict(),
+            "state": "saved", "persisted": not override.is_empty}
+
+
+@app.delete("/api/assessment/override/{asset_key}")
+def clear_asset_override(asset_key: str) -> dict[str, Any]:
+    """Reset one asset to derived and default inputs."""
+    store.delete_override(asset_key)
+    return {"asset_key": asset_key, "override": None, "state": "reset"}
+
+
+@app.post("/api/assessment/preview")
+def preview_assessment(req: PreviewRequest) -> dict[str, Any]:
+    """Score one asset under proposed inputs without saving anything.
+
+    Loads the finding fresh from the store, scores a copy, and discards it.
+    Nothing here writes, which is what makes it safe to fire on every
+    keystroke in the console.
+    """
+    result = store.load_result(req.scan_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Unknown scan")
+
+    target = next((f for f in result.findings
+                   if assessment.asset_key(f) == req.asset_key), None)
+    if target is None:
+        raise HTTPException(status_code=404,
+                            detail=f"No asset {req.asset_key} in scan {req.scan_id}")
+
+    try:
+        model = risk.QDayModel(earliest=req.earliest, likely=req.likely,
+                               latest=req.latest, basis=req.basis)
+        proposed = AssetOverride.parse(
+            req.asset_key, req.override.model_dump(exclude_none=True))
+    except (ValueError, InvalidOverride) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    saved = store.get_override(req.asset_key)
+    before = _asset_view(target)
+
+    from .engine.normalize import criticality_for
+    risk.score_finding(target, model, criticality=criticality_for(target),
+                       override=proposed if not proposed.is_empty else saved)
+    after = _asset_view(target)
+
+    return {
+        "asset_key": req.asset_key,
+        "state": "preview",
+        "persisted": False,
+        "note": ("Nothing has been saved. Use PUT /api/assessment/override/"
+                 "{asset_key} to keep these inputs."),
+        "saved_override": saved.to_dict() if saved else None,
+        "before": before,
+        "after": after,
+    }
+
+
+def _asset_view(f) -> dict[str, Any]:
+    """The assessed state of one finding, for a preview comparison."""
+    return {
+        "risk_score": f.risk_score,
+        "severity": risk.severity(f.risk_score),
+        "exposure_years": f.exposure_years,
+        "mosca": f.extra.get("mosca"),
+        "factors": f.extra.get("factors"),
+        "risk_inputs": f.extra.get("risk_inputs"),
+        "exposure_model": f.extra.get("exposure_model"),
+        "assessment": f.extra.get("assessment"),
+        "recommendation": f.recommendation,
     }
 
 

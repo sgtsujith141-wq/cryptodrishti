@@ -156,6 +156,27 @@ def build(result: ScanResult, summary: dict[str, Any] | None = None) -> str:
     stats = result.stats or {}
     sensors = ", ".join(stats.get("sensors_run", [])) or "source"
 
+    from .engine import risk as _risk
+    assessed_on = _risk.assessment_date().isoformat()
+
+    # The Q-Day scenario every number below is conditional on, read off the
+    # findings rather than re-derived, so the report cannot disagree with the
+    # assessment it is reporting.
+    sample = next((f.extra.get("assessment") for f in findings
+                   if (f.extra or {}).get("assessment")), None)
+    qday = (sample or {}).get("qday") or {}
+    overrides_applied = sum(
+        1 for f in findings
+        if ((f.extra or {}).get("assessment") or {}).get("override_applied"))
+    defaulted = sum(
+        1 for f in findings
+        if any(v.get("provenance") == "default"
+               for v in ((f.extra or {}).get("risk_inputs") or {}).values()))
+
+    # Container deployment state, where the scan had one.
+    historical = [f for f in findings
+                  if ((f.extra or {}).get("container") or {}).get("effective") is False]
+
     exposure = summary["max_exposure_years"]
     verdict = (
         "Within tolerance at the current assumptions."
@@ -255,6 +276,31 @@ migration is staffed: one workstream per replacement, not one per finding.</p>
   <tbody>{finding_rows}</tbody>
 </table>
 
+<h2>Assumptions this assessment rests on</h2>
+<p class="sub">Everything below is conditional on these inputs. They are
+assumptions, not measurements, and they are stated first because a risk number
+quoted without them is not a risk number.</p>
+<table>
+  <tr><td style="width:34%"><strong>Assessment date</strong></td>
+      <td class="mono">{_e(assessed_on)}</td></tr>
+  <tr><td><strong>Q-Day scenario</strong></td>
+      <td>Earliest <strong>{_e(str(qday.get('earliest', '—')))}</strong>,
+          most likely <strong>{_e(str(qday.get('likely', '—')))}</strong>,
+          latest <strong>{_e(str(qday.get('latest', '—')))}</strong>.
+          <div class="muted">"Most likely" is the <em>mode</em> of a triangular
+          distribution — its peak — not its median. The median of this scenario is
+          {_e(str(qday.get('median_year', '—')))}. Exposure below is computed at the
+          {_e(str(qday.get('basis', 'mode')))}.</div></td></tr>
+  <tr><td><strong>Is this a forecast?</strong></td>
+      <td><strong>No.</strong> Nobody knows when, or whether, a cryptographically
+      relevant quantum computer will exist. This is an operator-selected scenario;
+      every probability in this report is conditional on it and on nothing else.</td></tr>
+  <tr><td><strong>Operator-supplied inputs</strong></td>
+      <td>{overrides_applied} of {summary.get('total', 0)} assets have inputs a person
+      set by hand. {defaulted} still rest on at least one unreviewed default —
+      treat those scores as provisional.</td></tr>
+</table>
+
 <h2>What the evidence establishes</h2>
 <p class="sub">Confidence asks whether an identification is correct. Assurance asks
 what a correct identification proves. A dependency on a library that implements RSA
@@ -275,12 +321,36 @@ the asset is listed as unresolved and no target is named.</p>
 <p class="sub"><strong>{summary.get('unresolved_purpose', 0)}</strong> assets have an
 unresolved purpose and need a human to determine it before they can be scheduled.</p>
 
+<h2>Deployment state</h2>
+<p class="sub">An artefact in a container image layer that a later layer deleted is
+not running — but it is still extractable from the image archive by anyone who can
+pull it. Neither "active file" nor "not there" describes it, so it is reported as
+what it is.</p>
+<table>
+  <tr><td style="width:34%"><strong>Historical-layer artefacts</strong></td>
+      <td><strong>{len(historical)}</strong>
+      {"— listed in the inventory, scored at reduced weight, and never described as part of the running filesystem." if historical else "— none in this scan."}</td></tr>
+  {"".join(
+      f"<tr><td class='mono small'>{_e((f.extra.get('container') or {}).get('path',''))}</td>"
+      f"<td>{_e(f.title)}<div class='muted'>removed by layer "
+      f"{_e(str((f.extra.get('container') or {}).get('superseded_by_layer','?')))} — "
+      f"recoverable from the archive</div></td></tr>"
+      for f in historical[:10])}
+</table>
+
 <h2>Method and limitations</h2>
 <table>
   <tr><td style="width:34%"><strong>Sensors run</strong></td><td class="mono">{_e(sensors)}</td></tr>
   <tr><td><strong>Scan duration</strong></td><td class="mono">{result.duration:.1f} seconds</td></tr>
   <tr><td><strong>Machine-readable output</strong></td>
-      <td>CycloneDX 1.6 CBOM, standardised as ECMA-424</td></tr>
+      <td>CycloneDX 1.6 CBOM, standardised as ECMA-424. Validated
+      <em>structurally</em> — required fields, enum membership, reference
+      integrity — not against the official JSON Schema.</td></tr>
+  <tr><td><strong>Latency and cost</strong></td>
+      <td>Not estimated anywhere in this report. This tool has never run a
+      benchmark or priced an engineer; published post-quantum latency figures
+      vary by more than an order of magnitude across platforms. Measure on your
+      own hardware. Migration effort is given as a band, not a number.</td></tr>
   <tr><td><strong>Confidence</strong></td>
       <td>Every finding carries a per-detector confidence score. Artefacts that could
       not be resolved to a specific algorithm are reported as <em>unresolved</em>

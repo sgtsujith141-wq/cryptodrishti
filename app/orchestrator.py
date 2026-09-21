@@ -14,6 +14,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
+from . import assessment as A
 from . import config, fspolicy
 from .container import ArchiveLimits, ContainerError
 from .engine import correlate, normalize, recommend, risk
@@ -62,11 +63,20 @@ def _finish(raw: list[Finding], result: ScanResult, stats: dict[str, Any],
 
     if progress:
         progress(88, "Scoring quantum risk", "")
-    risk.score_all(assets, qday or risk.QDayModel())
+    # Operator overrides outlive scans, so a rescan of an estate somebody has
+    # already assessed keeps their numbers instead of reverting to defaults.
+    try:
+        from . import store
+        overrides = store.list_overrides()
+    except Exception:                       # a scan must not fail on this
+        overrides = {}
+    stats["overrides_applied"] = sum(
+        1 for f in assets if A.asset_key(f) in overrides)
+    risk.score_all(assets, qday or risk.QDayModel(), overrides=overrides)
 
     if progress:
         progress(94, "Selecting migration targets", "")
-    recommend.recommend_all(assets, profile)
+    recommend.recommend_all(assets, profile, overrides=overrides)
 
     assets.sort(key=lambda f: -f.risk_score)
 

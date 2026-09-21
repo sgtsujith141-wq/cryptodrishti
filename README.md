@@ -13,7 +13,7 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6](https://img.shields.io/badge/CBOM-CycloneDX%201.6-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-487%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-557%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](Report/assets/screenshots/console-dark.png)
 
@@ -428,6 +428,71 @@ What correlation may never do:
 A path maps to a component only when every library-naming finding there
 agrees. A `requirements.txt` listing six packages is a list, not a component.
 
+## Assessment: whose number is it?
+
+The risk engine has always taken X, Y and criticality. Until M4 it derived all
+three, which is reasonable for an estate and wrong for any specific asset —
+only you know the payments key must stay secret for twenty-five years and the
+build cache key does not.
+
+Every input now carries its origin, because **a score built from four guesses
+and one built from four reviewed values look identical unless the tool says
+which is which**:
+
+| Provenance | Meaning |
+|---|---|
+| `observed` | Read out of the artefact — a certificate's own expiry |
+| `derived` | Computed by the tool from evidence it collected |
+| `operator` | Supplied by a person. Never overwritten on a rescore |
+| `default` | A fallback nobody has reviewed. Scores resting on several are provisional |
+
+Overrides are validated, bounded, persisted in their own table, and **survive a
+restart and a rescan**. They are keyed on a stable `asset_key` — algorithm,
+type, purpose, scanner and location with line numbers stripped — so an edit
+above a call site does not lose them, and two unrelated AES sites never share
+one. A file move or a newly resolved purpose *does* break the link, because
+each of those is a different migration.
+
+**Preview and save are separate.** `POST /api/assessment/preview` scores a
+copy and discards it; `PUT /api/assessment/override/{key}` is the only write.
+The console says which you are looking at in a banner, because quoting an
+unsaved what-if as a saved figure is quoting a number nobody kept.
+
+### What Mosca does and does not claim
+
+`X + Y > Z` is one inequality, but X does not mean the same thing for every
+asset:
+
+| Purpose | Model | X means | Retroactive? |
+|---|---|---|---|
+| Key establishment, encryption | Harvest now, decrypt later | how long the data must stay confidential | **Yes** — recorded traffic is already lost |
+| Signature, authentication | Forgery from Q-Day onward | how long the key must stay unforgeable | **No** — a CRQC cannot un-sign a 2026 release |
+| Hashing, symmetric primitives | Grover margin | confidentiality lifetime, but no arrival cliff | Gradually |
+| Unresolved purpose | Unresolved | assumed confidentiality lifetime | Assumed yes |
+
+The unresolved case assumes the *more* urgent model on purpose. Assuming the
+milder one would reward the tool for failing to resolve the purpose.
+
+### Q-Day is a scenario, not a forecast
+
+The slider sets the **mode** of a triangular distribution — the single most
+likely year — not its median. An earlier version used it as a median and said
+so in a docstring; for the shipped defaults (2030 / 2034 / 2044) the true
+median is **2035.63**, so the error was about 1.6 years, always in the
+direction that understates exposure. Both are now computed and reported.
+
+Every probability is labelled conditional on the chosen scenario, and the CBOM
+emits `assessment:qdayIsForecast = false`. Nobody knows when, or whether, a
+cryptographically relevant quantum computer will exist.
+
+### Latency and cost are never estimated
+
+This tool has never run a benchmark or priced an engineer. Published
+post-quantum latency figures vary by more than an order of magnitude across
+platforms, and cost depends on day rates, release cadence and vendor terms
+none of which it has. Both fields report a status — `not-measured`,
+`not-estimated` — with the reason. Migration effort is a band, not a number.
+
 ## Purpose and assurance
 
 Two questions decide what a finding means, and most crypto inventories answer
@@ -586,6 +651,11 @@ actively harmful.
   images, no zstd layers, no signature or attestation verification. Layer
   replay handles whiteouts; it does not reconstruct a squashed image any other
   way. The exact supported set is in [Container images](#container-images).
+- **Most risk inputs start as unreviewed defaults.** The tool says so on
+  every asset, and lists them under the recommendation's unknowns, but an
+  estate nobody has assessed by hand produces provisional scores. That is a
+  property of the problem, not a bug, and it is the reason the provenance
+  labels exist.
 - **Correlation is conservative and will miss real links.** It requires a
   shared concrete artefact, so a library the binary analyser could not
   identify produces no link even when one exists. Missing a link costs less
@@ -612,6 +682,7 @@ run.py                      entry point
 app/
   knowledge/algorithms.py   74-algorithm registry — the source of truth
   knowledge/purposes.py     cryptographic purpose model
+  assessment.py             per-asset risk inputs and their provenance
   container.py              safe, read-only image archive reader
   engine/correlate.py       cross-sensor logical asset linking
   knowledge/rules_*.py      detection rule packs (source, binary)
@@ -622,7 +693,7 @@ app/
   cbom.py                   CycloneDX 1.6 emitter and validator
   api.py                    FastAPI routes
   web/                      console (vanilla JS, zero dependencies)
-tests/                      487 tests
+tests/                      557 tests
 deck/index.html             offline presentation deck (arrow keys, P for notes)
 presenter/                  timed script and Q&A sheet
 Report/                     project report, design history and screenshots

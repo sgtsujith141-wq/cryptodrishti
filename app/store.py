@@ -13,6 +13,7 @@ import time
 from typing import Any, Optional
 
 from . import config
+from .assessment import AssetOverride
 from .models import Evidence, Finding, ScanResult, ScanTarget
 
 _SCHEMA = """
@@ -39,6 +40,24 @@ CREATE TABLE IF NOT EXISTS findings (
 CREATE INDEX IF NOT EXISTS idx_findings_scan  ON findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_findings_score ON findings(scan_id, risk_score DESC);
 CREATE INDEX IF NOT EXISTS idx_scans_started  ON scans(started_at DESC);
+
+-- Operator-supplied risk inputs.
+--
+-- Deliberately NOT keyed on finding id, and deliberately NOT a child of a
+-- scan. A finding id contains the line number of its call site, so keying on
+-- it would discard a hand-set twenty-five-year lifetime the moment somebody
+-- edited the file above it. `asset_key` is the stable identity from
+-- app/assessment.py, and the row outlives every scan of that estate.
+CREATE TABLE IF NOT EXISTS asset_overrides (
+    asset_key        TEXT PRIMARY KEY,
+    shelf_life_years REAL,
+    migration_years  REAL,
+    criticality      REAL,
+    sensitivity      TEXT,
+    constraints      TEXT NOT NULL DEFAULT '[]',
+    note             TEXT NOT NULL DEFAULT '',
+    updated_at       REAL NOT NULL
+);
 """
 
 
@@ -163,3 +182,69 @@ def load_result(scan_id: str) -> Optional[ScanResult]:
 def latest_scan_id() -> Optional[str]:
     scans = list_scans(limit=1)
     return scans[0]["id"] if scans else None
+
+
+# --------------------------------------------------------------------------
+# Operator overrides
+#
+# These are the only rows in the database a human typed. Everything else is a
+# detection the tool can reproduce by rescanning; an override cannot be, so it
+# is kept outside the scan lifecycle and is never touched by one.
+# --------------------------------------------------------------------------
+
+def save_override(override: AssetOverride) -> AssetOverride:
+    """Persist one asset's operator inputs. An empty override deletes the row."""
+    if override.is_empty:
+        delete_override(override.asset_key)
+        return override
+    override.updated_at = time.time()
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO asset_overrides "
+            "(asset_key, shelf_life_years, migration_years, criticality, "
+            " sensitivity, constraints, note, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (override.asset_key, override.shelf_life_years,
+             override.migration_years, override.criticality,
+             override.sensitivity, json.dumps(override.constraints),
+             override.note, override.updated_at),
+        )
+    return override
+
+
+def delete_override(asset_key: str) -> None:
+    """Reset one asset to derived and default inputs."""
+    with connect() as conn:
+        conn.execute("DELETE FROM asset_overrides WHERE asset_key = ?", (asset_key,))
+
+
+def get_override(asset_key: str) -> Optional[AssetOverride]:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM asset_overrides WHERE asset_key = ?", (asset_key,)
+        ).fetchone()
+    return _row_to_override(row) if row else None
+
+
+def list_overrides() -> dict[str, AssetOverride]:
+    """Every override, keyed by asset. Loaded once per scoring pass."""
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM asset_overrides").fetchall()
+    return {r["asset_key"]: _row_to_override(r) for r in rows}
+
+
+def _row_to_override(row) -> AssetOverride:
+    try:
+        constraints = json.loads(row["constraints"] or "[]")
+    except (json.JSONDecodeError, TypeError):
+        constraints = []
+    return AssetOverride(
+        asset_key=row["asset_key"],
+        shelf_life_years=row["shelf_life_years"],
+        migration_years=row["migration_years"],
+        criticality=row["criticality"],
+        sensitivity=row["sensitivity"],
+        constraints=constraints,
+        note=row["note"] or "",
+        updated_at=row["updated_at"] or 0.0,
+    )

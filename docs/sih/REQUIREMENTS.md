@@ -104,12 +104,44 @@ six provides would attach to every artefact of whichever parsed first.
 | R4.1 | X + Y > Z evaluated | `app/engine/risk.py:mosca` | `tests/test_risk.py` (23) | `exposure = max(0, X+Y-Z)` | DONE |
 | R4.2 | Q-Day as an assumption, not a fact | `QDayModel` triangular distribution, `probability_exposed` | `test_risk.py::probability_is_reported_not_a_hardcoded_qday` | Deterministic under fixed seed | DONE |
 | R4.3 | Transparent, auditable factors | `finding.extra["factors"]` | `test_risk.py::scoring_records_every_factor_it_used` | Seven named multipliers | DONE |
-| R4.4 | Explicit confidentiality lifetime | `SHELF_LIFE_BY_SENSITIVITY`, estate-wide | — | Not per-asset | PARTIAL |
-| R4.5 | Explicit migration duration | `MIGRATION_EFFORT_YEARS` by sensor | `test_risk.py::binary_findings_carry_a_longer_migration_cost_than_config` | Not overridable per asset | PARTIAL |
-| R4.6 | Business criticality | `normalize.CRITICALITY` inferred from path | `test_normalize.py` (4) | Path-derived only, not operator-set | PARTIAL |
+| R4.4 | Explicit confidentiality lifetime | `app/assessment.py` per-asset override, persisted | 12 | Operator-set X, validated and bounded; meaning varies by exposure model | **DONE** |
+| R4.5 | Explicit migration duration | per-asset override, falling back to the sensor-derived estimate | 4 | | **DONE** |
+| R4.6 | Business criticality | per-asset override, falling back to path inference | 4 | An override on one asset never touches another with the same algorithm | **DONE** |
+| R4.10 | Input provenance is visible | `assessment.RiskInput` — observed / derived / operator / default | 6 | Shown in the console, the report and the CBOM | **DONE** |
+| R4.11 | Purpose-specific exposure models | `risk.EXPOSURE_MODELS` | 9 | HNDL, forgery-after-Q-Day, Grover margin, unresolved | **DONE** |
+| R4.12 | Q-Day terminology is correct | `QDayModel.mode_year` / `.median_year` | 5 | `likely` is the **mode**; the median is computed and reported beside it | **DONE** |
+| R4.13 | Assessment date is explicit | `risk.assessment_date()`, `CD_ASSESSMENT_DATE` | 2 | Three hardcoded `2026` defaults removed | **DONE** |
+| R4.14 | Recomputation is never stale | `score_finding` overwrites rather than `setdefault` | 3 | The audit trail moves with the score | **DONE** |
+| R4.15 | Preview never mutates saved data | `POST /api/assessment/preview` | 4 | Scores a copy and discards it | **DONE** |
+| R4.16 | Overrides survive restart and rescan | `asset_overrides` table, keyed on `asset_key` | 6 | Outlive the scan lifecycle by design | **DONE** |
 | R4.7 | Evidence confidence feeds the score | `conf_term` in `score_finding` | `test_risk.py::low_confidence_findings_cannot_outrank_certain_ones` | | DONE |
 | R4.8 | Cryptographic purpose feeds risk | `risk.PURPOSE_URGENCY` | 3 | Key establishment weighted above signing: only the former is exposed to harvest-now-decrypt-later | **DONE** |
 | R4.9 | Evidence assurance feeds risk | `risk.ASSURANCE_WEIGHT` | 2 | A named factor distinct from confidence; capability findings rank below equivalent call sites | **DONE** |
+
+### What the Mosca model does and does not claim
+
+`X + Y > Z` is one inequality, but **X does not mean the same thing for every
+asset**, and treating it as though it did is how a tool ends up asserting that
+a TLS handshake signature must stay unforgeable for twenty-five years.
+
+| Purpose | Model | X means | Retroactive? |
+|---|---|---|---|
+| Key establishment, encryption, transport | Harvest now, decrypt later | how long the data must stay confidential | **Yes** — traffic already recorded is already lost |
+| Signature, authentication | Forgery from Q-Day onward | how long the key must stay unforgeable | **No** — a CRQC cannot un-sign a 2026 release |
+| Hashing, KDF, randomness; any symmetric primitive | Grover margin | confidentiality lifetime, but there is no arrival cliff | Yes, gradually |
+| Unresolved purpose | Unresolved | assumed confidentiality lifetime | Assumed yes |
+
+The unresolved case deliberately assumes the *more* urgent model. Assuming the
+milder one would reward the tool for failing to resolve the purpose.
+
+**Q-Day is not forecast.** The `likely` parameter is the **mode** of a
+triangular distribution — its peak — and an earlier version used it as a
+median and said so in a docstring. Under the shipped defaults (2030 / 2034 /
+2044) the true median is **2035.63**, so the error was about 1.6 years, always
+in the direction that understates exposure. Both are now computed; the mode
+remains the default basis because that is what the slider sets, and the median
+is reported beside it. Every probability is labelled conditional on the chosen
+scenario and `is_forecast` is emitted as `false` in the CBOM.
 
 ## R5 — Migration recommendations
 
@@ -124,7 +156,9 @@ six provides would attach to every artefact of whichever parsed first.
 | R5.6 | Hashing → SHA-256/384 by profile | `recommend.py:212-224` | 2 tests | | DONE |
 | R5.7 | Size / latency / cost reasoning | `_sig_delta`, `_size_note`, `LIBRARY_SUPPORT` | 3 tests | Byte deltas are real registry data | DONE |
 | R5.8 | Never recommend a vulnerable target | `recommend.py` | `test_recommend.py::vulnerable_algorithms_are_never_sent_to_another_vulnerable_target` | | DONE |
-| R5.9 | Say what must be validated before deployment | `size_note`, `agility_note`, `library_support` | | Present but not uniformly | PARTIAL |
+| R5.9 | Say what must be validated before deployment | `recommend.enrich` — evidence, exposure, compatibility, validation steps, unknowns | 8 | Every recommendation carries all six | **DONE** |
+| R5.11 | Latency and cost are never invented | `UNKNOWN_LATENCY`, `UNKNOWN_COST` | 2 | Both report a status of *not measured* / *not estimated*, with the reason | **DONE** |
+| R5.12 | Operator constraints warn rather than silently retarget | `_apply_constraints` | 2 | e.g. a constrained link against a 3,309-byte ML-DSA signature | **DONE** |
 
 ## R6 — Reporting
 
@@ -206,12 +240,18 @@ Closed by M1 (`sih/milestone-hardening`). Every row has an adversarial test in
 
 ## Summary at baseline
 
-| Status | At 90f4da3 | After M1 | After M2 | After M3 |
-|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 |
-| PARTIAL | 25 | 22 | 18 | 18 |
-| GAP | 17 | 12 | 11 | 9 |
-| DEFECT | 5 | 4 | **0** | **0** |
+| Status | At 90f4da3 | After M1 | After M2 | After M3 | After M4 |
+|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 |
+| GAP | 17 | 12 | 11 | 9 | 9 |
+| DEFECT | 5 | 4 | **0** | **0** | **0** |
+
+M4 made risk assessment per-asset rather than estate-wide, corrected two
+mathematical defects found by reading the code (the mode/median mislabelling
+and the `setdefault` stale-factor bug), gave every purpose its own exposure
+model, and separated scenario previews from saved assessments. Test count rose
+from 487 to 557.
 
 M1 closed all nine R8 rows and one detection defect (D7, the obsolete Kyber
 draft group). Test count rose from 226 to 317.
