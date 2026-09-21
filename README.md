@@ -5,7 +5,7 @@
 CryptoDrishti finds every cryptographic artefact in a codebase and its
 infrastructure, scores each one for exposure to quantum attack, recommends a
 post-quantum replacement, and emits a standards-conformant
-[CycloneDX 1.6](https://cyclonedx.org/) CBOM.
+[CycloneDX](https://cyclonedx.org/) CBOM in either 1.6 (ECMA-424) or 1.7.
 
 Built for Smart India Hackathon 2026, problem statement **SIH26164**
 (National Technical Research Organisation).
@@ -55,8 +55,9 @@ A single-operator tool that answers that question end to end:
 4. A **recommender** selects a concrete NIST replacement for the deployment
    profile, and quantifies the size penalty that will break fixed-width
    protocol fields.
-5. Everything is exported as a **CycloneDX 1.6 CBOM** and rendered in an
-   offline web console.
+5. Everything is exported as a **CycloneDX 1.6 or 1.7 CBOM**, validated
+   offline against the official JSON Schema, and rendered in an offline web
+   console.
 
 It runs **fully air-gapped**. There are no outbound network requests, no CDN
 assets and no telemetry. The single exception is the network sensor, which
