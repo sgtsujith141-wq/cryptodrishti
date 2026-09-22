@@ -1,14 +1,31 @@
 # CryptoDrishti
 
-**Cryptographic discovery and quantum risk analysis.**
+**Find every cryptographic asset an organisation owns, prove what the evidence
+actually supports, and say what each one must become.**
 
-CryptoDrishti finds every cryptographic artefact in a codebase and its
-infrastructure, scores each one for exposure to quantum attack, recommends a
-post-quantum replacement, and emits a standards-conformant
-[CycloneDX](https://cyclonedx.org/) CBOM in either 1.6 (ECMA-424) or 1.7.
+Seven sensors read source code, dependency manifests, ELF binaries, X.509
+certificates, deployment configuration, container image archives and live TLS
+endpoints. Every finding becomes a distinct asset, classified by what a quantum
+computer does to it, scored through Mosca's inequality, matched to a named
+post-quantum replacement, and exported as a
+[CycloneDX](https://cyclonedx.org/) CBOM — 1.6 (ECMA-424) or 1.7 — validated
+offline against the official JSON Schema.
 
-Built for Smart India Hackathon 2026, problem statement **SIH26164**
-(National Technical Research Organisation).
+Three things it does that a keyword scanner cannot:
+
+- **Purpose, not keyword.** RSA signing and RSA key transport are one algorithm
+  and two different migrations, ML-DSA against ML-KEM. Purpose is resolved from
+  the call site, and where the evidence is silent the tool names *no* target
+  rather than the wrong one.
+- **Assurance is a field.** `capability` · `declared` · `used` · `observed`.
+  A library that *can* do RSA is not evidence that RSA runs.
+- **Containers read layer by layer.** A key deleted by a later layer is
+  reported as **historical** — gone at runtime, still extractable from the
+  archive.
+
+Built for Smart India Hackathon 2026 — problem statement **SIH26164**,
+*Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)*, National
+Technical Research Organisation. Team **146876 — Zero-Day**.
 
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
@@ -16,6 +33,8 @@ Built for Smart India Hackathon 2026, problem statement **SIH26164**
 [![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](#testing)
 
 ![CryptoDrishti console](submission/screenshots/01-assessment.png)
+
+<sub>Every screenshot in this README is a capture of the running tool against the database `python run.py --demo` produces. Nothing is mocked.</sub>
 
 ---
 
@@ -67,6 +86,8 @@ described under [Security](#security).
 ## Architecture
 
 ![CryptoDrishti architecture](docs/architecture/architecture.png)
+
+<sub>Rendered from [`architecture.mmd`](docs/architecture/architecture.mmd) by [`render.py`](docs/architecture/render.py), which also produces the dark variant used in the submission deck. One source, two palettes, so the two cannot disagree about what the system does.</sub>
 
 Editable source: [`docs/architecture/architecture.mmd`](docs/architecture/architecture.mmd).
 Rendering instructions and a note on what the diagram deliberately omits are in
@@ -161,30 +182,28 @@ JSON-Schema validation**.
 
 ## Screenshots
 
-Every image below is a capture of the running application, taken from the
-database that `python run.py --demo` produces. Reproduce them by running that
-command and opening the console. No interface here is a mock-up.
+Captures of the running application, in its dark theme, taken from the database
+that `python run.py --demo` produces. Reproduce them with
+[`submission/build/capture_screens.py`](submission/build/capture_screens.py).
+No interface here is a mock-up.
 
-**Assessment** — estate composition, and Mosca's inequality shown as arithmetic
-rather than a verdict:
-
-![Assessment](submission/screenshots/01-assessment.png)
-
-**Inventory** — the point of the whole tool in one screen: the same `rsa`
-algorithm resolved to three different purposes, with three different
-recommendations, and the third refusing to name a target at all:
+**The point of the whole tool, in one screen** — the same `rsa` algorithm
+resolved to three different purposes, with three different recommendations, and
+the third refusing to name a target at all:
 
 ![Inventory](submission/screenshots/04-inventory.png)
 
-**Evidence** — every finding opens onto what produced it: file, line, technique,
-confidence, assurance grade, and the exposure arithmetic behind its score:
+**Every finding opens onto its evidence** — file, line, technique, confidence,
+assurance grade, and the exposure arithmetic behind the score, with each input
+labelled by where its value came from:
 
 ![Evidence drawer](submission/screenshots/07-evidence-drawer.png)
 
 <details>
 <summary>More views — exposure window, migration programme, CBOM export, scan history</summary>
 
-**Exposure window** — X, Y and Z, each labelled with where its value came from:
+**Exposure window** — Mosca's inequality as arithmetic the operator can argue
+with, not a verdict:
 
 ![Exposure window](submission/screenshots/02-exposure.png)
 
@@ -193,8 +212,8 @@ how a migration is actually staffed:
 
 ![Migration plan](submission/screenshots/03-migration-plan.png)
 
-**Machine-readable output** — CBOM export and live schema validation on the same
-screen:
+**Machine-readable output** — CBOM export and live schema validation on the
+same screen:
 
 ![CBOM export](submission/screenshots/05-cbom-export.png)
 
@@ -963,7 +982,8 @@ Report/                     project report and design history
 | What | Where | State |
 |---|---|---|
 | Six-slide idea presentation | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/) | built from the official template, QA-clean |
-| Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, verified** — rasterised, because no LibreOffice or PowerPoint is installed; see [`submission/README.md`](submission/README.md) |
+| Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, vector text, verified** |
+| Demonstration video | [`submission/CryptoDrishti-SIH26164-Demo.mp4`](submission/) | assembled from real captures with narration |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
 | Presentation script, video script, Q&A | [`presenter/`](presenter/) | scripts only — **no video has been recorded** |
 | Screenshots | [`submission/screenshots/`](submission/screenshots/) | genuine captures of the running console |

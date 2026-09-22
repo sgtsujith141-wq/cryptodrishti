@@ -36,7 +36,10 @@ Then:
 5. Network cable in, loose enough to pull out in one motion.
 
 One setting to decide during setup and not on stage: the **Dark / Light**
-control, top right. Light for a bright hall.
+control, top right. The deck, the video and every screenshot in this repository
+use the dark theme, so default to dark and switch to light only if the hall is
+bright enough to wash it out. `?theme=dark` in the URL forces it, which is what
+the capture script uses.
 
 ---
 

@@ -383,11 +383,35 @@ third-party clones under `demo/targets/`.
   `submission/README.md` states plainly along with the one command that
   regenerates it as vector.
 
-**Still open.**
+**Closed by the final optimisation pass.**
 
-- **R10.13 — demonstration video: GAP.** `presenter/video.md` is a script and a
-  shot list. No recording exists, and nothing in the repository says otherwise.
-  This is the last item between the package and submission.
+- **R10.13 — demonstration video: DONE.**
+  `submission/CryptoDrishti-SIH26164-Demo.mp4` — 3 minutes 41 seconds,
+  1920×1080, H.264/AAC, built by `submission/build/make_video.py`. It is an
+  assembled product overview rather than a screen recording: every visual is a
+  still capture of the running tool or the architecture diagram, given slow
+  motion and cut to narration synthesised by macOS `say`. The picture is cut to
+  the voice — each scene's length is measured from its own audio — and no
+  cursor, interaction or output is simulated. Its own first frame says so.
+
+**The final optimisation pass also.**
+
+- Re-captured all seven screenshots in the console's **dark theme**, through a
+  committed script (`submission/build/capture_screens.py`) that forces
+  `?theme=dark` rather than depending on what was last left in `localStorage`,
+  and captures each scene element rather than the whole viewport.
+- Turned the architecture diagram **on its side**. Drawn top-to-bottom, the
+  analysis subgraph rendered as a tall band with four nodes down one edge and
+  two thirds of it empty. Left-to-right packs the same content into roughly
+  2.5:1 — the shape of a slide — and the pipeline now reads in reading order.
+  `docs/architecture/render.py` renders a light and a dark variant from the one
+  source, with the palettes held in the renderer so the two exports cannot
+  disagree about what the system does.
+- Rebuilt the deck around **one hero image per slide**, each cropped at a
+  section boundary rather than through a line of text, and rewrote every slide
+  so it answers one question.
+- Exported the PDF through **LibreOffice**, so the text is real text —
+  selectable and searchable — rather than the rasterised fallback.
 
 **Verified.** 664 tests pass. The benchmark reproduces 116/0/0 at P = R = F1 =
 1.000 with the committed ground truth unmodified. Both CBOM versions pass

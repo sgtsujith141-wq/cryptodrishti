@@ -310,13 +310,13 @@ its structural properties are asserted instead.
 | R10.4 | Test instructions | `README.md` | **DONE** — 664 tests |
 | R10.5 | Benchmark instructions | `README.md`, `benchmark/README.md` | **DONE** — both result sets presented separately, each traceable to a committed JSON file |
 | R10.6 | Demo fixtures | `demo/` | **DONE** — committed synthetic estate, generated container image and certificates, one-command setup, offline preflight |
-| R10.7 | Genuine screenshots | `submission/screenshots/` | **DONE** — 7 captures of the running console, from the demo database |
+| R10.7 | Genuine screenshots | `submission/screenshots/` | **DONE** — 7 dark-theme captures of the running console, reproducible with `build/capture_screens.py` |
 | R10.8 | Limitations | `README.md` | **DONE** — now names obfuscated call sites, vendored trees, Mach-O/PE, SHA-1 certificates and the source-only CLI |
 | R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
 | R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
 | R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Rasterised at 240 dpi via macOS QuickLook, because no LibreOffice or PowerPoint is installed; `build/export_pdf.py` takes the vector route automatically once one is. |
-| R10.12 | Video script and shot list | `presenter/video.md` | **DONE** as a script |
-| R10.13 | Recorded demonstration video | — | **GAP** — no recording has been produced. Nothing in this repository claims otherwise. |
+| R10.12 | Video script and shot list | `presenter/video.md` · `build/make_video.py` | **DONE** — narration and on-screen text live in the generator, so the script and the file cannot drift |
+| R10.13 | Demonstration video | `submission/CryptoDrishti-SIH26164-Demo.mp4` | **DONE** — 1920×1080 H.264/AAC, assembled from the real captures with synthesised narration. It is an assembled overview, not a screen recording, and says so in its own first frame. |
 | R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
 
 
@@ -324,17 +324,19 @@ its structural properties are asserted instead.
 
 ## Summary at baseline
 
-| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 | M7 | final |
-|---|---|---|---|---|---|---|---|---|---|
-| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 | 97 | 98 |
-| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 | 4 | 4 |
-| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 | 3 | 3 |
-| BLOCKED | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | **0** |
-| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| Status | 90f4da3 | M1 | M2 | M3 | M4 | M5 | M6 | M7 | portal | polish |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DONE | 26 | 35 | 48 | 59 | 73 | 83 | 91 | 97 | 98 | 99 |
+| PARTIAL | 25 | 22 | 18 | 18 | 14 | 9 | 6 | 4 | 4 | 4 |
+| GAP | 17 | 12 | 11 | 9 | 9 | 8 | 5 | 3 | 3 | 2 |
+| BLOCKED | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | **0** | **0** |
+| DEFECT | 5 | 4 | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
 
-The `final` column is after the registration details arrived: R10.11 moved from
-BLOCKED to DONE, which was the only change. **R10.13 — the demonstration video
-— is still a GAP**, and is now the one submission item outstanding.
+`portal` is after the registration details arrived, which moved R10.11 from
+BLOCKED to DONE. `polish` is the final optimisation pass, which moved R10.13 —
+the demonstration video — from GAP to DONE. **No submission item is now
+outstanding.** The two remaining GAP rows are engineering scope, not submission
+scope.
 
 **How the M7 column is derived.** M7 touched only the R10 rows, so every
 non-R10 count is carried forward from M6 unchanged. R10 went from 11 rows
