@@ -191,6 +191,15 @@ WORKFLOW = [
                "another team or tool can consume."),
 ]
 
+CHANGES = [
+    "“We think we use RSA somewhere” becomes a per-asset list with file, "
+    "line, purpose, evidence strength and a named replacement.",
+    "What an estate runs is separated from what it merely has installed, so "
+    "the plan is not padded with libraries nobody calls.",
+    "A partial scan is labelled partial, so nobody signs off an estate on an "
+    "inventory that silently missed half of it.",
+]
+
 USERS = ("Intended for security engineering teams, cryptographic inventory "
          "and migration-planning teams, and infrastructure operators. These "
          "are intended users; the tool has not been deployed in production.")
@@ -244,7 +253,7 @@ REFERENCES = [
         "P. W. Shor, “Polynomial-Time Algorithms for Prime Factorization and "
         "Discrete Logarithms on a Quantum Computer”, SIAM J. Computing, 1997.",
         "L. K. Grover, “A fast quantum mechanical algorithm for database "
-        "search”, STOC 1996 — the basis for the symmetric-key margin.",
+        "search”, STOC 1996.",
     ]),
     ("Problem statement and repository", [
         "Smart India Hackathon 2026, Problem Statement SIH26164 — Enterprise "

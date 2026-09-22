@@ -33,10 +33,11 @@ from PIL import Image                                    # noqa: E402
 from pptx import Presentation                            # noqa: E402
 from pptx.dml.color import RGBColor                      # noqa: E402
 from pptx.enum.shapes import MSO_SHAPE                    # noqa: E402
-from pptx.enum.text import MSO_ANCHOR                     # noqa: E402
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN           # noqa: E402
 from pptx.util import Emu, Inches, Pt                     # noqa: E402
 
 import deck_content as C                                  # noqa: E402
+import deck_shapes as S                                   # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "submission" / "template" / "SIH2026-IDEA-Presentation-Format.pptx"
@@ -300,241 +301,278 @@ def build_title(slide):
 
 # ==========================================================================
 # Slide 2 -- proposed solution
+#
+# Left: what the problem is and what the tool does about it.
+# Right: an editable diagram of where the evidence comes from and what it
+# becomes. Neither half repeats the other -- the text explains assurance,
+# the diagram explains topology.
 # ==========================================================================
 
 def build_solution(slide):
     set_title(slide, "CryptoDrishti  |  PROPOSED SOLUTION", size=28)
 
-    lw, rx = 6.06, 7.00
-    rw = RIGHT - rx
-
+    lw = 5.46
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(4.26)
+    tb.width, tb.height = Inches(lw), Inches(5.30)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    heading(tf, "The problem", first=True)
-    body(tf, C.PROBLEM)
-    heading(tf, "What CryptoDrishti is")
-    body(tf, C.SOLUTION, after=0)
+    heading(tf, "The problem", first=True, size=19)
+    body(tf, C.PROBLEM, size=15, after=9)
+    heading(tf, "What CryptoDrishti does", size=19, gap=7)
+    body(tf, C.SOLUTION, size=15, after=9)
+    heading(tf, "Why it is different", size=19, gap=7)
+    body(tf, C.DIFFERENTIATOR, size=15, after=0)
 
-    rb = box(slide, rx, TOP, rw, 4.26, name="cd-right")
-    rf = rb.text_frame
-    heading(rf, "What it does", first=True)
-    for label, text in C.CAPABILITIES:
-        item(rf, label, text, size=T_LABEL, after=5)
-    heading(rf, "What makes it different")
-    body(rf, C.DIFFERENTIATOR, size=T_LABEL, after=0)
+    # ---- the discovery diagram -------------------------------------------
+    dx, dw = 6.22, RIGHT - 6.22
+    S.label(slide, dx, TOP - 0.02, dw, "WHERE THE EVIDENCE COMES FROM", 11,
+            bold=True, colour=S.MUTED, name="cd-diag-eyebrow")
 
-    # The implemented pipeline, as four editable panels rather than a picture.
-    top = 6.10
-    caption(slide, LEFT, top - 0.32, WIDE,
-            "The implemented pipeline — every stage below exists in the tool.")
-    gap, n = 0.16, len(C.PIPELINE)
-    w = (WIDE - gap * (n - 1)) / n
-    for i, (name, sub) in enumerate(C.PIPELINE):
-        x = LEFT + i * (w + gap)
-        panel(slide, x, top, w, 0.64, name="cd-stage")
-        tbx = box(slide, x + 0.16, top + 0.09, w - 0.28, 0.50,
-                  name="cd-stage-text")
-        stf = tbx.text_frame
-        p = para(stf, True, space_after=3)
-        run(p, name, T_LABEL, bold=True, colour=NAVY)
-        _bullet(p, "none")
-        p = para(stf, False, space_after=0)
-        run(p, sub, T_CAPTION, colour=MUTED)
-        _bullet(p, "none")
+    surfaces = [("Source code", "Python AST + rule packs"),
+                ("Dependencies", "13 manifest formats"),
+                ("Binaries", "ELF symbols, constants"),
+                ("Configuration", "nginx · sshd · OpenSSL"),
+                ("Certificates", "X.509 · PEM/DER"),
+                ("Containers", "OCI · docker save")]
+    cw, ch, gx, gy = (dw - 0.22) / 2, 0.58, 0.22, 0.13
+    top = TOP + 0.28
+    for i, (n, sub) in enumerate(surfaces):
+        S.chip(slide, dx + (i % 2) * (cw + gx), top + (i // 2) * (ch + gy),
+               cw, ch, n, sub, title_size=13, sub_size=10.5,
+               name="cd-surface")
+    after = top + 3 * ch + 2 * gy
+
+    S.caret(slide, dx + dw / 2 - 0.09, after + 0.06)
+    S.band(slide, dx, after + 0.32, dw, 0.62, "CRYPTODRISHTI",
+           "normalise → correlate → classify → score", title_size=16,
+           sub_size=11)
+    S.caret(slide, dx + dw / 2 - 0.09, after + 1.02)
+
+    outs = [("INVENTORY", "distinct assets"), ("RISK", "Mosca exposure"),
+            ("MIGRATION", "named target"), ("CBOM", "CycloneDX 1.6/1.7")]
+    ow = (dw - 0.18 * 3) / 4
+    oy = after + 1.28
+    for i, (n, sub) in enumerate(outs):
+        S.chip(slide, dx + i * (ow + 0.18), oy, ow, 0.62, n, sub,
+               title_size=11.5, sub_size=11, title_colour=S.NAVY,
+               accent_edge=S.ACCENT, name="cd-out")
+
+    S.label(slide, dx, oy + 0.72, dw,
+            "A seventh sensor completes a live TLS handshake — only against "
+            "an endpoint the operator names, and only after the destination "
+            "policy vets every resolved address.", 10.5, colour=S.MUTED,
+            italic=True, h=0.46, name="cd-tls-note")
 
 
 # ==========================================================================
 # Slide 3 -- technical approach
+#
+# Left: how a finding is processed. Right: what that processing buys you,
+# on the one example that makes the difference visible.
 # ==========================================================================
 
 def build_technical(slide):
-    lw, rx = 6.06, 7.00
-    rw = RIGHT - rx
-
+    lw = 4.12
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(2.58)
+    tb.width, tb.height = Inches(lw), Inches(0.34)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    heading(tf, "System architecture", first=True)
-    for step in C.ARCHITECTURE:
-        bullet(tf, step, size=T_LABEL, after=4)
-    rb = box(slide, rx, TOP, rw, 2.58, name="cd-impl")
-    rf = rb.text_frame
-    heading(rf, "Technical implementation", first=True)
-    for label, text in C.IMPLEMENTATION:
-        item(rf, label, text, size=T_LABEL, after=4)
+    heading(tf, "How a finding is processed", first=True, size=17)
 
-    # The differentiator, given the room it needs to be read without zooming.
-    y = 4.26
-    hb = box(slide, LEFT, y - 0.40, WIDE, 0.36, name="cd-rsa-head")
-    p = para(hb.text_frame, True, space_after=0)
-    run(p, "One algorithm, three decisions. ", T_HEAD, bold=True, colour=ACCENT)
-    run(p, "The same RSA, resolved three ways by a single scan.",
-        T_HEAD - 3, colour=INK2)
-    _bullet(p, "none")
+    steps = [("Scanner evidence", "file, line, symbol, technique, confidence"),
+             ("Normalisation", "hits become one distinct asset"),
+             ("Purpose + assurance", "what it is for; how strong the proof is"),
+             ("Risk assessment", "Mosca X + Y > Z, per purpose"),
+             ("Migration decision", "a named target — or none"),
+             ("CBOM", "CycloneDX, schema-validated")]
+    sy, sh_, gap = TOP + 0.42, 0.52, 0.15
+    for i, (n, sub) in enumerate(steps):
+        y = sy + i * (sh_ + gap)
+        S.chip(slide, LEFT, y, lw, sh_, n, sub, title_size=12.5,
+               sub_size=10.5, align=PP_ALIGN.LEFT,
+               accent_edge=S.NAVY if i < 5 else S.ACCENT, name="cd-step")
+        if i < len(steps) - 1:
+            S.caret(slide, LEFT + lw / 2 - 0.055, y + sh_ + 0.012, 0.11)
 
-    rowh, gapy = 0.52, 0.06
-    cols = [0.0, 3.42, 6.36, 9.16]
-    widths = [3.28, 2.82, 2.66, 3.25]
-    heads = ["Evidence", "Why the purpose resolves that way",
-             "Recommendation", "Meaning"]
-    hdr = box(slide, LEFT, y, WIDE, 0.28, name="cd-rsa-cols")
-    hp = hdr.text_frame
-    for i, h in enumerate(heads):
-        tbx = box(slide, LEFT + cols[i], y, widths[i], 0.26,
-                  name="cd-rsa-col")
-        p = para(tbx.text_frame, True, space_after=0)
-        run(p, h.upper(), T_CAPTION - 1, bold=True, colour=MUTED)
-        _bullet(p, "none")
-    hdr._element.getparent().remove(hdr._element)
+    # ---- the comparison --------------------------------------------------
+    rx = 4.92
+    rw = RIGHT - rx
+    S.label(slide, rx, TOP - 0.02, rw,
+            "ONE ALGORITHM · THREE PURPOSE STATES · THREE DECISIONS", 11,
+            bold=True, colour=S.MUTED, name="cd-rsa-eyebrow")
+    S.label(slide, rx, TOP + 0.24, rw,
+            "Every scanner can tell you RSA is present. What decides the "
+            "migration is what it is being used for.", 13, colour=INK2,
+            h=0.40, name="cd-rsa-lede")
 
-    for i, (title, where, surface, why, target, meaning) in enumerate(
+    tones = [S.ACCENT, S.ACCENT, S.MUTED]
+    cy, chh, cgap = TOP + 0.78, 1.06, 0.15
+    for i, (case, where, surface, why, target, meaning) in enumerate(
             C.RSA_CASES):
-        top = y + 0.30 + i * (rowh + gapy)
-        rule(slide, LEFT, top - 0.05, WIDE)
-        tbx = box(slide, LEFT + cols[0], top + 0.04, widths[0], rowh - 0.12,
-                  name="cd-rsa-ev")
-        tf2 = tbx.text_frame
-        p = para(tf2, True, space_after=2)
-        run(p, title, T_ITEM, bold=True, colour=INK)
-        _bullet(p, "none")
-        p = para(tf2, False, space_after=0)
-        run(p, f"{where}   ({surface})", T_CAPTION, colour=MUTED)
-        _bullet(p, "none")
+        S.rsa_row(slide, rx, cy + i * (chh + cgap), rw, chh,
+                  case=case, where=where, surface=surface,
+                  purpose=why, target=target, tone=tones[i],
+                  resolved=(i < 2))
 
-        for idx, text, size, colour, bold in (
-                (1, why, T_LABEL, INK2, False),
-                (2, target, T_ITEM, ACCENT if "resolved first" not in target
-                 else MUTED, True),
-                (3, meaning, T_LABEL, INK2, False)):
-            tbx = box(slide, LEFT + cols[idx], top + 0.10, widths[idx], rowh - 0.18,
-                      name="cd-rsa-cell")
-            p = para(tbx.text_frame, True, space_after=0)
-            run(p, text, size, bold=bold, italic=(idx == 2 and bold and
-                                                  "resolved first" in target),
-                colour=colour)
-            _bullet(p, "none")
-
-    sb = box(slide, LEFT, 6.30, WIDE, 0.52, name="cd-security")
-    p = para(sb.text_frame, True, space_after=0)
-    run(p, "Security design — ", T_CAPTION, bold=True, colour=INK)
-    run(p, C.SECURITY, T_CAPTION, colour=MUTED)
-    _bullet(p, "none")
+    # ---- the stack, compact ---------------------------------------------
+    sy2 = 6.06
+    S.label(slide, LEFT, sy2 - 0.26, WIDE, "BUILT WITH", 10.5, bold=True,
+            colour=S.MUTED, name="cd-stack-eyebrow")
+    stack = ["Python 3.11+ · FastAPI", "SQLite (WAL)",
+             "Vanilla JS console", "60 rules · 8 languages",
+             "ELF symbol parsing", "CycloneDX 1.6 / 1.7"]
+    sw = (WIDE - 0.14 * 5) / 6
+    for i, item_text in enumerate(stack):
+        S.chip(slide, LEFT + i * (sw + 0.14), sy2, sw, 0.40, item_text,
+               title_size=11, title_colour=INK2, fill=S.FILL_2,
+               name="cd-stack")
 
 
 # ==========================================================================
 # Slide 4 -- feasibility and viability
+#
+# Half evidence in words, half evidence on screen. Two different product
+# views, each cropped to the thing it proves.
 # ==========================================================================
 
 def build_feasibility(slide):
-    lw, rx = 7.12, 7.96
-    rw = RIGHT - rx
-
+    lw = 5.92
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(5.40)
+    tb.width, tb.height = Inches(lw), Inches(4.96)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    heading(tf, "Implemented prototype", first=True)
-    for text in C.PROTOTYPE:
-        bullet(tf, text, size=T_LABEL, after=4)
-    heading(tf, "Validation")
-    for label, text in C.VALIDATION:
-        item(tf, label, text, size=T_LABEL, after=4)
+    heading(tf, "Implemented", first=True, size=18)
+    for text in C.PROTOTYPE[:3]:
+        bullet(tf, text, size=14, after=4)
+    heading(tf, "Validated", size=18, gap=8)
+    for label_, text in C.VALIDATION[:3]:
+        item(tf, label_, text, size=14, after=4)
+    heading(tf, "Feasible to deploy", size=18, gap=8)
+    body(tf, C.FEASIBILITY, size=14, after=0)
 
-    # One screenshot, cropped to the numbers it is there to prove.
-    path = crop("01-assessment.png", (0.300, 0.115, 0.990, 0.725))
-    y = picture(slide, path, rx, TOP + 0.04, rw)
-    caption(slide, rx, y + 0.11, rw,
-            "Live console, demo estate — the partial-scan warning names "
-            "the refused endpoint, above the real counts.")
+    S.label(slide, LEFT, 6.26, lw,
+            "Limits — " + C.LIMITATIONS, 10.5, colour=S.MUTED, italic=True,
+            h=0.56, name="cd-limits")
 
-    fb = box(slide, rx, 4.62, rw, 2.20, name="cd-feas")
-    ff = fb.text_frame
-    p = para(ff, True, space_after=4)
-    run(p, "Why deployment is feasible — ", T_LABEL, bold=True, colour=INK)
-    run(p, C.FEASIBILITY, T_LABEL, colour=INK2)
-    _bullet(p, "none")
-    p = para(ff, False, space_after=0)
-    run(p, "Current limits — ", T_CAPTION, bold=True, colour=INK)
-    run(p, C.LIMITATIONS, T_CAPTION, colour=MUTED)
-    _bullet(p, "none")
+    # ---- two real product views -----------------------------------------
+    rx = 6.70
+    rw = RIGHT - rx
+    a = crop("01-assessment.png", (0.316, 0.112, 0.990, 0.468))
+    y = picture(slide, a, rx, TOP, rw)
+    caption(slide, rx, y + 0.08, rw,
+            "Assessment — the scan states its own completeness first: one "
+            "endpoint refused, so the inventory is marked PARTIAL.")
+
+    b = crop("07-evidence-drawer.png", (0.02, 0.118, 0.99, 0.302))
+    y2 = picture(slide, b, rx, y + 0.66, rw)
+    caption(slide, rx, y2 + 0.08, rw,
+            "Evidence drawer — purpose, assurance and the exposure "
+            "arithmetic behind one finding's score.")
 
 
 # ==========================================================================
 # Slide 5 -- impact and benefits
+#
+# Top: the workflow the output actually drives. Bottom: who it helps, and
+# the measured evidence, kept in proportion.
 # ==========================================================================
 
 def build_impact(slide):
-    lw, rx = 6.60, 7.52
-    rw = RIGHT - rx
-
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(5.10)
+    tb.width, tb.height = Inches(WIDE), Inches(0.32)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    heading(tf, "How a migration team actually uses the output", first=True)
-    for stage, text in C.WORKFLOW:
-        p = para(tf, False, space_after=7)
-        run(p, f"{stage}  ", T_ITEM, bold=True, colour=NAVY)
-        run(p, text, T_ITEM, colour=INK2)
-        _bullet(p, "none")
-    heading(tf, "Intended users")
-    body(tf, C.USERS, size=T_LABEL, after=0)
+    heading(tf, "What a migration team does with the output", first=True,
+            size=19)
 
-    rb = box(slide, rx, TOP, rw, 0.40, name="cd-bench-head")
-    heading(rb.text_frame, "Benchmark evidence", first=True)
+    stages = [("DISCOVER", "Inventory the cryptographic assets that are "
+                           "actually present."),
+              ("UNDERSTAND", "Algorithm, purpose, evidence strength and "
+                             "exact location."),
+              ("PRIORITISE", "Quantum exposure with documented, "
+                             "operator-set assumptions."),
+              ("PLAN", "A purpose-matched target — or a request for more "
+                       "evidence."),
+              ("EXPORT", "A schema-validated CBOM and a traceable report.")]
+    n = len(stages)
+    gapx = 0.30
+    cw = (WIDE - gapx * (n - 1)) / n
+    sy = TOP + 0.46
+    for i, (name_, text) in enumerate(stages):
+        x = LEFT + i * (cw + gapx)
+        S.chip(slide, x, sy, cw, 1.44, name_, text, title_size=13.5,
+               sub_size=11, title_colour=S.NAVY, accent_edge=S.ACCENT,
+               name="cd-stage")
+        if i < n - 1:
+            S.arrow(slide, x + cw + 0.05, sy + 0.60, gapx - 0.10, 0.24,
+                    down=False, colour=S.RULE)
 
-    top = TOP + 0.46
-    panel(slide, rx, top, rw, 1.26, name="cd-bench-a")
-    tbx = box(slide, rx + 0.18, top + 0.13, rw - 0.34, 1.04, name="cd-bench-at")
-    tf2 = tbx.text_frame
-    p = para(tf2, True, space_after=5)
-    run(p, "Like-for-like: the same corpus, before and after", T_LABEL,
-        bold=True, colour=INK)
-    _bullet(p, "none")
-    for label, counts, f1 in C.BENCHMARK["like_for_like"]:
-        p = para(tf2, False, space_after=3)
-        run(p, f"{label}: ", T_LABEL, bold=True, colour=INK2)
-        run(p, f"{counts}   ", T_LABEL, colour=INK2)
-        run(p, f1, T_LABEL, bold=True, colour=ACCENT)
-        _bullet(p, "none")
+    # ---- who benefits, and what the measurement actually says ------------
+    by = sy + 1.72
+    lw2 = 6.30
+    S.label(slide, LEFT, by, lw2, "Who this is for", 17, bold=True,
+            colour=ACCENT, name="cd-users-head", h=0.30)
+    S.label(slide, LEFT, by + 0.32, lw2, C.USERS, 13.5, colour=INK2,
+            h=0.70, name="cd-users")
 
-    top2 = top + 1.44
-    panel(slide, rx, top2, rw, 0.92, name="cd-bench-b")
-    tbx = box(slide, rx + 0.18, top2 + 0.13, rw - 0.34, 0.66,
-              name="cd-bench-bt")
-    tf3 = tbx.text_frame
-    label, counts, f1 = C.BENCHMARK["expanded"]
-    p = para(tf3, True, space_after=5)
-    run(p, label, T_LABEL, bold=True, colour=INK)
-    _bullet(p, "none")
-    p = para(tf3, False, space_after=0)
-    run(p, f"{counts}   ", T_LABEL, colour=INK2)
-    run(p, f1, T_LABEL, bold=True, colour=ACCENT)
-    _bullet(p, "none")
+    S.label(slide, LEFT, by + 1.06, lw2, "What changes for them", 17,
+            bold=True, colour=ACCENT, name="cd-changes-head", h=0.30)
+    cb = box(slide, LEFT, by + 1.40, lw2, 1.50, name="cd-changes")
+    cf = cb.text_frame
+    for i, text in enumerate(C.CHANGES):
+        bullet(cf, text, first=(i == 0), size=13.5, after=6)
 
-    cb = box(slide, rx, top2 + 1.08, rw, 1.60, name="cd-bench-caveat")
-    p = para(cb.text_frame, True, space_after=0)
-    run(p, C.BENCHMARK["caveat"], T_CAPTION, italic=True, colour=MUTED)
-    _bullet(p, "none")
+    rx = 7.10
+    rw = RIGHT - rx
+    S.label(slide, rx, by, rw, "Measured on a labelled corpus", 17, bold=True,
+            colour=ACCENT, name="cd-bench-head", h=0.30)
+
+    S.chip(slide, rx, by + 0.36, rw, 0.86, "", None, fill=S.FILL,
+           name="cd-bench-box")
+    S.label(slide, rx + 0.18, by + 0.44, rw - 0.36,
+            "Like-for-like, same corpus, before → after", 11.5, bold=True,
+            colour=INK, name="cd-bench-label")
+    S.label(slide, rx + 0.18, by + 0.70, rw - 0.36,
+            "F1  0.941  →  0.983", 19, bold=True, colour=S.TEAL,
+            name="cd-bench-f1", h=0.34)
+    S.label(slide, rx + 2.90, by + 0.74, rw - 3.10,
+            "79/5/5  →  84 TP · 3 FP · 0 FN", 11, colour=S.MUTED,
+            name="cd-bench-counts")
+    S.label(slide, rx, by + 1.32, rw,
+            "An expanded synthetic corpus of 116 findings across six "
+            "scanners scores 1.000 — a separate, non-comparable experiment. "
+            "Both corpora were written by this project's developers and "
+            "measure those corpora only; real-world enterprise accuracy has "
+            "not been measured.", 10.5, colour=S.MUTED, italic=True, h=0.72,
+            name="cd-bench-caveat")
+
+    # Caption above, so the figure can sit hard against the footer margin.
+    S.label(slide, rx, by + 2.06, rw,
+            "Remediation programme — grouped by the replacement each asset "
+            "needs, which is how the work is staffed.", 10.5, colour=S.MUTED,
+            italic=True, h=0.26, name="cd-plan-caption")
+    shot = crop("03-migration-plan.png", (0.055, 0.300, 1.0, 0.560))
+    picture(slide, shot, rx, by + 2.36, rw)
 
 
 # ==========================================================================
 # Slide 6 -- research and references
+#
+# Mostly text, deliberately: this section's job is to be checkable. The one
+# visual earns its place by answering a question the list cannot -- which
+# standard governs which part of the product.
 # ==========================================================================
 
 def build_references(slide):
@@ -544,28 +582,42 @@ def build_references(slide):
 
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(5.10)
+    tb.width, tb.height = Inches(lw), Inches(4.10)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    for i, (group, entries) in enumerate([C.REFERENCES[0], C.REFERENCES[2]]):
+    for i, (group, entries) in enumerate([C.REFERENCES[0], C.REFERENCES[3]]):
         heading(tf, group, first=(i == 0), size=T_LABEL + 1)
         for e in entries:
             bullet(tf, e, size=T_CAPTION, after=4)
 
-    rb = box(slide, rx, TOP, rw, 5.10, name="cd-refs-right")
+    rb = box(slide, rx, TOP, rw, 4.10, name="cd-refs-right")
     rf = rb.text_frame
-    for i, (group, entries) in enumerate([C.REFERENCES[1], C.REFERENCES[3]]):
+    for i, (group, entries) in enumerate([C.REFERENCES[1], C.REFERENCES[2]]):
         heading(rf, group, first=(i == 0), size=T_LABEL + 1)
         for e in entries:
             bullet(rf, e, size=T_CAPTION, after=4)
 
-    nb = box(slide, LEFT, 6.28, WIDE, 0.56, name="cd-ref-note")
-    p = para(nb.text_frame, True, space_after=0)
-    run(p, "Scope of these references — ", T_CAPTION, bold=True, colour=INK)
-    run(p, C.REFERENCE_NOTE, T_CAPTION, colour=MUTED)
-    _bullet(p, "none")
+    # Which standard governs which part of the product.
+    my = 5.76
+    S.label(slide, LEFT, my - 0.26, WIDE,
+            "WHICH STANDARD GOVERNS WHICH PART OF THE PRODUCT", 10.5,
+            bold=True, colour=S.MUTED, name="cd-map-eyebrow")
+    mapping = [("FIPS 203 / 204 / 205", "the migration targets it names"),
+               ("NIST IR 8547", "how it classifies what is at risk"),
+               ("CycloneDX 1.6 / 1.7", "the CBOM it exports and validates"),
+               ("OCI image spec", "how it reads container layers"),
+               ("Mosca X + Y > Z", "how it scores exposure")]
+    mw = (WIDE - 0.14 * 4) / 5
+    for i, (std, does) in enumerate(mapping):
+        S.chip(slide, LEFT + i * (mw + 0.14), my, mw, 0.62, std, does,
+               title_size=11, sub_size=10.5, title_colour=S.NAVY,
+               accent_edge=S.ACCENT, name="cd-map")
+
+    S.label(slide, LEFT, my + 0.72, WIDE,
+            "Scope — " + C.REFERENCE_NOTE, 10.5, colour=S.MUTED, italic=True,
+            h=0.44, name="cd-ref-note")
 
 
 # ==========================================================================
