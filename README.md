@@ -985,7 +985,7 @@ Report/                     project report and design history
 | Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, vector text, verified** |
 | Demonstration video | [`submission/CryptoDrishti-SIH26164-Demo.mp4`](submission/) | assembled from real captures with narration |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
-| Presentation script, video script, Q&A | [`presenter/`](presenter/) | scripts only — **no video has been recorded** |
+| Presentation script, video documentation, Q&A | [`presenter/`](presenter/) | timed eight-minute live script, the video's scene list, and the figures that may be quoted |
 | Screenshots | [`submission/screenshots/`](submission/screenshots/) | genuine captures of the running console |
 | Requirements matrix and roadmap | [`docs/sih/`](docs/sih/) | tracked per milestone |
 

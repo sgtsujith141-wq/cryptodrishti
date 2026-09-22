@@ -314,7 +314,7 @@ its structural properties are asserted instead.
 | R10.8 | Limitations | `README.md` | **DONE** — now names obfuscated call sites, vendored trees, Mach-O/PE, SHA-1 certificates and the source-only CLI |
 | R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
 | R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
-| R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Rasterised at 240 dpi via macOS QuickLook, because no LibreOffice or PowerPoint is installed; `build/export_pdf.py` takes the vector route automatically once one is. |
+| R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Exported through LibreOffice, so the text is vector: 8,455 extractable characters. `build/export_pdf.py` falls back to a 240 dpi raster render only where no converter is installed, and records which route it took in the PDF's Producer metadata. |
 | R10.12 | Video script and shot list | `presenter/video.md` · `build/make_video.py` | **DONE** — narration and on-screen text live in the generator, so the script and the file cannot drift |
 | R10.13 | Demonstration video | `submission/CryptoDrishti-SIH26164-Demo.mp4` | **DONE** — 1920×1080 H.264/AAC, assembled from the real captures with synthesised narration. It is an assembled overview, not a screen recording, and says so in its own first frame. |
 | R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
@@ -349,7 +349,8 @@ them would double-count.
 `BLOCKED` meant exactly one thing: the work was finished except for a fact this
 repository did not hold and must not guess. The SIH portal details — problem
 statement title, theme, team ID `146876` and team name `Zero-Day` — were
-supplied afterwards, so that row is now DONE and the column is empty.
+supplied afterwards, so that row is now DONE and the column is empty. The demonstration
+video followed in the final polish pass, closing R10.13 as well.
 
 M7 produced the submission assets: the six-slide official deck, the
 architecture diagram as a standalone editable asset, a one-command reproducible
@@ -362,7 +363,9 @@ against the code: the rule packs cover eight languages with specific rules and
 not ten, the registry holds 74 algorithms and not 52, and the command-line entry
 point runs the source sensor only — which the README had not said. Two
 submission items remain open and are recorded as such: the six-page PDF is
-blocked on portal fields, and no video has been recorded.
+blocked on portal fields, and no video had been recorded. Both were closed
+afterwards: the portal details arrived, and the final polish pass generated
+the demonstration video from the real captures.
 
 M6 measured detection accuracy for the first time. The benchmark found seven
 detector defects that reading the code had not — four false negatives from one
