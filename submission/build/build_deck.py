@@ -535,16 +535,27 @@ def build_impact(slide) -> None:
         ("A partial scan is labelled partial, so nobody signs off an estate "
          "on an inventory that silently missed half of it.", "bullet"),
 
-        ("Measured evidence", "head"),
-        (("Over the project's own labelled corpus of 116 findings: ",
-          "precision 1.000, recall 1.000, F1 1.000, with cryptographic "
-          "purpose correct on 114 of 114 scored cases."), "body"),
+        ("Measured evidence — on a synthetic corpus, and only that", "head"),
+        (("Precision 1.000  ·  recall 1.000  ·  F1 1.000 ",
+          "over 116 hand-labelled findings across six scanners."), "body"),
+        (("Cryptographic purpose correct on 114 of 114 ",
+          "scored cases; assurance on 116 of 116."), "body"),
         ("Read that precisely. These figures measure a developer-written "
-         "synthetic corpus. They are NOT an estimate of real-world enterprise "
-         "accuracy, which this project has not measured and does not claim. "
-         "Network-sensor accuracy is excluded, because what a TLS handshake "
-         "negotiates depends on the local library build.", "note"),
+         "corpus this project wrote. They are NOT an estimate of real-world "
+         "enterprise accuracy, which has not been measured and is not "
+         "claimed. Network-sensor accuracy is excluded entirely, because what "
+         "a TLS handshake negotiates depends on the local library build.",
+         "note"),
     ], size=11, gap=3)
+
+    note(slide, LEFT, 5.74, 6.05, 1.08, [
+        ("Why it matters", "head"),
+        ("The inventory is the gate every other migration step waits behind. "
+         "Standardised algorithms do not help an estate that cannot say where "
+         "its cryptography is. This produces that list, with the evidence "
+         "attached, on a machine that never has to leave the building.",
+         "body"),
+    ], size=10.5, gap=2)
 
     shot(slide, "01-assessment.png", 6.72, 1.26, width=6.16,
          caption="The whole estate in one screen — with the partial-scan "
@@ -592,6 +603,13 @@ def build_references(slide) -> None:
          "and the architecture diagram's editable source.", "bullet"),
         ("Problem statement SIH26164, National Technical Research "
          "Organisation (NTRO).", "bullet"),
+
+        ("Where this has not been checked", "head"),
+        ("The classifications follow NIST IR 8547 and the CycloneDX "
+         "specification as we read them; they have not been reviewed by an "
+         "external cryptographer. The vendored schemas are checksummed and "
+         "pinned, and CI fails if they drift — but they are a snapshot of an "
+         "upstream that moves.", "body"),
     ], size=10.5, gap=2)
 
     below = shot(slide, "05-cbom-export.png", 6.95, 1.26, width=5.93,
