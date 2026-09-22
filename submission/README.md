@@ -9,8 +9,10 @@ code it describes.
 | Official template (unmodified) | `template/SIH2026-IDEA-Presentation-Format.pptx` | 7 slides, as supplied |
 | Idea presentation | `CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **6 slides, QA-clean** |
 | Final submission PDF | `CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **6 pages, vector text, 13.333 × 7.50 in** |
-| Demonstration video | `CryptoDrishti-SIH26164-Demo.mp4` | **1920×1080, H.264 / AAC, narrated** |
+| Demonstration film, full | `video/CryptoDrishti-Final-Demo.mp4` | **1920×1080 H.264/AAC, ~3:55, with SRT** |
+| Demonstration film, short | `video/CryptoDrishti-Short-Demo.mp4` | **1920×1080 H.264/AAC, ~1:19, with SRT** |
 | Screenshots | `screenshots/*.png` | 7 dark-theme captures of the running console |
+| Diagram panels | `build/generated/*.png` | custom panels, rendered from HTML |
 
 ### Build scripts
 
@@ -20,7 +22,10 @@ code it describes.
 | `build/build_deck.py` | fills the official template |
 | `build/check_deck.py` | text, geometry and completeness QA |
 | `build/export_pdf.py` | PDF — LibreOffice if present, else macOS QuickLook |
-| `build/make_video.py` | assembles the demonstration video |
+| `build/design.py` | the shared design system: palette, type stack, base CSS |
+| `build/render_panels.py` | the deck's custom diagram panels, HTML → PNG |
+| `build/film_scenes.py` | film scene definitions, narration and captions |
+| `build/make_film.py` | renders both cuts of the film, plus SRT |
 
 ## Registration details
 
@@ -51,8 +56,12 @@ python submission/build/capture_screens.py --port 8140  # dark-theme captures
 python docs/architecture/render.py                      # diagram, light + dark
 python submission/build/build_deck.py                   # fill the template
 python submission/build/check_deck.py                   # QA gate
+python docs/architecture/render.py                      # diagram, light + dark
+python submission/build/render_panels.py                # custom deck panels
+python submission/build/build_deck.py                   # fill the template
+python submission/build/check_deck.py                   # QA gate
 python submission/build/export_pdf.py                   # six-page PDF
-python submission/build/make_video.py                   # demonstration video
+python submission/build/make_film.py                    # both film cuts + SRT
 ```
 
 `check_deck.py` exits non-zero if any shape leaves the canvas, collides with
@@ -61,22 +70,48 @@ loudly rather than shipping.
 
 ## What the deck contains
 
-Exactly six slides, each answering one question:
+Exactly six slides. Each carries **one central argument supported by three to
+five substantive elements** — an explanation, technical detail, evidence, and a
+conclusion where one is warranted. The deck is built to be read as a static
+PDF, with no presenter, so nothing important is left to be said out loud.
 
-| # | Slide | Answers | Visual |
+| # | Slide | Central argument | Supporting elements |
 |---|---|---|---|
-| 1 | Title | What is this, and who are we? | — |
-| 2 | Proposed Solution | What problem, and why is this different? | inventory — three RSA findings, three answers |
-| 3 | Technical Approach | How does it work? | architecture diagram |
-| 4 | Feasibility and Viability | Is it built, validated, and realistic? | evidence drawer |
-| 5 | Impact and Benefits | Who benefits, and what is the evidence? | assessment |
-| 6 | Research and References | What standards back it? | CBOM export, remediation plan |
+| 1 | Title | What this is and who built it | product name, one-line description, the six portal fields |
+| 2 | Proposed Solution | An inventory has to come before a migration | the problem, what the tool is, five capabilities, the differentiator, the implemented pipeline |
+| 3 | Technical Approach | Detection is not understanding | system architecture, verified technology stack, the three-RSA comparison, security design |
+| 4 | Feasibility | This is a working prototype, not a proposal | implemented capabilities, validation evidence, a real cropped screenshot, feasibility and limits |
+| 5 | Impact | The output drives a real migration workflow | five workflow stages, intended users, both benchmark corpora with their caveat |
+| 6 | References | The standards the work is built against | four grouped reference sets, plus a scope note |
+
+**Content came first.** Every sentence lives in
+[`build/deck_content.py`](build/deck_content.py), which was written and
+fact-checked against the repository before any layout existed; the builder only
+arranges it. The module's docstring lists the file each technical claim was
+verified against.
+
+### Readability
+
+The template's light background is preserved. Product screenshots are dark,
+but they are cropped tight and used only where they carry information a
+sentence cannot — no slide is turned into a dark rectangle, and no explanation
+is buried inside an image. **Every explanation is a real PowerPoint text run**,
+editable in the deck and selectable in the PDF.
+
+| Role | Size |
+|---|---|
+| Slide title | template's own, 28–36pt |
+| Section heading inside a slide | 21pt |
+| Main explanation | 18pt |
+| Labelled list row / secondary label | 15–16pt |
+| Caption, reference entry, figure label | 13pt |
+
+Nothing a judge must read falls below 13pt. The only smaller text is the
+template's own furniture — the team-name oval at 11pt and the footer at 12pt.
 
 The template ships a seventh slide, headed *IMPORTANT INSTRUCTIONS*, whose own
 text says to keep the deck to six slides including the title. The build removes
-it; that is following the template, not departing from it. Everything else the
-template supplies — backgrounds, branding, section titles, footer, slide
-numbering, the team-name oval — is left exactly as supplied.
+it; that is following the template, not departing from it.
 
 ## Images
 
@@ -102,18 +137,38 @@ but rasterised; it prints which route it took and records it in the PDF's
 Producer metadata, so there is never any doubt about which one produced a given
 file.
 
-## About the video
+## About the film
 
-`CryptoDrishti-SIH26164-Demo.mp4` is an **assembled product overview**, not a
-screen recording. Every visual is a still capture of the running application,
-or the architecture diagram, given slow motion and cut together with narration
-synthesised by macOS `say`. No cursor is animated, no interaction is simulated,
-and nothing appears on screen that the tool did not produce. Nobody was filmed
-and no microphone was used.
+Two cuts, both from `build/make_film.py`, both 1920×1080 H.264/AAC with an SRT
+beside them. They are **assembled product films, not screen recordings**: real
+captures of the running tool are intercut with motion-designed scenes built
+from real scan output. No cursor is animated, no interaction is simulated, and
+no value appears on screen that the application did not produce.
 
-The narration script and on-screen text live in `build/make_video.py`, in the
-`scenes()` function — that is the one place to edit them.
+Scenes are authored as HTML and driven by a deterministic `seek(t)`, so a
+render is reproducible frame for frame. Narration is generated locally with
+macOS `say` and loudness-normalised; the film is designed **caption-first** and
+works with the sound off.
 
-`presenter/video.md` documents the scene list and the rules the narration
-follows. `presenter/script.md` is the separate timed eight-minute script for
-presenting live, if that is wanted instead.
+### Portal constraints — stated as an assumption
+
+The SIH portal's duration and file-size limits for a demonstration video were
+**not available to check** while these were produced, so nothing here claims to
+meet a verified limit. Both cuts were made to be safe against the usual shapes
+of such a rule:
+
+* the **full cut** sits inside a 4-minute ceiling;
+* the **short cut** sits inside 90 seconds, for a portal with a stricter limit
+  or a reviewer who wants the argument quickly;
+* both are H.264/AAC in MP4 at 1920×1080 — the most broadly accepted
+  combination — and both are well under 100 MB.
+
+Bitrate was chosen for legible interface text rather than for the smallest
+file. If the portal turns out to impose a tighter size limit, re-encode from
+the same source rather than downscaling: `make_film.py` re-renders either cut
+from scratch, and raising `-crf` is preferable to reducing resolution, because
+the deck's value is in text that has to stay readable.
+
+`presenter/video.md` documents the concept, the acts and the rules the
+narration follows. `presenter/script.md` is the separate timed script for
+presenting live.

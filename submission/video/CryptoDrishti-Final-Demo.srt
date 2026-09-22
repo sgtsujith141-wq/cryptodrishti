@@ -1,0 +1,123 @@
+1
+00:00:00,550 --> 00:00:05,182
+Every organisation runs cryptography it cannot fully see. A call inside a payments service.
+
+2
+00:00:05,182 --> 00:00:09,814
+A version pin in a dependency file. A cipher list in an nginx config nobody has opened in years.
+
+3
+00:00:09,814 --> 00:00:14,446
+The signature algorithm on a certificate.
+
+4
+00:00:14,446 --> 00:00:19,078
+A private key baked into a container image that shipped months ago.
+
+5
+00:00:19,078 --> 00:00:23,710
+Six kinds of artefact — and no two describe cryptography the same way.
+
+6
+00:00:25,560 --> 00:00:30,652
+CryptoDrishti reads all of it, and turns it into one inventory you can defend.
+
+7
+00:00:33,660 --> 00:00:42,644
+Seven sensors: source, dependencies, binaries, certificates, configuration, containers, and one live TLS endpoint the operator names.
+
+8
+00:00:42,644 --> 00:00:51,628
+Every hit becomes one distinct cryptographic asset — and purpose and assurance are part of that asset's identity.
+
+9
+00:00:53,478 --> 00:00:57,957
+A real scan of the demonstration estate. 23 distinct assets.
+
+10
+00:00:57,957 --> 00:01:02,437
+16 of them do not survive a quantum computer.
+
+11
+00:01:02,437 --> 00:01:06,916
+And the scan states its own completeness at the top, before a single finding.
+
+12
+00:01:10,078 --> 00:01:18,208
+That one scan found five RSA findings.
+
+13
+00:01:18,208 --> 00:01:26,339
+The first is a signing call — RSA-PSS padding — so the target is ML-DSA-65.
+
+14
+00:01:26,339 --> 00:01:34,469
+The second is RSA-OAEP wrapping a key: that is key establishment, and the target is a hybrid key exchange.
+
+15
+00:01:34,469 --> 00:01:42,599
+A completely different migration.
+
+16
+00:01:42,599 --> 00:01:50,730
+The third is a cipher list that permits RSA without ever saying what for — so the tool names no target at all.
+
+17
+00:01:50,730 --> 00:01:58,860
+Knowing the algorithm is not enough. Purpose decides the migration.
+
+18
+00:02:00,710 --> 00:02:06,526
+Every finding carries the chain that produced it. The call site. The symbol matched.
+
+19
+00:02:06,526 --> 00:02:12,342
+The technique — an AST analysis, not a keyword guess. The confidence.
+
+20
+00:02:12,342 --> 00:02:18,158
+How strong the evidence is that the key is really used. What a quantum computer does to it.
+
+21
+00:02:18,158 --> 00:02:23,975
+The resolved purpose. The exposure arithmetic. And only at the end, a target.
+
+22
+00:02:25,825 --> 00:02:35,064
+That whole chain is in the product, on one screen, for every finding — including which inputs a human set by hand, and which are still defaults.
+
+23
+00:02:40,425 --> 00:02:50,609
+It is just as careful about what it did not see.
+
+24
+00:02:50,609 --> 00:03:00,794
+A container image is replayed layer by layer, so a key written in one layer and deleted in the next is reported as historical: gone at runtime, still extractable from the archive.
+
+25
+00:03:00,794 --> 00:03:10,979
+And when the destination policy refused an endpoint, the scan is marked PARTIAL — and says which one, and why.
+
+26
+00:03:12,829 --> 00:03:18,749
+The output is not a bespoke report.
+
+27
+00:03:18,749 --> 00:03:24,670
+It is a CycloneDX cryptographic bill of materials — the published standard — carrying the asset type, the primitive, the resolved purpose and the evidence occurrence for every finding.
+
+28
+00:03:24,670 --> 00:03:30,590
+Validated offline against the official JSON Schema, vendored at a pinned commit.
+
+29
+00:03:30,590 --> 00:03:36,510
+CI fails the build on a violation.
+
+30
+00:03:39,429 --> 00:03:46,381
+Scattered evidence becomes one explainable inventory, a risk assessment you can argue with, and a migration decision you can defend.
+
+31
+00:03:46,381 --> 00:03:53,334
+CryptoDrishti · Team Zero-Day · SIH26164

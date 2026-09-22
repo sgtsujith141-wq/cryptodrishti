@@ -54,7 +54,21 @@ def box(shape):
             Emu(shape.top + shape.height).inches)
 
 
+def contains(outer, inner) -> bool:
+    """Is `inner` wholly inside `outer`? Then it is deliberate layering."""
+    return (outer[0] <= inner[0] + 0.02 and outer[1] <= inner[1] + 0.02
+            and outer[2] >= inner[2] - 0.02 and outer[3] >= inner[3] - 0.02)
+
+
 def overlaps(a, b) -> bool:
+    """A genuine collision: the boxes intersect but neither contains the other.
+
+    Text drawn inside its own panel is intersection by design, and flagging it
+    buries the overlaps that are real -- which is exactly what happened on the
+    first build of the rebuilt deck.
+    """
+    if contains(a, b) or contains(b, a):
+        return False
     return not (a[2] <= b[0] + 0.02 or b[2] <= a[0] + 0.02
                 or a[3] <= b[1] + 0.02 or b[3] <= a[1] + 0.02)
 

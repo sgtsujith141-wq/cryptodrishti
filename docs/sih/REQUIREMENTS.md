@@ -305,6 +305,8 @@ its structural properties are asserted instead.
 | ID | Requirement | Implementation | State |
 |---|---|---|---|
 | R10.1 | README | `README.md` | **DONE** — rewritten at M7: demo quickstart, benchmark reproduction, real diagram, current screenshots, submission-asset index |
+| R10.15 | Submission design system | `submission/build/DESIGN.md` · `design.py` | **DONE** — palette and type stack taken from the product's own dark theme; sans carries argument, mono carries evidence |
+| R10.16 | Custom diagram panels | `submission/build/render_panels.py` | **DONE** — authored in HTML, rendered through headless Chromium; every value in them comes from a `run.py --demo` scan |
 | R10.2 | Architecture diagram | `docs/architecture/` | **DONE** — editable `.mmd` source plus SVG and PNG exports; shows container archive processing and distinguishes the TLS probe from offline scanning; no cloud, KMS, HSM or registry box, because none is implemented |
 | R10.3 | Install / run instructions | `README.md` | **DONE** |
 | R10.4 | Test instructions | `README.md` | **DONE** — 664 tests |
@@ -315,8 +317,8 @@ its structural properties are asserted instead.
 | R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
 | R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
 | R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Exported through LibreOffice, so the text is vector: 8,455 extractable characters. `build/export_pdf.py` falls back to a 240 dpi raster render only where no converter is installed, and records which route it took in the PDF's Producer metadata. |
-| R10.12 | Video script and shot list | `presenter/video.md` · `build/make_video.py` | **DONE** — narration and on-screen text live in the generator, so the script and the file cannot drift |
-| R10.13 | Demonstration video | `submission/CryptoDrishti-SIH26164-Demo.mp4` | **DONE** — 1920×1080 H.264/AAC, assembled from the real captures with synthesised narration. It is an assembled overview, not a screen recording, and says so in its own first frame. |
+| R10.12 | Film concept, script and captions | `presenter/video.md` · `build/film_scenes.py` | **DONE** — narration, captions and scene choreography all live in the generator, so the script and the rendered file cannot drift |
+| R10.13 | Demonstration film | `submission/video/` | **DONE** — two cuts, ~3:55 and ~1:19, 1920×1080 H.264/AAC with SRT. Motion-designed scenes built from real scan output, intercut with real dark-theme captures. Assembled films, not screen recordings. |
 | R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
 
 

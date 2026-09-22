@@ -983,9 +983,11 @@ Report/                     project report and design history
 |---|---|---|
 | Six-slide idea presentation | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/) | built from the official template, QA-clean |
 | Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, vector text, verified** |
-| Demonstration video | [`submission/CryptoDrishti-SIH26164-Demo.mp4`](submission/) | assembled from real captures with narration |
+| Demonstration film, full | [`submission/video/`](submission/video/) | ~3:55, 1920×1080 H.264/AAC, with SRT captions |
+| Demonstration film, short | [`submission/video/`](submission/video/) | ~1:19, re-edited rather than trimmed |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
-| Presentation script, video documentation, Q&A | [`presenter/`](presenter/) | timed eight-minute live script, the video's scene list, and the figures that may be quoted |
+| Presentation script, film documentation, Q&A | [`presenter/`](presenter/) | timed eight-minute live script, the film's concept and acts, and the figures that may be quoted |
+| Design system and sources | [`submission/build/`](submission/build/) | `design.py` · `render_panels.py` · `film_scenes.py` · `make_film.py` |
 | Screenshots | [`submission/screenshots/`](submission/screenshots/) | genuine captures of the running console |
 | Requirements matrix and roadmap | [`docs/sih/`](docs/sih/) | tracked per milestone |
 

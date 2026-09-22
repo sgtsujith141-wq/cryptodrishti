@@ -394,7 +394,30 @@ third-party clones under `demo/targets/`.
   the voice — each scene's length is measured from its own audio — and no
   cursor, interaction or output is simulated. Its own first frame says so.
 
-**The final optimisation pass also.**
+**The creative rebuild (final pass).** The deck and the film were rebuilt
+rather than polished, because the problem with both was conceptual rather than
+cosmetic: the deck was a script filling content areas with paragraphs, and the
+film was a slideshow of screenshots with a slow zoom. Neither had an idea.
+
+Both now carry one — *fragmented evidence becomes one explainable inventory* —
+and the centre of gravity in each is the moment that becomes concrete: the same
+RSA algorithm resolving to three different migration decisions, including one
+where the tool refuses to name a target at all.
+
+- A documented design system (`submission/build/DESIGN.md`) with the palette
+  and type stack taken from the product's own dark theme. The load-bearing rule
+  is that sans carries argument and mono carries evidence, so a reader can
+  always tell which words came out of the tool.
+- Three custom diagram panels authored in HTML and rendered through headless
+  Chromium, replacing paragraphs on slides 2, 3 and 5. Slide text fell from
+  about 9,100 characters to 4,190.
+- The benchmark is presented as two corpora that are explicitly not comparable,
+  with 1.000 as one cell in a table rather than a headline.
+- The film was rewritten from zero as ten motion-designed scenes driven by a
+  deterministic `seek(t)`, and cut twice — a full version and a genuinely
+  re-edited short one, not a trim.
+
+**The earlier optimisation pass also.**
 
 - Re-captured all seven screenshots in the console's **dark theme**, through a
   committed script (`submission/build/capture_screens.py`) that forces

@@ -1,0 +1,43 @@
+1
+00:00:00,550 --> 00:00:04,896
+Cryptography hides in source, dependencies, configuration, certificates and container images.
+
+2
+00:00:04,896 --> 00:00:09,242
+CryptoDrishti finds all of it — and turns it into one inventory you can defend.
+
+3
+00:00:11,092 --> 00:00:20,949
+One scan: 23 distinct assets, 16 quantum-vulnerable — and the scan's own completeness stated up front.
+
+4
+00:00:23,192 --> 00:00:27,830
+Five RSA findings in one scan. A signing call goes to ML-DSA-65.
+
+5
+00:00:27,830 --> 00:00:32,468
+RSA wrapping a key is key establishment — a hybrid key exchange, a completely different migration.
+
+6
+00:00:32,468 --> 00:00:37,106
+And a cipher list that never says what RSA is for gets no target at all.
+
+7
+00:00:37,106 --> 00:00:41,744
+Purpose decides the migration.
+
+8
+00:00:43,594 --> 00:00:48,005
+A key deleted by a later container layer is still reported — it is still extractable.
+
+9
+00:00:48,005 --> 00:00:52,416
+And a refused endpoint makes the scan PARTIAL, and it says why.
+
+10
+00:00:55,694 --> 00:01:02,960
+The output is a CycloneDX bill of materials, validated offline against the official JSON Schema.
+
+11
+00:01:07,794 --> 00:01:13,293
+CryptoDrishti · Team Zero-Day · SIH26164
