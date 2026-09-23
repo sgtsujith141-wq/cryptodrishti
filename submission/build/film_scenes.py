@@ -21,6 +21,34 @@ import design as D  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 SHOTS = ROOT / "submission" / "screenshots"
 
+def embed(path: Path, box: tuple[float, float, float, float] | None = None,
+          max_w: int = 1600) -> str:
+    """Inline an image as a data URI, optionally cropped by fractions.
+
+    `page.set_content()` gives the document an `about:blank` base URL, and
+    Chromium refuses to load `file://` subresources into such a page. Every
+    screenshot in earlier cuts of this film therefore failed silently and
+    rendered as an empty dark panel -- the film shipped with no product
+    footage in it at all. Inlining the bytes removes the possibility.
+    """
+    import base64
+    import io
+
+    from PIL import Image
+
+    im = Image.open(path).convert("RGB")
+    if box:
+        l, t, r, b = box
+        im = im.crop((int(im.width * l), int(im.height * t),
+                      int(im.width * r), int(im.height * b)))
+    if im.width > max_w:
+        im = im.resize((max_w, round(im.height * max_w / im.width)),
+                       Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
 # --------------------------------------------------------------------------
 # Verified evidence
 # --------------------------------------------------------------------------
@@ -75,7 +103,7 @@ def _frag_positions():
 def sc_open():
     frags = []
     for i, ((where, code), (x, y)) in enumerate(zip(FRAGMENTS, _frag_positions())):
-        t = 900 + i * 520
+        t = 120 + i * 560
         frags.append(f"""
         <div class="frag" style="left:{x}%; top:{y}%" data-in="{t}" data-dur="620" data-y="10">
           <div class="fc mono">{code}</div>
@@ -90,7 +118,7 @@ def sc_open():
              color:{D.INK}; font-weight:600; max-width:62%; line-height:1.34; }}
     """
     body = f"""<div class="stage">{''.join(frags)}
-      <div class="line" data-in="5100" data-dur="900" data-y="14">
+      <div class="line" data-in="4900" data-dur="900" data-y="14">
         Cryptography is not in one place.<br>It is in all of them.</div>
     </div>"""
     return body, css, 7000
@@ -143,12 +171,18 @@ def sc_structure():
 
 def sc_dashboard():
     css = f"""
-    .cap {{ position:absolute; left:6%; top:8%; opacity:0; }}
-    .cap h2 {{ font-size:40px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .cap p {{ font-size:23px; color:{D.INK3}; margin:12px 0 0; }}
-    .shot {{ position:absolute; left:6%; right:6%; top:26%; opacity:0;
-             border:1px solid {D.RULE}; border-radius:4px; overflow:hidden; }}
-    .shot img {{ width:100%; display:block; }}
+    .cap {{ position:absolute; left:5%; top:6.5%; opacity:0; }}
+    .cap h2 {{ font-size:38px; margin:0; font-weight:700; letter-spacing:-.02em; }}
+    .cap p {{ font-size:21px; color:{D.INK3}; margin:10px 0 0; }}
+    /* The screenshot is the subject: it is fitted inside the frame rather
+       than scaled to full width, which previously pushed most of it below
+       the bottom edge where it read as an empty dark panel. */
+    .shot {{ position:absolute; left:5%; right:5%; top:23%; bottom:6%;
+             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
+             overflow:hidden; background:{D.SURF};
+             display:flex; align-items:center; justify-content:center; }}
+    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
+                 display:block; }}
     """
     body = f"""
     <div class="cap" data-in="120" data-dur="700" data-y="12">
@@ -156,7 +190,7 @@ def sc_dashboard():
       <p>23 distinct assets · 16 quantum-vulnerable · the scan's own
          completeness stated at the top</p></div>
     <div class="shot" data-in="700" data-dur="900" data-y="20" data-scale="1.03">
-      <img src="{(SHOTS / '01-assessment.png').as_uri()}"></div>"""
+      <img src="{embed(SHOTS / '01-assessment.png', (0.055, 0.03, 1.0, 0.92))}"></div>"""
     return body, css, 4200
 
 
@@ -249,12 +283,15 @@ def sc_chain():
 
 def sc_drawer():
     css = f"""
-    .cap {{ position:absolute; left:6%; top:9%; opacity:0; width:38%; }}
-    .cap h2 {{ font-size:38px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .cap p {{ font-size:21px; color:{D.INK3}; margin:16px 0 0; line-height:1.55; }}
-    .shot {{ position:absolute; right:6%; top:6%; height:88%; opacity:0;
-             border:1px solid {D.RULE}; border-radius:4px; overflow:hidden; }}
-    .shot img {{ height:100%; display:block; }}
+    .cap {{ position:absolute; left:5%; top:10%; opacity:0; width:33%; }}
+    .cap h2 {{ font-size:36px; margin:0; font-weight:700; letter-spacing:-.02em; }}
+    .cap p {{ font-size:20px; color:{D.INK3}; margin:16px 0 0; line-height:1.55; }}
+    .shot {{ position:absolute; left:41%; right:5%; top:6%; bottom:6%;
+             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
+             overflow:hidden; background:{D.SURF};
+             display:flex; align-items:center; justify-content:center; }}
+    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
+                 display:block; }}
     """
     body = f"""
     <div class="cap" data-in="200" data-dur="760" data-y="12">
@@ -263,7 +300,7 @@ def sc_drawer():
          behind it and the arithmetic behind its score — including which
          inputs a human set by hand.</p></div>
     <div class="shot" data-in="500" data-dur="900" data-y="16" data-scale="1.02">
-      <img src="{(SHOTS / '07-evidence-drawer.png').as_uri()}"></div>"""
+      <img src="{embed(SHOTS / '07-evidence-drawer.png', (0.0, 0.0, 1.0, 0.56), 900)}"></div>"""
     return body, css, 5000
 
 
@@ -313,10 +350,10 @@ def sc_cbom():
         <span class="k mono">{k}</span><span class="v mono">{v}</span></div>"""
                    for i, (k, v) in enumerate(fields))
     css = f"""
-    .hd {{ position:absolute; left:6%; top:9%; opacity:0; width:44%; }}
+    .hd {{ position:absolute; left:6%; top:9%; opacity:0; width:42%; }}
     .hd h2 {{ font-size:40px; margin:0; font-weight:700; letter-spacing:-.02em; }}
     .hd p {{ font-size:21px; color:{D.INK3}; margin:14px 0 0; line-height:1.55; }}
-    .fl {{ position:absolute; left:6%; top:38%; width:44%; }}
+    .fl {{ position:absolute; left:6%; top:38%; width:42%; }}
     .f {{ opacity:0; display:flex; justify-content:space-between; gap:20px;
           padding:12px 0; border-top:1px solid {D.RULE}; }}
     .k {{ font-size:19px; color:{D.INK3}; }}
@@ -327,9 +364,12 @@ def sc_cbom():
              padding:15px 22px; background:rgba(63,174,134,.08); }}
     .pass .d {{ width:11px; height:11px; border-radius:50%; background:{D.SAFE}; }}
     .pass .t {{ font-size:23px; color:{D.SAFE}; font-weight:600; }}
-    .shot {{ position:absolute; right:5%; top:20%; width:44%; opacity:0;
-             border:1px solid {D.RULE}; border-radius:4px; overflow:hidden; }}
-    .shot img {{ width:100%; display:block; }}
+    .shot {{ position:absolute; right:4%; left:53%; top:24%; height:36%;
+             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
+             overflow:hidden; background:{D.SURF};
+             display:flex; align-items:center; justify-content:center; }}
+    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
+                 display:block; }}
     """
     body = f"""
     <div class="hd" data-in="60" data-dur="640" data-y="12">
@@ -341,7 +381,7 @@ def sc_cbom():
       <span class="d"></span><span class="t">Validated against the official
       CycloneDX JSON Schema — offline, at a pinned commit</span></div>
     <div class="shot" data-in="1400" data-dur="800" data-y="14" data-scale="1.02">
-      <img src="{(SHOTS / '05-cbom-export.png').as_uri()}"></div>"""
+      <img src="{embed(SHOTS / '05-cbom-export.png', (0.055, 0.27, 1.0, 0.76))}"></div>"""
     return body, css, 5400
 
 

@@ -39,16 +39,74 @@ def decodes(path: Path) -> tuple[bool, str]:
     return r.returncode == 0 and not r.stderr.strip(), r.stderr.strip()[:300]
 
 
-def black_runs(path: Path) -> list[tuple[float, float]]:
-    """Dark stretches. Scene joins dip for ~0.3s; anything longer is a fault."""
-    r = subprocess.run(
-        ["ffmpeg", "-v", "info", "-i", str(path),
-         "-vf", "blackdetect=d=0.5:pix_th=0.10", "-f", "null", "-"],
-        capture_output=True, text=True)
-    runs = []
-    for m in re.finditer(r"black_start:([\d.]+) black_end:([\d.]+)", r.stderr):
-        runs.append((float(m.group(1)), float(m.group(2))))
-    return runs
+def _content(im):
+    """(peak luma, lit ratio, bounding-box area as a fraction of the frame)."""
+    small = im.resize((480, 270))
+    px = list(small.getdata())
+    peak = max(px)
+    lit = sum(1 for v in px if v > 70) / len(px)
+    box = small.point(lambda v: 255 if v > 70 else 0).getbbox()
+    area = 0.0
+    if box:
+        area = ((box[2] - box[0]) * (box[3] - box[1])) / (480 * 270)
+    return peak, lit, area
+
+
+def empty_frames(path: Path, samples: int = 40) -> list[str]:
+    """Frames with nothing visible on them.
+
+    `blackdetect` is the wrong tool here. This film is deliberately near-black
+    (#0E0F11, luma ~16/255), so a frame of crisp white text on that background
+    is over 98% "black" by its threshold and gets flagged. Running it produced
+    three false failures on a film whose frames each carried a heading, a
+    subheading and a table.
+
+    So the test is content-aware instead: sample frames across the runtime and
+    ask whether anything is actually drawn -- a bright peak and a plausible
+    number of lit pixels. Only the deliberate dips between scenes should come
+    back empty, and those are under half a second.
+    """
+    import io
+    import subprocess as sp
+
+    from PIL import Image
+
+    out = sp.run(["ffprobe", "-v", "error", "-show_entries",
+                  "format=duration", "-of", "csv=p=0", str(path)],
+                 capture_output=True, text=True, check=True)
+    dur = float(out.stdout.strip())
+    empty = []
+    for i in range(samples):
+        t = dur * (i + 0.5) / samples
+        raw = sp.run(["ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-i",
+                      str(path), "-frames:v", "1", "-f", "image2pipe",
+                      "-vcodec", "png", "-"],
+                     capture_output=True, check=True).stdout
+        if not raw:
+            empty.append(f"{t:.1f}s (no frame decoded)")
+            continue
+        im = Image.open(io.BytesIO(raw)).convert("L")
+        peak, lit, area = _content(im)
+        # A sparse frame is not an empty one. The opening deliberately holds a
+        # single line of evidence on a wide dark field, which is only 0.06% of
+        # the pixels -- a ratio test calls that empty. What actually matters is
+        # whether anything is drawn, so measure the bounding box of the lit
+        # pixels instead.
+        if peak < 90 or area < 0.004:
+            # Scenes dip through black for ~0.3s at each join, so a single
+            # dark sample is a transition, not a dead scene. Only flag it if
+            # the frame half a second later is dark too.
+            follow = sp.run(["ffmpeg", "-v", "error", "-ss", f"{t + 0.6:.2f}",
+                             "-i", str(path), "-frames:v", "1", "-f",
+                             "image2pipe", "-vcodec", "png", "-"],
+                            capture_output=True).stdout
+            if follow:
+                fpeak, _flit, farea = _content(
+                    Image.open(io.BytesIO(follow)).convert("L"))
+                if fpeak >= 90 and farea >= 0.004:
+                    continue        # a transition, which is by design
+            empty.append(f"{t:.1f}s (peak {peak}, content area {area * 100:.2f}%)")
+    return empty
 
 
 def levels(path: Path) -> tuple[float, float]:
@@ -114,10 +172,11 @@ def main() -> int:
         print(f"  [{'ok' if dims_ok else 'FAIL'}] 1920x1080")
         bad += 0 if dims_ok else 1
 
-        runs = [r for r in black_runs(mp4) if r[1] - r[0] > 0.9]
-        print(f"  [{'ok' if not runs else 'FAIL'}] no black run over 0.9s"
-              + ("" if not runs else f" -- {runs[:3]}"))
-        bad += 0 if not runs else 1
+        empty = empty_frames(mp4)
+        print(f"  [{'ok' if not empty else 'FAIL'}] every sampled frame has "
+              f"visible content" + ("" if not empty
+                                    else f" -- {empty[:3]}"))
+        bad += 0 if not empty else 1
 
         if a:
             peak, mean = levels(mp4)

@@ -51,18 +51,31 @@ intermediate images are written.
 Choreography is mapped onto scene length rather than truncated, which is how
 the short cut re-times the same scenes instead of cutting them off mid-reveal.
 
-## Narration and captions
-
-Narration is generated locally with macOS `say` (voice **Rishi**, en-IN),
-loudness-normalised to -18 LUFS with a -2 dBTP ceiling. Technical terms are
-spelled phonetically for the synthesiser only.
+## Narration and captions — and one thing I could not check
 
 **The film is designed caption-first.** Every scene carries its argument in
-typeset on-screen text and works with the sound off. Captions are written
-separately from the narration — `cap` versus `say` in `film_scenes.py` — so a
-viewer reads *CryptoDrishti*, *RSA* and *ML-DSA-65* while the synthesiser is
-given *Crypto Drishti*, *R S A* and *M L D S A sixty five*. An SRT is written
-beside each cut.
+typeset on-screen text and is meant to work with the sound off. An SRT sits
+beside each cut, and captions are written separately from the narration
+(`cap` versus `say` in `film_scenes.py`) so a viewer reads *CryptoDrishti*,
+*RSA* and *ML-DSA-65* while the synthesiser is handed *Crypto Drishti*,
+*R S A* and *M L D S A sixty five*.
+
+Narration is generated locally with macOS `say` (voice **Rishi**, en-IN),
+loudness-normalised to -18 LUFS with a -2 dBTP ceiling, and the picture is cut
+to the voice — each scene is held at least as long as its own line takes to
+speak.
+
+**What has been verified about the audio:** that both streams decode, that the
+peak sits below clipping, that the mean level is in a sane range, that every
+caption cue is ordered and none outlives the film, and that the technical
+terms are spelled phonetically for the synthesiser.
+
+**What has not been verified:** how it *sounds*. Judging whether a synthetic
+voice reads as natural requires listening to it, which was not possible while
+building this. No claim is made that the narration sounds human, and the film
+is built so that claim does not need to be true — the captions carry it. If
+the voice is judged poor on a listen, mute the narration track and the film
+still works, or regenerate with a different `VOICE` in `make_film.py`.
 
 ## What the narration may not say
 
