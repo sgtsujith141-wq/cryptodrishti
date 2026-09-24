@@ -68,6 +68,29 @@ def slides() -> Path:
                  title="CryptoDrishti — SIH26164 — six-slide contact sheet")
 
 
+def scene_midpoints() -> list[tuple[str, float]] | None:
+    """The middle of every scene, computed the way the film was timed.
+
+    Sampling at fixed intervals instead means some scenes get two frames and
+    others none, which makes the sheet useless for the thing it exists for --
+    checking that every scene actually drew something worth looking at.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import make_film as M                               # noqa: PLC0415
+        import film_scenes as F                             # noqa: PLC0415
+    except ImportError:
+        return None
+    out, clock = [], 0.0
+    for sc in F.SCENES:
+        chunks = M.caption_plan(sc["cap"])
+        seconds = max(sc["beats"] / 1000.0 + 0.6,
+                      sum(d for _t, d in chunks) + M.CAPTION_PAD)
+        out.append((sc["id"], clock + seconds * 0.62))
+        clock += seconds
+    return out
+
+
 def frames(count: int = 12) -> Path | None:
     if not VIDEO.is_file():
         return None
@@ -75,19 +98,27 @@ def frames(count: int = 12) -> Path | None:
                           "format=duration", "-of", "csv=p=0", str(VIDEO)],
                          capture_output=True, text=True, check=True)
     dur = float(out.stdout.strip())
+    marks = scene_midpoints()
+    if marks:
+        # 0.62 through each scene: past the reveal, before the dip to black.
+        marks = [(n, t) for n, t in marks if t < dur]
+    else:
+        marks = [(f"{int(dur*(i+.5)/count//60)}:"
+                  f"{int(dur*(i+.5)/count%60):02d}", dur * (i + 0.5) / count)
+                 for i in range(count)]
     OUT.mkdir(parents=True, exist_ok=True)
     imgs, labs = [], []
-    for i in range(count):
-        t = dur * (i + 0.5) / count
+    for i, (name, t) in enumerate(marks):
         tmp = OUT / f".f{i}.png"
         subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.2f}",
                         "-i", str(VIDEO), "-frames:v", "1", "-y", str(tmp)],
                        check=True)
         imgs.append(Image.open(tmp).convert("RGB"))
-        labs.append(f"{int(t // 60)}:{int(t % 60):02d}")
-    path = sheet(imgs, 4, 460, labs, OUT / "film-contact-sheet.png",
-                 title="CryptoDrishti — full film — frame contact sheet")
-    for i in range(count):
+        labs.append(f"{name}  {int(t // 60)}:{int(t % 60):02d}")
+    cols = 4 if len(imgs) > 9 else 3
+    path = sheet(imgs, cols, 460, labs, OUT / "film-contact-sheet.png",
+                 title="CryptoDrishti — full film — one frame per scene")
+    for i in range(len(imgs)):
         (OUT / f".f{i}.png").unlink(missing_ok=True)
     return path
 

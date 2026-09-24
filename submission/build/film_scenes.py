@@ -7,7 +7,10 @@ produced. Nothing here is written for effect. Where the tool declines to
 answer, the film shows it declining.
 
 The film is designed **caption-first**: it has to carry its argument with the
-sound off. Narration is a supporting layer, not the load-bearing one.
+sound off. That design is now the whole of it -- the shipped cuts are
+caption-led and have no narration track at all, so the on-screen typography and
+the caption band are the only things carrying the argument. `presenter/video.md`
+records why.
 """
 
 from __future__ import annotations
@@ -410,14 +413,18 @@ def sc_close():
     return body, css, 6000
 
 
-# `say` is spelled for the speech synthesiser; `cap` is spelled for a reader.
-# They must carry the same meaning -- the caption is what survives with the
-# sound off, and it is the version a viewer will quote.
+# `cap` is the caption: spelled for a reader, and the only one of the two that
+# reaches the screen. It is what a viewer reads and what they will quote.
+#
+# `say` is spelled for a speech synthesiser -- `Crypto Drishti`, `R S A`, `M L
+# D S A sixty-five` -- and is kept only so `make_film.py --voice` can still
+# produce a narrated cut if the pinned voice ever becomes available again. The
+# shipped cuts do not use it. The two must keep carrying the same meaning.
 #
 # `beats` is a *minimum hold* for the scene, not its choreography length. The
 # choreography end is whatever the builder returns, and the renderer maps one
-# onto the other, so a reveal stretches across a long narration line instead of
-# finishing early and leaving the frame dead.
+# onto the other, so a reveal stretches across the time the captions need
+# instead of finishing early and leaving the frame dead.
 
 def _product(heading, lede, img_expr, *, crop=None, wide=True):
     """A product scene: the capture is the subject, the words are a caption."""
@@ -441,11 +448,49 @@ def _product(heading, lede, img_expr, *, crop=None, wide=True):
 
 
 def sc_inventory():
+    # Deliberately not the `_product` composition. This scene sits fourteen
+    # seconds after the dashboard, which uses that layout, and two identical
+    # compositions back to back make a film look templated. The table is run
+    # off the right edge instead: a list that continues past the frame is the
+    # point of the scene -- there is a row for every asset, not a top ten.
+    css = f"""
+    .cap {{ position:absolute; left:5%; top:19%; width:27%; opacity:0;
+            z-index:3; }}
+    .cap h2 {{ font-size:36px; margin:0; font-weight:700;
+               letter-spacing:-.02em; line-height:1.15; }}
+    .cap p {{ font-size:19px; color:{D.INK3}; margin:16px 0 0;
+              line-height:1.58; }}
+    /* -12% clears the frame edge once the caption-led stage scale is
+       applied, so the table really does run out of the picture */
+    .shot {{ position:absolute; left:36%; right:-12%; top:11%; bottom:9%;
+             opacity:0; border:1px solid {D.RULE2}; border-right:0;
+             border-radius:5px 0 0 5px; overflow:hidden;
+             background:{D.SURF}; }}
+    .shot img {{ width:100%; height:100%; object-fit:cover;
+                 object-position:left top; display:block; }}
+    """
+    body = f"""
+    <div class="cap" data-in="120" data-dur="700" data-y="14">
+      <h2>Every asset, ranked by what it costs you</h2>
+      <p>Score, class, evidence location, assurance grade and the replacement
+         it needs — one row per distinct asset, not a top ten.</p></div>
+    <div class="shot" data-in="460" data-dur="920" data-y="18">
+      <img src="{embed(SHOTS / '04-inventory.png', (0.055, 0.03, 1.0, 0.62))}">
+    </div>"""
+    return body, css, 3600
+
+
+def sc_migration():
+    # The payoff of the RSA sequence, in the product's own words: the three
+    # answers the film has just derived appear here as three funded
+    # workstreams. This is a genuine capture -- the workstream names, the
+    # asset and call-site counts and the effort grades are what the demo scan
+    # produced, not a mock-up of what the screen might look like.
     return _product(
-        "Every asset, ranked by what it costs you",
-        "Score, class, evidence location, assurance grade and the replacement "
-        "it needs — one row per distinct asset",
-        embed(SHOTS / "04-inventory.png", (0.055, 0.03, 1.0, 0.46)))
+        "Three answers, staffed as three workstreams",
+        "The same programme grouped by replacement algorithm — one workstream "
+        "per target, which is how a migration is actually budgeted",
+        embed(SHOTS / "03-migration-plan.png", (0.095, 0.215, 0.905, 0.775)))
 
 
 def sc_report():
@@ -555,6 +600,14 @@ SCENES = [
              "ever saying what for — so the tool names no target at all. "
              "Knowing the algorithm is not enough. Purpose decides the "
              "migration."),
+
+    dict(id="migration", build=sc_migration, beats=13000,
+         say="Seven workstreams over twenty-one call sites. One per "
+             "replacement algorithm, not one per finding. That is the "
+             "difference between a list and a plan.",
+         cap="Seven workstreams over 21 call sites — one per replacement "
+             "algorithm, not one per finding. That is the difference between "
+             "a list and a plan."),
 
     dict(id="drawer", build=sc_drawer, beats=15000,
          say="Open any finding and the whole chain is there. The call site, "

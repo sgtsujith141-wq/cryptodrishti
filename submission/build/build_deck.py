@@ -563,7 +563,11 @@ def build_impact(slide):
             "The generated report — the same scan, as a printable document.",
             10.5, colour=S.MUTED, italic=True, h=0.26,
             name="cd-report-caption")
-    shot = crop("08-report.png", (0.0, 0.0, 1.0, 0.300))
+    # Cut at the whitespace gutter below the four headline metrics, not
+    # at an arbitrary fraction: an earlier crop ended part-way through
+    # the assessment paragraph, which reads as a clipped image rather
+    # than a deliberate excerpt.
+    shot = crop("08-report.png", (0.0, 0.0, 1.0, 0.250))
     picture(slide, shot, rx, by + 2.26, rw)
 
 

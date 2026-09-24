@@ -9,7 +9,9 @@ Checks the things a successful render does not prove:
 * dimensions, frame rate and codecs are what was asked for;
 * no unintended black or frozen frames (the deliberate dips at scene joins
   are short, so a long dark run means a scene failed to draw);
-* audio peaks below clipping and sits in a sane loudness range;
+* audio peaks below clipping, when there is an audio track carrying anything;
+* the burned-in captions are actually on screen for most of the film, which is
+  the one thing a caption-led cut cannot afford to get wrong;
 * the SRT parses, is in order, and no cue outlives the film.
 """
 
@@ -42,9 +44,9 @@ def decodes(path: Path) -> tuple[bool, str]:
 def _content(im):
     """(peak luma, lit ratio, bounding-box area as a fraction of the frame)."""
     small = im.resize((480, 270))
-    px = list(small.getdata())
-    peak = max(px)
-    lit = sum(1 for v in px if v > 70) / len(px)
+    hist = small.histogram()
+    peak = max(v for v, n in enumerate(hist) if n)
+    lit = sum(hist[71:]) / (480 * 270)
     box = small.point(lambda v: 255 if v > 70 else 0).getbbox()
     area = 0.0
     if box:
@@ -107,6 +109,35 @@ def empty_frames(path: Path, samples: int = 40) -> list[str]:
                     continue        # a transition, which is by design
             empty.append(f"{t:.1f}s (peak {peak}, content area {area * 100:.2f}%)")
     return empty
+
+
+def caption_coverage(path: Path, samples: int = 40) -> float:
+    """Fraction of sampled frames with ink in the caption band.
+
+    A caption-led film whose captions failed to draw is a silent film about
+    nothing, and that failure is invisible to every other check here -- the
+    frames still have plenty of content above the band. So this looks only at
+    the bottom fifth of the frame, where nothing else in the design ever sits.
+    """
+    from PIL import Image                                  # noqa: PLC0415
+    import io                                              # noqa: PLC0415
+    dur = float(probe(path)["format"]["duration"])
+    hits = 0
+    for i in range(samples):
+        t = dur * (i + 0.5) / samples
+        raw = subprocess.run(
+            ["ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-i", str(path),
+             "-frames:v", "1", "-f", "image2", "-vcodec", "png", "-"],
+            capture_output=True, check=True).stdout
+        if not raw:
+            continue
+        im = Image.open(io.BytesIO(raw)).convert("L")
+        band = im.crop((0, int(im.height * 0.80), im.width, im.height))
+        small = band.resize((480, int(480 * band.height / band.width)))
+        lit = sum(small.histogram()[111:])
+        if lit / (small.width * small.height) > 0.004:
+            hits += 1
+    return hits / samples
 
 
 def levels(path: Path) -> tuple[float, float]:
@@ -178,14 +209,30 @@ def main() -> int:
                                     else f" -- {empty[:3]}"))
         bad += 0 if not empty else 1
 
+        silent = True
         if a:
             peak, mean = levels(mp4)
-            clip = peak >= -0.5
-            quiet = mean < -40
-            print(f"  [{'FAIL' if clip else 'ok'}] peak {peak:.1f} dB "
-                  f"(no clipping)   mean {mean:.1f} dB"
-                  + ("  -- SILENT?" if quiet else ""))
-            bad += 1 if clip else 0
+            silent = mean < -40
+            if silent:
+                # Deliberate: this cut is caption-led and ships a silent
+                # stereo track so the container is well formed everywhere.
+                print("  [ok] silent track (caption-led cut, by design)")
+            else:
+                clip = peak >= -0.5
+                print(f"  [{'FAIL' if clip else 'ok'}] peak {peak:.1f} dB "
+                      f"(no clipping)   mean {mean:.1f} dB")
+                bad += 1 if clip else 0
+
+        if silent:
+            cov = caption_coverage(mp4)
+            # Not 100%: the band is deliberately empty during the fades, the
+            # held beat at each scene's end, and the lines the scene already
+            # typesets for itself. Below two thirds means captions failed to
+            # draw rather than were withheld.
+            cov_ok = cov >= 0.66
+            print(f"  [{'ok' if cov_ok else 'FAIL'}] burned-in captions on "
+                  f"screen in {cov * 100:.0f}% of sampled frames")
+            bad += 0 if cov_ok else 1
 
         sok, note = srt_ok(srt, dur)
         print(f"  [{'ok' if sok else 'FAIL'}] captions -- {note}")

@@ -34,17 +34,27 @@ Technical Research Organisation. Team **146876 — Zero-Day**.
 
 > ### SIH 2026 submission — SIH26164
 >
-> **Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)** · Theme 26164 ·
+> **Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)** ·
+> Blockchain & Cybersecurity ·
 > Software · Team **146876 — Zero-Day**
 >
 > | Deliverable | Link |
 > |---|---|
 > | Idea presentation (6 slides) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx) |
 > | Presentation PDF (6 pages) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf) |
-> | Demonstration film, full | [`submission/video/CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) |
-> | Demonstration film, short | [`submission/video/CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) |
+> | Demonstration film, full | [`submission/video/CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) — 3:54, caption-led |
+> | Demonstration film, short | [`submission/video/CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) — 1:26, caption-led |
 > | Repository | https://github.com/sgtsujith141-wq/cryptodrishti |
 > | Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+
+> **On the film having no voice-over.** Both cuts are caption-led by
+> choice. The neural voice they were built for is unavailable — the
+> account's monthly character allowance is spent until 19 October 2026 —
+> and the only remaining synthesiser reads as a robot reading a script.
+> Typeset captions on a silent film are the better result, so that path
+> was removed from the builder rather than left as a default.
+> [`presenter/video.md`](presenter/video.md) records the decision and how
+> to restore narration.
 
 ![CryptoDrishti console](submission/screenshots/01-assessment.png)
 
@@ -1002,8 +1012,8 @@ Report/                     project report and design history
 |---|---|---|
 | Six-slide idea presentation | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/) | built from the official template, QA-clean |
 | Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, vector text, verified** |
-| Demonstration film, full | [`submission/video/`](submission/video/) | ~3:55, 1920×1080 H.264/AAC, with SRT captions |
-| Demonstration film, short | [`submission/video/`](submission/video/) | ~1:19, re-edited rather than trimmed |
+| Demonstration film, full | [`submission/video/`](submission/video/) | 3:54, 1920×1080 H.264, **caption-led — no narration track**, captions burned in and also written as SRT |
+| Demonstration film, short | [`submission/video/`](submission/video/) | 1:26, re-edited rather than trimmed |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
 | Presentation script, film documentation, Q&A | [`presenter/`](presenter/) | timed eight-minute live script, the film's concept and acts, and the figures that may be quoted |
 | Design system and sources | [`submission/build/`](submission/build/) | `design.py` · `render_panels.py` · `film_scenes.py` · `make_film.py` |

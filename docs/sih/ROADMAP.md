@@ -385,14 +385,22 @@ third-party clones under `demo/targets/`.
 
 **Closed by the final optimisation pass.**
 
-- **R10.13 — demonstration video: DONE.**
-  `submission/CryptoDrishti-SIH26164-Demo.mp4` — 3 minutes 41 seconds,
-  1920×1080, H.264/AAC, built by `submission/build/make_video.py`. It is an
-  assembled product overview rather than a screen recording: every visual is a
-  still capture of the running tool or the architecture diagram, given slow
-  motion and cut to narration synthesised by macOS `say`. The picture is cut to
-  the voice — each scene's length is measured from its own audio — and no
-  cursor, interaction or output is simulated. Its own first frame says so.
+- **R10.13 — demonstration video: DONE, then rebuilt twice.**
+  The current films are `submission/video/CryptoDrishti-Final-Demo.mp4`
+  (3:54) and `CryptoDrishti-Short-Demo.mp4` (1:26), 1920×1080 H.264, built
+  by `submission/build/make_film.py`. They are assembled product films rather
+  than screen recordings: real captures of the running tool are intercut with
+  motion-designed scenes built from real scan output, and no cursor,
+  interaction or output is simulated.
+
+  Both are **caption-led and carry no narration track.** The first version was
+  cut to narration synthesised by macOS `say`, which reads as a robot reading a
+  script; the neural voice meant to replace it could not be used, because the
+  account's monthly character allowance is spent until 19 October 2026.
+  Typeset captions on a silent film beat a robot narrator, so the `say` path
+  was removed from the builder rather than left in as a default, and a quota
+  preflight now states which cut is being built and why. `presenter/video.md`
+  records the decision in full.
 
 **The creative rebuild (final pass).** The deck and the film were rebuilt
 rather than polished, because the problem with both was conceptual rather than

@@ -3,7 +3,7 @@
 | File | What it is | State |
 |---|---|---|
 | `script.md` | Eight-minute presentation script, timed, with every demo click named | ready |
-| `video.md` | How the demonstration video is produced, and its scene list | **video exists** — `submission/CryptoDrishti-SIH26164-Demo.mp4`, assembled from real captures with synthesised narration |
+| `video.md` | How the demonstration film is produced, its scene list, and why it carries no voice | **two cuts exist** — `submission/video/CryptoDrishti-Final-Demo.mp4` and `CryptoDrishti-Short-Demo.mp4`, assembled from real captures. **Caption-led: no narration track.** |
 | `qa.md` | Technical Q&A, with the figures that may be quoted and their sources | ready |
 
 All three were rewritten against the code as it stands. An earlier draft

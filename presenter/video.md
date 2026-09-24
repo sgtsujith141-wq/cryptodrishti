@@ -6,8 +6,8 @@
 >
 > | Cut | Path | Length |
 > |---|---|---|
-> | Full | `submission/video/CryptoDrishti-Final-Demo.mp4` | ~3:55 |
-> | Short | `submission/video/CryptoDrishti-Short-Demo.mp4` | ~1:19 |
+> | Full | `submission/video/CryptoDrishti-Final-Demo.mp4` | 3:54 · 12 scenes |
+> | Short | `submission/video/CryptoDrishti-Short-Demo.mp4` | 1:26 · 6 scenes |
 >
 > Both are **assembled product films**, not screen recordings. Real captures
 > of the running tool are intercut with motion-designed scenes built from real
@@ -28,7 +28,10 @@ idea becomes concrete: one algorithm, three different migration decisions.
   padlocks, no particles.
 * **Act III** is the signature sequence. Three RSA findings assemble one at a
   time — evidence, then resolved purpose, then target — and the third one
-  deliberately produces no target at all.
+  deliberately produces no target at all. It is paid off immediately by the
+  real remediation screen, where those three answers appear as three funded
+  workstreams: the argument the film has just made, in the product's own
+  words rather than the film's.
 * **Act V** is about what the tool *did not* see: a key deleted by a later
   container layer, and a scan marked PARTIAL because an endpoint was refused.
 
@@ -51,42 +54,82 @@ intermediate images are written.
 Choreography is mapped onto scene length rather than truncated, which is how
 the short cut re-times the same scenes instead of cutting them off mid-reveal.
 
-## Narration and captions — and one thing I could not check
+## Sound: why this film is caption-led
 
-**Voice.** Narration uses the same neural voice the team's other submission
-pinned: voice `SQ8WYwlpzxrTbbuJgi38` on `eleven_multilingual_v2`, with that
-project's exact settings (stability 0.42, similarity 0.82, style 0.18, speaker
-boost on, speed 1.06), generated through the authenticated ElevenLabs CLI. The
-voice id and parameters are **read from**
-`SecureMailScope/submission/demo/narration-script.json` rather than guessed, so
-the two films sound like they came from the same team. Nothing in that project
-is modified — it is read only.
+**The film ships silent, with its captions burned into the picture.** That is a
+deliberate choice made after the alternative failed, and it is worth stating
+plainly rather than leaving a viewer to wonder why there is no voice.
 
-The first cut used macOS `say`, which reads as a robot reading a script. If the
-CLI is unavailable the builder falls back to `say` and **says so in its
-output**, and each line is retried up to three times before it does, so a
-transient rate limit cannot silently downgrade the whole film.
+**What was intended.** Narration was to use the same neural voice the team's
+other submission pinned: voice `SQ8WYwlpzxrTbbuJgi38` on
+`eleven_multilingual_v2`, with that project's exact settings (stability 0.42,
+similarity 0.82, style 0.18, speaker boost on, speed 1.06), generated through
+the authenticated ElevenLabs CLI. The voice id and parameters are read from
+`SecureMailScope/submission/demo/narration-script.json` rather than guessed.
+Nothing in that project is modified — it is read only.
 
-**Captions.** The film is still designed caption-first: every scene carries its
-argument in typeset on-screen text and works with the sound off. Captions are
-written separately from the narration (`cap` versus `say` in
-`film_scenes.py`), so a viewer reads *CryptoDrishti*, *RSA* and *ML-DSA-65*
-while the synthesiser is handed *Crypto Drishti*, *R S A* and *M L D S A
-sixty-five*.
+**Why it could not be used.** The ElevenLabs account is on the free tier and
+its monthly character allowance is spent: 9,994 of 10,000 characters consumed,
+next reset 19 October 2026. The full cut needs roughly 2,900 characters of
+narration and the account has six. This is a billing state, not a bug, and no
+amount of retrying changes it.
 
-**What has been verified about the audio:** that both streams decode, that the
-peak sits below clipping, that the mean level is in a sane range, that every
-caption cue is ordered and none outlives the film, and that the technical terms
-are spelled phonetically for the synthesiser.
+**Why not fall back to `say`.** Because the operating system's synthesiser
+reads as a robot reading a script, and that is the single thing this film was
+rebuilt to stop being. A robot narrator is worse than silence: it makes a
+careful product look automatically generated. The `say` path has therefore been
+**deleted from the builder** rather than left in as a tempting default — there
+is no longer a code path that can quietly produce it.
 
-**What has not been verified:** how it *sounds*. Judging whether a voice reads
-as natural requires listening to it, which was not possible while building
-this. No claim is made that the narration sounds human. A neural voice is a
-much better starting point than `say`, but it is a starting point, not a
-verified result — listen before submitting, and if a line reads badly,
-regenerate just that scene.
+**What the builder does now.** `make_film.py` runs a quota preflight before it
+spends a single character: it asks the account how many characters remain,
+compares that against the narration it is about to request, and prints which
+cut it is building and why. If the voice dies part-way through a voiced build,
+the cut is discarded and rebuilt caption-led rather than shipped half-narrated.
 
-## What the narration may not say
+```bash
+python submission/build/make_film.py              # caption-led (current)
+python submission/build/make_film.py --voice      # attempt the pinned voice
+```
+
+**How the caption-led cut is timed.** Scene length is driven by reading speed
+rather than speech: fourteen characters a second, with a floor of 2.4 seconds
+so nothing flashes past, and no caption longer than 68 characters so it never
+exceeds two lines on screen. Captions break at sentence boundaries first, then
+at clause punctuation, then on balanced word wrapping — and a final pass folds
+away any stub too short to deserve a caption of its own. Where a scene's
+choreography outlasts its captions, the captions stretch to fill it, so the
+text and the picture stay in step instead of the text finishing early.
+
+Captions were always written separately from the narration (`cap` versus `say`
+in `film_scenes.py`), so the on-screen text already reads as prose — it was
+never a transcript of something spoken. That is why this cut works: the film
+was designed caption-first from the start.
+
+**What has been verified** by `submission/build/check_film.py`: that both cuts
+decode end to end, that every SRT cue is ordered and none outlives the film,
+that no sampled frame is empty, and that the caption band carries ink in at
+least 80% of sampled frames — a caption-led film whose captions silently failed
+to draw would pass every other check, so that one is measured directly. The burned-in captions
+and the SRT come from one timed list, so their wording and timings cannot
+drift apart.
+
+One deliberate difference between them: where a scene already typesets a line
+in large type — the RSA sequence ends on *Purpose decides the migration.* set
+across the frame — the band stays empty rather than repeating the sentence
+underneath it in a smaller size. Six lines are withheld this way. The SRT
+keeps all of them, so the transcript stays complete.
+
+**What has not been verified:** nothing about how it sounds, because there is
+no sound. That is the point — there is no synthetic voice here to misjudge.
+
+**If you want narration before the deadline.** Top the ElevenLabs account up,
+or supply a key with quota, then run `make_film.py --voice`; the preflight will
+pass and the pinned voice will be used. Alternatively, record the narration
+yourself — `presenter/script.md` is the script, and a human reading it beats
+any synthesiser.
+
+## What the captions may not say
 
 * no national or regulatory deadline;
 * no date by which a quantum computer will arrive;

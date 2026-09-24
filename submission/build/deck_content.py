@@ -30,7 +30,7 @@ from __future__ import annotations
 PORTAL = {
     "ps_id": "SIH26164",
     "ps_title": "Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)",
-    "theme": "26164",
+    "theme": "Blockchain & Cybersecurity",
     "category": "Software",
     "team_id": "146876",
     "team_name": "Zero-Day",

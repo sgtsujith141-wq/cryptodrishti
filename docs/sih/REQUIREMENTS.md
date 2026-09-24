@@ -317,8 +317,8 @@ its structural properties are asserted instead.
 | R10.9 | Demonstration script | `presenter/script.md` | **DONE** — rewritten at M7; unverifiable regulatory and competitor claims removed rather than reworded |
 | R10.10 | Six-slide official deck | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **DONE** — built from the official template, exactly six slides, QA-clean |
 | R10.11 | Six-page submission PDF | `submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **DONE** — 6 pages at 13.333 × 7.50 in, every page inspected. Exported through LibreOffice, so the text is vector: 8,455 extractable characters. `build/export_pdf.py` falls back to a 240 dpi raster render only where no converter is installed, and records which route it took in the PDF's Producer metadata. |
-| R10.12 | Film concept, script and captions | `presenter/video.md` · `build/film_scenes.py` | **DONE** — narration, captions and scene choreography all live in the generator, so the script and the rendered file cannot drift |
-| R10.13 | Demonstration film | `submission/video/` | **DONE** — two cuts, ~3:55 and ~1:19, 1920×1080 H.264/AAC with SRT. Motion-designed scenes built from real scan output, intercut with real dark-theme captures. Assembled films, not screen recordings. |
+| R10.12 | Film concept, script and captions | `presenter/video.md` · `build/film_scenes.py` | **DONE** — captions and scene choreography both live in the generator, so the script and the rendered file cannot drift. The shipped cuts are **caption-led and carry no narration track**; `presenter/video.md` records why |
+| R10.13 | Demonstration film | `submission/video/` | **DONE** — two cuts, 3:54 and 1:26, 1920×1080 H.264 with burned-in captions and a sidecar SRT. Motion-designed scenes built from real scan output, intercut with real dark-theme captures. Assembled films, not screen recordings. **No narration track** — see `presenter/video.md`. |
 | R10.14 | Technical Q&A | `presenter/qa.md` | **DONE** — rewritten at M7; the measured-accuracy answer replaces "we have not measured it", and every quotable number names its source |
 
 
