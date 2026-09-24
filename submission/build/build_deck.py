@@ -216,6 +216,32 @@ def picture(slide, path: Path, left, top, width):
     return top + Emu(pic.height).inches
 
 
+def aspect(path: Path) -> float:
+    with Image.open(path) as im:
+        return im.width / im.height
+
+
+def picture_h(slide, path: Path, left, top, height):
+    """Place a capture by height; its width follows its own aspect ratio."""
+    pic = slide.shapes.add_picture(str(path), Inches(left), Inches(top),
+                                   height=Inches(height))
+    pic.name = f"cd-shot-{path.stem[:18]}"
+    return left + Emu(pic.width).inches
+
+
+def qr(slide, url: str, left, top, size, name="cd-qr"):
+    """A QR code for a real URL, generated here rather than fetched."""
+    import segno
+    CROPS.mkdir(parents=True, exist_ok=True)
+    dst = CROPS / f"qr-{abs(hash(url)) % 10**8}.png"
+    segno.make(url, error="m").save(str(dst), scale=20, border=2,
+                                    dark="#1A1A1C")
+    pic = slide.shapes.add_picture(str(dst), Inches(left), Inches(top),
+                                   width=Inches(size), height=Inches(size))
+    pic.name = name
+    return pic
+
+
 def caption(slide, left, top, width, text):
     tb = box(slide, left, top, width, 0.30, name="cd-caption")
     p = para(tb.text_frame, True, space_after=0)
@@ -442,41 +468,57 @@ def build_technical(slide):
 # ==========================================================================
 
 def build_feasibility(slide):
-    lw = 5.92
+    # Text left, proof right. The proof is three genuine console crops, each
+    # cut to exactly what it proves: the assessment (completeness first, then
+    # the counts), and the evidence drawer for one finding (purpose,
+    # assurance, proves use; then the exposure arithmetic). All three come
+    # from the recorded walkthrough of the running console.
+    walk = "../walkthrough/"
+    A = crop(walk + "w01-assessment.png", (0.508, 0.132, 0.825, 0.935))
+    B = crop(walk + "w04-drawer.png", (0.637, 0.018, 0.988, 0.415))
+    Cc = crop(walk + "w04-drawer.png", (0.637, 0.425, 0.988, 0.700))
+    ra, rb, rc = aspect(A), aspect(B), aspect(Cc)
+
+    # Both columns end on the same line: the tall assessment on the left,
+    # the drawer's two crops stacked on the right. The height is fixed by
+    # the room above the footer; the widths follow from it, the block is set
+    # flush to the right margin, and the text column takes what is left.
+    H, g, cap_b, gv = 4.40, 0.22, 0.46, 0.08
+    aw = H * ra
+    bw = (H - cap_b - gv) / (1 / rb + 1 / rc)
+    ax = RIGHT - bw - g - aw
+    bx = ax + aw + g
+    lw = ax - 0.32 - LEFT
+
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(4.96)
+    tb.width, tb.height = Inches(lw), Inches(4.90)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
     tf.clear()
-    heading(tf, "Implemented", first=True, size=18)
+    heading(tf, "Implemented", first=True, size=16)
     for text in C.PROTOTYPE[:3]:
-        bullet(tf, text, size=14, after=4)
-    heading(tf, "Validated", size=18, gap=8)
+        bullet(tf, text, size=13, after=2)
+    heading(tf, "Validated", size=16, gap=6)
     for label_, text in C.VALIDATION[:3]:
-        item(tf, label_, text, size=14, after=4)
-    heading(tf, "Feasible to deploy", size=18, gap=8)
-    body(tf, C.FEASIBILITY, size=14, after=0)
+        item(tf, label_, text, size=13, after=2)
+    heading(tf, "Feasible to deploy", size=16, gap=6)
+    body(tf, C.FEASIBILITY, size=13, after=0)
+    S.label(slide, LEFT, 6.18, lw,
+            "Limits — " + C.LIMITATIONS, 10, colour=S.MUTED, italic=True,
+            h=0.62, name="cd-limits")
 
-    S.label(slide, LEFT, 6.26, lw,
-            "Limits — " + C.LIMITATIONS, 10.5, colour=S.MUTED, italic=True,
-            h=0.56, name="cd-limits")
-
-    # ---- two real product views -----------------------------------------
-    rx = 6.70
-    rw = RIGHT - rx
-    a = crop("01-assessment.png", (0.316, 0.112, 0.990, 0.468))
-    y = picture(slide, a, rx, TOP, rw)
-    caption(slide, rx, y + 0.08, rw,
-            "Assessment — the scan states its own completeness first: one "
-            "endpoint refused, so the inventory is marked PARTIAL.")
-
-    b = crop("07-evidence-drawer.png", (0.02, 0.118, 0.99, 0.302))
-    y2 = picture(slide, b, rx, y + 0.66, rw)
-    caption(slide, rx, y2 + 0.08, rw,
-            "Evidence drawer — purpose, assurance and the exposure "
-            "arithmetic behind one finding's score.")
+    picture(slide, A, ax, TOP, aw)
+    picture(slide, B, bx, TOP, bw)
+    caption(slide, bx, TOP + bw / rb + 0.05, bw,
+            "Evidence drawer — one finding's proof.")
+    picture(slide, Cc, bx, TOP + bw / rb + cap_b + gv, bw)
+    caption(slide, ax, TOP + H + 0.07, aw,
+            "Assessment — PARTIAL stated first, then 23 assets, "
+            "16 vulnerable.")
+    caption(slide, bx, TOP + H + 0.07, bw,
+            "The exposure arithmetic behind its score.")
 
 
 # ==========================================================================
@@ -510,65 +552,71 @@ def build_impact(slide):
     gapx = 0.30
     cw = (WIDE - gapx * (n - 1)) / n
     sy = TOP + 0.46
+    ch = 1.04
     for i, (name_, text) in enumerate(stages):
         x = LEFT + i * (cw + gapx)
-        S.chip(slide, x, sy, cw, 1.44, name_, text, title_size=13.5,
-               sub_size=11, title_colour=S.NAVY, accent_edge=S.ACCENT,
+        S.chip(slide, x, sy, cw, ch, name_, text, title_size=13.5,
+               sub_size=10.5, title_colour=S.NAVY, accent_edge=S.ACCENT,
                name="cd-stage")
         if i < n - 1:
-            S.arrow(slide, x + cw + 0.05, sy + 0.60, gapx - 0.10, 0.24,
-                    down=False, colour=S.RULE)
+            S.arrow(slide, x + cw + 0.05, sy + ch / 2 - 0.12, gapx - 0.10,
+                    0.24, down=False, colour=S.RULE)
 
-    # ---- who benefits, and what the measurement actually says ------------
-    by = sy + 1.72
-    lw2 = 6.30
-    S.label(slide, LEFT, by, lw2, "Who this is for", 17, bold=True,
-            colour=ACCENT, name="cd-users-head", h=0.30)
-    S.label(slide, LEFT, by + 0.32, lw2, C.USERS, 13.5, colour=INK2,
-            h=0.70, name="cd-users")
-
-    S.label(slide, LEFT, by + 1.06, lw2, "What changes for them", 17,
+    # ---- left: what changes, and what the measurement actually says ------
+    by = sy + ch + 0.24
+    # The right column is sized by the height it has, not the width: the
+    # report and the CBOM check stacked must end above the footer. What
+    # that leaves in width goes to the text column.
+    rimg = 5.30
+    lw2 = RIGHT - rimg - 0.34 - LEFT
+    S.label(slide, LEFT, by, lw2, C.USERS, 12, colour=INK2, italic=True,
+            h=0.62, name="cd-users")
+    S.label(slide, LEFT, by + 0.70, lw2, "What changes for them", 17,
             bold=True, colour=ACCENT, name="cd-changes-head", h=0.30)
-    cb = box(slide, LEFT, by + 1.40, lw2, 1.50, name="cd-changes")
+    cb = box(slide, LEFT, by + 1.02, lw2, 1.46, name="cd-changes")
     cf = cb.text_frame
     for i, text in enumerate(C.CHANGES):
-        bullet(cf, text, first=(i == 0), size=13.5, after=6)
+        bullet(cf, text, first=(i == 0), size=13, after=4)
 
-    rx = 7.10
-    rw = RIGHT - rx
-    S.label(slide, rx, by, rw, "Measured on a labelled corpus", 17, bold=True,
-            colour=ACCENT, name="cd-bench-head", h=0.30)
-
-    S.chip(slide, rx, by + 0.36, rw, 0.86, "", None, fill=S.FILL,
+    my = by + 2.56
+    S.chip(slide, LEFT, my, lw2, 0.66, "", None, fill=S.FILL,
            name="cd-bench-box")
-    S.label(slide, rx + 0.18, by + 0.44, rw - 0.36,
-            "Like-for-like, same corpus, before → after", 11.5, bold=True,
-            colour=INK, name="cd-bench-label")
-    S.label(slide, rx + 0.18, by + 0.70, rw - 0.36,
-            "F1  0.941  →  0.983", 19, bold=True, colour=S.TEAL,
-            name="cd-bench-f1", h=0.34)
-    S.label(slide, rx + 2.90, by + 0.74, rw - 3.10,
+    S.label(slide, LEFT + 0.18, my + 0.07, lw2 - 0.36,
+            "Measured on a labelled corpus — like-for-like, before → after",
+            11, bold=True, colour=INK, name="cd-bench-label", h=0.22)
+    S.label(slide, LEFT + 0.18, my + 0.30, 2.9,
+            "F1  0.941  →  0.983", 18, bold=True, colour=S.TEAL,
+            name="cd-bench-f1", h=0.32)
+    S.label(slide, LEFT + 3.10, my + 0.36, lw2 - 3.28,
             "79/5/5  →  84 TP · 3 FP · 0 FN", 11, colour=S.MUTED,
             name="cd-bench-counts")
-    S.label(slide, rx, by + 1.32, rw,
+    S.label(slide, LEFT, my + 0.72, lw2,
             "An expanded synthetic corpus of 116 findings across six "
             "scanners scores 1.000 — a separate, non-comparable experiment. "
             "Both corpora were written by this project's developers and "
             "measure those corpora only; real-world enterprise accuracy has "
-            "not been measured.", 10.5, colour=S.MUTED, italic=True, h=0.58,
+            "not been measured.", 10, colour=S.MUTED, italic=True, h=0.50,
             name="cd-bench-caveat")
 
-    # The generated report: the artefact a non-engineer actually reads.
-    S.label(slide, rx, by + 1.98, rw,
-            "The generated report — the same scan, as a printable document.",
-            10.5, colour=S.MUTED, italic=True, h=0.26,
-            name="cd-report-caption")
-    # Cut at the whitespace gutter below the four headline metrics, not
-    # at an arbitrary fraction: an earlier crop ended part-way through
-    # the assessment paragraph, which reads as a clipped image rather
-    # than a deliberate excerpt.
-    shot = crop("08-report.png", (0.0, 0.0, 1.0, 0.250))
-    picture(slide, shot, rx, by + 2.26, rw)
+    # ---- right: what it actually generates ------------------------------
+    rx = RIGHT - rimg
+    rw = rimg
+    S.label(slide, rx, by, rw, "What it generates", 17, bold=True,
+            colour=ACCENT, name="cd-gen-head", h=0.30)
+    rep = SHOTS / "09-report-headline.png"
+    y = picture(slide, rep, rx, by + 0.36, rw)
+    # A white page on a white slide has no edge; a hairline makes it read as
+    # the document it is.
+    frame = slide.shapes[-1]
+    frame.line.color.rgb = RULE
+    frame.line.width = Pt(0.75)
+    caption(slide, rx, y + 0.04, rw,
+            "The generated report — headline counts from the same scan.")
+    cbom = crop("../walkthrough/w07-validated.png",
+                (0.058, 0.575, 0.492, 0.668))
+    y2 = picture(slide, cbom, rx, y + 0.38, rw)
+    caption(slide, rx, y2 + 0.04, rw,
+            "CBOM validation, run live in the console — both checks pass.")
 
 
 # ==========================================================================
@@ -606,22 +654,35 @@ def build_references(slide):
     # The standards-to-product map was a nice-to-have; the repository and
     # demo links are not, and the slide is not big enough for both.
     # Repository, demo link and the conformance result.
-    ry = 5.46
-    cw3 = (WIDE - 0.20 * 2) / 3
-    S.chip(slide, LEFT, ry, cw3, 0.66, "Repository", C.REPO_URL,
+    # The links band. The repository gets a QR code generated here from the
+    # real URL, so a judge holding a printout can open it; the video's code
+    # is added only once there is a real link to encode.
+    ry, bh = 5.44, 0.78
+    qs = bh
+    qn = 2 if C.YOUTUBE_URL else 1
+    avail = WIDE - qn * (qs + 0.14)
+    cw3 = (avail - 0.20 * 2) / 3
+    x = LEFT
+    S.chip(slide, x, ry, cw3, bh, "Repository", C.REPO_URL,
            title_size=12, sub_size=11.5, title_colour=S.NAVY,
            accent_edge=S.ACCENT, name="cd-repo")
-    S.chip(slide, LEFT + cw3 + 0.20, ry, cw3, 0.66, "Demo video",
+    x += cw3 + 0.20
+    S.chip(slide, x, ry, cw3, bh, "Demo video",
            C.YOUTUBE_URL or "[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]",
            title_size=12, sub_size=11 if C.YOUTUBE_URL else 10.5,
            title_colour=S.NAVY, accent_edge=S.ACCENT, name="cd-youtube")
-    S.chip(slide, LEFT + (cw3 + 0.20) * 2, ry, cw3, 0.66,
+    x += cw3 + 0.20
+    S.chip(slide, x, ry, cw3, bh,
            "CycloneDX 1.6 / 1.7 — validated",
            "offline, against the official JSON Schema at a pinned commit",
            title_size=12, sub_size=10.5, title_colour=S.TEAL,
            accent_edge=S.TEAL, name="cd-validated")
+    x += cw3 + 0.14
+    qr(slide, "https://" + C.REPO_URL, x, ry, qs, name="cd-qr-repo")
+    if C.YOUTUBE_URL:
+        qr(slide, C.YOUTUBE_URL, x + qs + 0.14, ry, qs, name="cd-qr-video")
 
-    S.label(slide, LEFT, ry + 0.78, WIDE,
+    S.label(slide, LEFT, ry + bh + 0.10, WIDE,
             "Scope — " + C.REFERENCE_NOTE, 10, colour=S.MUTED, italic=True,
             h=0.34, name="cd-ref-note")
 

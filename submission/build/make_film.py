@@ -90,6 +90,7 @@ function seek(t){
     el.style.width=(ease((t-tin)/dur)*(+el.dataset.grow))+'px';
     el.style.opacity=1;
   });
+  if (window.seekExtra) window.seekExtra(t);   // scene-owned motion: the camera
 }
 window.seek=seek; seek(0);
 window.caption=function(text,opacity){
@@ -126,7 +127,10 @@ def scene_page(body: str, css: str, captions: bool = False) -> str:
     if captions:
         body = (f'<div id="cd-stage">{body}</div>'
                 '<div id="cd-cap"><div id="cd-cap-txt"></div></div>')
-    return f"""<!doctype html><html><head><meta charset="utf-8"><style>
+    # `set_content` rewrites the document but keeps the window, so a camera
+    # hook left by the previous scene would otherwise run against this one.
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<script>window.seekExtra = null;</script><style>
 {D.BASE_CSS}
 html,body{{width:{W}px;height:{H}px;overflow:hidden;background:{D.PAPER};}}
 body{{position:relative;}}
@@ -353,16 +357,8 @@ def caption_plan(cap: str) -> list[tuple[str, float]]:
 
 
 def build(cut: str, voiced: bool) -> int:
-    scenes = list(F.SCENES)
-    if cut == "short":
-        by_id = {s["id"]: s for s in F.SCENES}
-        scenes = []
-        for sid in F.SHORT_IDS:
-            s = dict(by_id[sid])
-            s.update(F.SHORT_SAY[sid])          # its own say + cap
-            # The short cut moves faster: hold only as long as the line needs.
-            s["beats"] = min(s["beats"], 11500)
-            scenes.append(s)
+    # The short cut is its own edit (`F.SHORT`), not the long one trimmed.
+    scenes = list(F.SHORT if cut == "short" else F.SCENES)
 
     name = ("CryptoDrishti-Short-Demo" if cut == "short"
             else "CryptoDrishti-Final-Demo")

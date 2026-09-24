@@ -6,53 +6,65 @@
 >
 > | Cut | Path | Length |
 > |---|---|---|
-> | Full | `submission/video/CryptoDrishti-Final-Demo.mp4` | 3:54 · 12 scenes |
+> | Full | `submission/video/CryptoDrishti-Final-Demo.mp4` | 3:09 · 11 scenes |
 > | Short | `submission/video/CryptoDrishti-Short-Demo.mp4` | 1:26 · 6 scenes |
 >
-> Both are **assembled product films**, not screen recordings. Real captures
-> of the running tool are intercut with motion-designed scenes built from real
-> scan output. No cursor is animated, no interaction is simulated, and no
-> value appears on screen that the application did not produce.
+> The product is the main character. Most of the running time is the real
+> console, recorded while it was driven with real clicks; the rest is typeset
+> from the same scan's output. No cursor is drawn, no interaction is
+> simulated, and no value appears on screen that the application did not
+> produce.
 
-## What replaced the previous version
+## The short cut, beat by beat
 
-The earlier video was a slideshow: screenshots with a slow zoom, cut to
-narration. It had no concept, so every scene looked like the one before it.
+| Time | Beat | On screen |
+|---|---|---|
+| 0–7 s | Hook | real evidence fragments, each labelled with its file — *Your cryptography is everywhere. Your inventory usually isn't.* |
+| 7–22 s | The product | the console's assessment: PARTIAL stated first, then 23 assets, 16 quantum-vulnerable |
+| 22–48 s | Signature moment | one algorithm, three purposes, three answers — ML-DSA-65, X25519MLKEM768, *purpose must be resolved first* |
+| 48–63 s | Follow the evidence | the RSA signing row is hovered and opened; the drawer shows purpose, assurance, proves use, the exposure arithmetic, then the target |
+| 63–76 s | Output | the remediation programme, the generated report, and the CBOM passing validation |
+| 76–86 s | Close | *Scattered evidence. One explainable inventory. A migration decision you can defend.* — team, problem statement, repository |
 
-This one is built around a single idea — **fragmented evidence becomes one
-explainable inventory** — and the film's centre of gravity is the moment that
-idea becomes concrete: one algorithm, three different migration decisions.
+The full cut follows the same order at a slower pace, and adds the inventory,
+the remediation programme and the CBOM as scenes of their own, plus what the
+scan did not see and how to check every figure.
 
-* **Act I** opens on real cryptographic evidence scattered across the frame,
-  each fragment labelled with the file it came from. No stock imagery, no
-  padlocks, no particles.
-* **Act III** is the signature sequence. Three RSA findings assemble one at a
-  time — evidence, then resolved purpose, then target — and the third one
-  deliberately produces no target at all. It is paid off immediately by the
-  real remediation screen, where those three answers appear as three funded
-  workstreams: the argument the film has just made, in the product's own
-  words rather than the film's.
-* **Act V** is about what the tool *did not* see: a key deleted by a later
-  container layer, and a scan marked PARTIAL because an endpoint was refused.
+## How the product footage is made
 
-## How it is built
+`submission/build/capture_walkthrough.py` drives the running console in
+headless Chromium exactly as a presenter would, and records each state:
+
+1. the assessment, scrolled into view;
+2. the inventory;
+3. the pointer resting on the RSA signing finding — the script checks that the
+   hovered row really is that finding, and fails if it is not;
+4. the click, and the evidence drawer that opens;
+5. the drawer scrolled to the exposure arithmetic;
+6. the remediation programme;
+7. **Validate** pressed, and the console's own verdict;
+8. **Open report** pressed, and the tab it opens.
+
+Each state is a full 2880×1620 frame, saved with the on-screen position of the
+elements that matter in it (`submission/walkthrough/walkthrough.json`). The
+film's camera moves across those frames — pushing in to the part being
+discussed, so interface text is read at a legible size rather than as a small
+panel in a dark field — and its focus rings are drawn at the positions the
+browser reported. A dissolve between two frames marks the moment a click
+changed the screen. It is a sequence of genuine states with restrained camera
+movement, not a continuous screen recording, and it says so.
 
 ```bash
-python run.py --demo                                    # real data
+python run.py --demo                                        # real data
 python run.py --port 8140 &
-python submission/build/capture_screens.py --port 8140  # dark-theme captures
-python submission/build/make_film.py                    # both cuts + SRT
-python submission/build/make_film.py --short            # short cut only
+python submission/build/capture_walkthrough.py --port 8140  # the walkthrough
+python submission/build/make_film.py                        # both cuts + SRT
+python submission/build/make_film.py --short                # short cut only
 ```
 
 Scenes are authored as HTML in `submission/build/film_scenes.py` and driven by
-a deterministic `seek(t)` in the page: each element declares when it enters and
-how long it takes, so a render is reproducible frame for frame. Frames are
-screenshotted from headless Chromium and piped straight into ffmpeg — no
-intermediate images are written.
-
-Choreography is mapped onto scene length rather than truncated, which is how
-the short cut re-times the same scenes instead of cutting them off mid-reveal.
+a deterministic `seek(t)`, so a render is reproducible frame for frame. Frames
+are screenshotted from headless Chromium and piped straight into ffmpeg.
 
 ## Sound: why this film is caption-led
 
@@ -109,16 +121,17 @@ was designed caption-first from the start.
 **What has been verified** by `submission/build/check_film.py`: that both cuts
 decode end to end, that every SRT cue is ordered and none outlives the film,
 that no sampled frame is empty, and that the caption band carries ink in at
-least 80% of sampled frames — a caption-led film whose captions silently failed
+least two thirds of sampled frames — a caption-led film whose captions silently failed
 to draw would pass every other check, so that one is measured directly. The burned-in captions
 and the SRT come from one timed list, so their wording and timings cannot
 drift apart.
 
-One deliberate difference between them: where a scene already typesets a line
-in large type — the RSA sequence ends on *Purpose decides the migration.* set
-across the frame — the band stays empty rather than repeating the sentence
-underneath it in a smaller size. Six lines are withheld this way. The SRT
-keeps all of them, so the transcript stays complete.
+Where a scene's own typography carries a line — the opening's two-line hook,
+the RSA sequence's verdict *Purpose changes the migration.*, the closing card —
+the band is left empty rather than repeating the sentence underneath itself in
+a smaller size. The builder also withholds any caption that the scene already
+shows on screen, and the SRT keeps every caption it has, so the transcript
+stays complete.
 
 **What has not been verified:** nothing about how it sounds, because there is
 no sound. That is the point — there is no synthetic voice here to misjudge.

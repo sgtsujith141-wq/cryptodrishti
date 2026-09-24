@@ -15,11 +15,13 @@ records why.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import design as D  # noqa: E402
+from PIL import Image  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SHOTS = ROOT / "submission" / "screenshots"
@@ -100,227 +102,365 @@ def _frag_positions():
 
 
 # --------------------------------------------------------------------------
-# Scene builders -- each returns (body, css, beats_ms)
+# The picture area, and the camera over genuine console frames
+# --------------------------------------------------------------------------
+#
+# The caption-led cut reserves a 150px band at the foot of the frame. Earlier
+# cuts shrank every scene to fit above it, which is how a readable dashboard
+# ended up as a small panel in a large dark field. Scenes built here opt out
+# of that shrink and lay themselves out in the full-width picture area
+# instead, so the product fills the frame.
+
+WALK = ROOT / "submission" / "walkthrough"
+PIC_W, PIC_H = 1920, 930
+FULL = ("#cd-stage { transform:none !important; }\n"
+        f".pic {{ position:absolute; left:0; top:0; width:{PIC_W}px;"
+        f" height:{PIC_H}px; overflow:hidden; }}")
+
+
+def _marks() -> dict:
+    d = json.loads((WALK / "walkthrough.json").read_text())
+    return {s["name"]: s["marks"] for s in d["states"]}
+
+
+def walk(shots, tag="Live console · demo estate", light=False,
+         tag_right=False):
+    """A camera over genuine console frames.
+
+    Every frame was recorded by `capture_walkthrough.py` driving the running
+    console with real clicks. A shot names its frame, when it starts, the
+    camera keys `(ms, centre-x, centre-y, visible-width)` in fractions of the
+    frame, and the focus rings to draw. A ring names an element whose position
+    the browser reported during the capture, so it sits on the real element.
+    Consecutive shots dissolve into each other: that is the moment a click
+    changed the screen, not a transition added for effect.
+    """
+    marks = _marks()
+    frames, data = [], []
+    for i, sh in enumerate(shots):
+        path = WALK / f"{sh['frame']}.png"
+        src = embed(path, None, 2880)
+        with Image.open(path) as im:
+            iw, ih = im.width, im.height
+        frames.append(f'<div class="wf" id="wf{i}"><img src="{src}"></div>')
+        rings = []
+        for what, a, b in sh.get("rings", []):
+            r = (marks[sh["frame"]][what] if isinstance(what, str)
+                 else dict(zip("xywh", what)))
+            rings.append({"r": [r["x"], r["y"], r["w"], r["h"]],
+                          "a": a, "b": b})
+        data.append({"at": sh["at"], "cam": sh["cam"], "rings": rings,
+                     "iw": iw, "ih": ih})
+    n = sum(len(d["rings"]) for d in data)
+    end = max([k[0] for d in data for k in d["cam"]]
+              + [r["b"] for d in data for r in d["rings"]])
+    css = FULL + f"""
+    .wf {{ position:absolute; inset:0; opacity:0; }}
+    .wf img {{ position:absolute; display:block; max-width:none; }}
+    .ring {{ position:absolute; opacity:0; border-radius:9px; z-index:4;
+             border:2px solid {"rgba(26,26,28,.85)" if light
+                               else "rgba(237,235,230,.88)"};
+             box-shadow:0 0 0 4000px {"rgba(0,0,0,0)" if light
+                                      else "rgba(8,8,10,.48)"}; }}
+    .fade {{ position:absolute; left:0; right:0; bottom:0; height:70px;
+             z-index:5; background:linear-gradient(to bottom,
+             rgba(16,16,18,0), {D.PAPER}); }}
+    .tag {{ position:absolute; {"right" if light or tag_right else "left"}:30px; top:26px;
+            z-index:6; opacity:0;
+            font-family:{D.MONO}; font-size:15px; letter-spacing:.13em;
+            text-transform:uppercase; color:{D.INK3};
+            background:rgba(16,16,18,.86); border:1px solid {D.RULE2};
+            border-radius:3px; padding:8px 13px; }}
+    """
+    rings_html = "".join(f'<div class="ring" id="rg{k}"></div>'
+                         for k in range(n))
+    body = f"""<div class="pic">{''.join(frames)}{rings_html}
+      <div class="fade"></div>
+      <div class="tag" data-in="300" data-dur="600">{tag}</div></div>
+    <script>
+    (function() {{
+      const WS = {json.dumps(data)};
+      const CW = {PIC_W}, CH = {PIC_H}, X = 450;
+      const ez = p => p <= 0 ? 0 : p >= 1 ? 1
+               : p < .5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3) / 2;
+      function cam(keys, t) {{
+        if (t <= keys[0][0]) return keys[0].slice(1);
+        for (let i = 1; i < keys.length; i++) {{
+          const a = keys[i-1], b = keys[i];
+          if (t <= b[0]) {{
+            const p = ez((t - a[0]) / Math.max(1, b[0] - a[0]));
+            return [1, 2, 3].map(j => a[j] + (b[j] - a[j]) * p);
+          }}
+        }}
+        return keys[keys.length-1].slice(1);
+      }}
+      window.seekExtra = function(t) {{
+        let k = 0;
+        WS.forEach((w, i) => {{
+          const next = WS[i+1];
+          let o = i === 0 ? 1 : Math.min(1, Math.max(0, (t - w.at) / X));
+          if (next && t > next.at + X) o = 0;
+          const el = document.getElementById('wf' + i);
+          el.style.opacity = o;
+          const IW = w.iw, IH = w.ih;
+          let [cx, cy, z] = cam(w.cam, t);
+          const s = CW / (z * IW), vw = CW / s, vh = CH / s;
+          cx = Math.min(Math.max(cx * IW, vw / 2), IW - vw / 2);
+          cy = Math.min(Math.max(cy * IH, vh / 2), IH - vh / 2);
+          const L = CW / 2 - cx * s, T = CH / 2 - cy * s;
+          const img = el.querySelector('img');
+          img.style.width = (IW * s) + 'px';
+          img.style.left = L + 'px'; img.style.top = T + 'px';
+          w.rings.forEach(r => {{
+            const g = document.getElementById('rg' + (k++));
+            const ro = o * Math.min(1, Math.max(0, (t - r.a) / 350),
+                                       Math.max(0, (r.b - t) / 350));
+            const pad = 10;
+            g.style.left = (L + r.r[0] * IW * s - pad) + 'px';
+            g.style.top = (T + r.r[1] * IH * s - pad) + 'px';
+            g.style.width = (r.r[2] * IW * s + 2 * pad) + 'px';
+            g.style.height = (r.r[3] * IH * s + 2 * pad) + 'px';
+            g.style.opacity = ro;
+          }});
+        }});
+      }};
+    }})();
+    </script>"""
+    return body, css, end
+
+
+# --------------------------------------------------------------------------
+# Scene builders -- each returns (body, css, choreography_ms)
 # --------------------------------------------------------------------------
 
-def sc_open():
+def sc_hook(fast=False):
+    # The fragments arrive at once, not one by one over half a minute: the
+    # opening has to put real evidence on screen immediately, then say what
+    # it means in two lines.
+    step = 170 if fast else 380
     frags = []
-    for i, ((where, code), (x, y)) in enumerate(zip(FRAGMENTS, _frag_positions())):
-        t = 120 + i * 560
+    pos = [(5, 6), (52, 4), (8, 21), (55, 19), (4, 36), (48, 34),
+           (10, 51), (54, 49)]
+    for i, ((where, code), (x, y)) in enumerate(zip(FRAGMENTS, pos)):
+        t = 80 + i * step
         frags.append(f"""
-        <div class="frag" style="left:{x}%; top:{y}%" data-in="{t}" data-dur="620" data-y="10">
+        <div class="frag" style="left:{x}%; top:{y}%" data-in="{t}"
+             data-dur="520" data-y="10">
           <div class="fc mono">{code}</div>
-          <div class="fw mono">{where}</div>
-        </div>""")
-    css = f"""
-    .stage {{ position:absolute; inset:0; }}
-    .frag {{ position:absolute; opacity:0; max-width:34%; }}
-    .fc {{ font-size:25px; color:{D.INK2}; }}
-    .fw {{ font-size:17px; color:{D.INK4}; margin-top:6px; }}
-    .line {{ position:absolute; left:8%; top:82%; opacity:0; font-size:34px;
-             color:{D.INK}; font-weight:600; max-width:62%; line-height:1.34; }}
+          <div class="fw mono">{where}</div></div>""")
+    kick_at = 80 + len(FRAGMENTS) * step + 250
+    css = FULL + f"""
+    .frag {{ position:absolute; opacity:0; max-width:40%; }}
+    .fc {{ font-size:35px; color:{D.INK2}; }}
+    .fw {{ font-size:21px; color:{D.INK4}; margin-top:8px; }}
+    .kick {{ position:absolute; left:6%; bottom:9%; opacity:0;
+             font-size:58px; font-weight:700; letter-spacing:-.022em;
+             line-height:1.18; color:{D.INK}; }}
+    .kick span {{ color:{D.ACCENT}; }}
     """
-    body = f"""<div class="stage">{''.join(frags)}
-      <div class="line" data-in="4900" data-dur="900" data-y="14">
-        Cryptography is not in one place.<br>It is in all of them.</div>
-    </div>"""
-    return body, css, 7000
+    body = f"""<div class="pic">{''.join(frags)}
+      <div class="kick" data-in="{kick_at}" data-dur="800" data-y="16">
+        Your cryptography is everywhere.<br>
+        <span>Your inventory usually isn't.</span></div></div>"""
+    return body, css, kick_at + 1800
 
 
-def sc_name():
-    css = f"""
-    .wrap {{ position:absolute; left:8%; top:50%; transform:translateY(-50%); }}
-    .nm {{ font-size:104px; font-weight:700; letter-spacing:-.025em;
-           color:{D.INK}; opacity:0; }}
-    .bar {{ width:0; height:5px; background:{D.ACCENT}; margin:26px 0 0; }}
-    .sub {{ font-size:30px; color:{D.INK2}; margin-top:30px; opacity:0;
-            line-height:1.5; }}
-    """
-    body = f"""<div class="wrap">
-      <div class="nm" data-in="200" data-dur="850" data-y="18">CryptoDrishti</div>
-      <div class="bar" data-in="900" data-dur="700" data-grow="230"></div>
-      <div class="sub" data-in="1350" data-dur="800" data-y="12">
-        Cryptographic discovery.  Quantum-risk analysis.<br>
-        Evidence-backed migration planning.</div>
-    </div>"""
-    return body, css, 4200
-
-
-def sc_structure():
-    rows = []
-    for i, (where, code) in enumerate(FRAGMENTS[:6]):
-        rows.append(f"""
-        <div class="r" data-in="{700 + i*260}" data-dur="560" data-y="16">
-          <div class="c1 mono">{where}</div>
-          <div class="c2 mono">{code}</div>
-        </div>""")
-    css = f"""
-    .hd {{ position:absolute; left:8%; top:13%; opacity:0; }}
-    .hd h2 {{ font-size:44px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .hd p {{ font-size:25px; color:{D.INK3}; margin:14px 0 0; }}
-    .tbl {{ position:absolute; left:8%; right:8%; top:36%; }}
-    .r {{ display:grid; grid-template-columns:1fr 1.25fr; gap:32px;
-          padding:15px 0; border-top:1px solid {D.RULE}; opacity:0; }}
-    .c1 {{ font-size:22px; color:{D.INK}; }}
-    .c2 {{ font-size:22px; color:{D.INK3}; }}
-    """
-    body = f"""
-    <div class="hd" data-in="120" data-dur="700" data-y="12">
-      <h2>Scattered evidence becomes structure</h2>
-      <p>Seven sensors. One row per distinct cryptographic asset.</p></div>
-    <div class="tbl">{''.join(rows)}</div>"""
-    return body, css, 3400
+def sc_hook_fast():
+    return sc_hook(fast=True)
 
 
 def sc_dashboard():
-    css = f"""
-    .cap {{ position:absolute; left:5%; top:6.5%; opacity:0; }}
-    .cap h2 {{ font-size:38px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .cap p {{ font-size:21px; color:{D.INK3}; margin:10px 0 0; }}
-    /* The screenshot is the subject: it is fitted inside the frame rather
-       than scaled to full width, which previously pushed most of it below
-       the bottom edge where it read as an empty dark panel. */
-    .shot {{ position:absolute; left:5%; right:5%; top:23%; bottom:6%;
-             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
-             overflow:hidden; background:{D.SURF};
-             display:flex; align-items:center; justify-content:center; }}
-    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
-                 display:block; }}
-    """
-    body = f"""
-    <div class="cap" data-in="120" data-dur="700" data-y="12">
-      <h2>One scan of the demo estate</h2>
-      <p>23 distinct assets · 16 quantum-vulnerable · the scan's own
-         completeness stated at the top</p></div>
-    <div class="shot" data-in="700" data-dur="900" data-y="20" data-scale="1.03">
-      <img src="{embed(SHOTS / '01-assessment.png', (0.055, 0.03, 1.0, 0.92))}"></div>"""
-    return body, css, 4200
+    return walk([dict(
+        frame="w01-assessment", at=0,
+        cam=[(0, .50, .50, 1.00), (1600, .50, .50, 1.00),
+             (3400, .68, .28, .44), (6600, .68, .28, .44),
+             (8400, .50, .68, .80), (12400, .50, .68, .80)],
+        rings=[("partial", 3700, 6700), ("figs", 8700, 12200)])])
 
 
-def sc_rsa():
+def sc_inventory():
+    return walk([dict(
+        frame="w02-inventory", at=0,
+        cam=[(0, .50, .56, 1.00), (1500, .50, .56, 1.00),
+             (4500, .378, .40, .66), (10500, .378, .40, .66)],
+        rings=[("row0", 4700, 7400), ("row1", 7700, 10300)])])
+
+
+def sc_rsa(short=False):
     rows = []
+    gap = 2300 if short else 2700
     for i, c in enumerate(RSA):
-        base = 600 + i * 2500
+        base = 700 + i * gap
         tone = D.UNKNOWN if c["open"] else D.BROKEN
         tcls = "t-open" if c["open"] else "t-set"
         rows.append(f"""
         <div class="row" style="--c:{tone}">
           <div class="algo mono" data-in="{base}" data-dur="420" data-y="8">rsa</div>
-          <div class="ev" data-in="{base+180}" data-dur="480" data-y="10">
+          <div class="ev" data-in="{base+160}" data-dur="480" data-y="10">
             <div class="w mono">{c['where']}</div>
             <div class="s"><span>{c['surface']}</span>
               <span class="asr mono">{c['asr']}</span></div></div>
-          <div class="pu" data-in="{base+900}" data-dur="520" data-y="10">
+          <div class="pu" data-in="{base+850}" data-dur="520" data-y="10">
             <div class="pl">{c['purpose']}</div>
             <div class="wy">{c['why']}</div></div>
-          <div class="ar" data-in="{base+1500}" data-dur="380">{'?' if c['open'] else '→'}</div>
-          <div class="tg {tcls} mono" data-in="{base+1650}" data-dur="560" data-y="10">{c['target']}</div>
+          <div class="ar" data-in="{base+1400}" data-dur="380">{'?' if c['open'] else '→'}</div>
+          <div class="tg {tcls} mono" data-in="{base+1550}" data-dur="560" data-y="10">{c['target']}</div>
         </div>""")
-    css = f"""
-    .hd {{ position:absolute; left:5%; top:8%; opacity:0; }}
-    .hd h2 {{ font-size:46px; margin:0; font-weight:700; letter-spacing:-.022em; }}
-    .hd p {{ font-size:24px; color:{D.INK3}; margin:13px 0 0; }}
-    .tbl {{ position:absolute; left:5%; right:5%; top:27%; }}
-    .row {{ display:grid; grid-template-columns:110px 1.05fr 1.05fr 52px 1.1fr;
-            gap:0 26px; align-items:center; padding:32px 0 32px 24px;
+    kick = 700 + 3 * gap + 900
+    css = FULL + f"""
+    .hd {{ position:absolute; left:5%; top:6%; opacity:0; }}
+    .hd h2 {{ font-size:56px; margin:0; font-weight:700; letter-spacing:-.024em; }}
+    .hd p {{ font-size:26px; color:{D.INK3}; margin:12px 0 0; }}
+    .tbl {{ position:absolute; left:5%; right:5%; top:25%; }}
+    .row {{ display:grid; grid-template-columns:118px 1.05fr 1.1fr 56px 1.08fr;
+            gap:0 28px; align-items:center; padding:38px 0 38px 26px;
             border-top:1px solid {D.RULE}; position:relative; }}
     .row::before {{ content:""; position:absolute; left:0; top:-1px; bottom:0;
-                    width:4px; background:var(--c); }}
+                    width:5px; background:var(--c); }}
     .row > * {{ opacity:0; }}
-    .algo {{ font-size:34px; font-weight:600; }}
-    .w {{ font-size:22px; }}
-    .s {{ margin-top:9px; display:flex; gap:12px; align-items:center;
-          font-size:17px; color:{D.INK3}; }}
-    .asr {{ font-size:13px; letter-spacing:.1em; color:{D.INK2};
+    .algo {{ font-size:42px; font-weight:600; }}
+    .w {{ font-size:26px; }}
+    .s {{ margin-top:10px; display:flex; gap:12px; align-items:center;
+          font-size:19px; color:{D.INK3}; }}
+    .asr {{ font-size:14px; letter-spacing:.1em; color:{D.INK2};
             border:1px solid {D.RULE2}; border-radius:2px; padding:3px 9px; }}
-    .pl {{ font-size:27px; font-weight:600; color:var(--c); }}
-    .wy {{ font-size:17px; color:{D.INK3}; margin-top:7px; }}
-    .ar {{ font-size:29px; color:{D.INK4}; text-align:center; }}
-    .tg {{ font-size:24px; padding:14px 18px; border-radius:3px;
+    .pl {{ font-size:34px; font-weight:600; color:var(--c); }}
+    .wy {{ font-size:20px; color:{D.INK3}; margin-top:8px; }}
+    .ar {{ font-size:34px; color:{D.INK4}; text-align:center; }}
+    .tg {{ font-size:30px; padding:16px 20px; border-radius:4px;
            background:{D.SURF}; border:1px solid {D.RULE}; }}
-    .t-set {{ color:{D.SAFE}; border-color:rgba(63,174,134,.42); }}
-    .t-open {{ color:{D.INK3}; font-style:italic; font-size:20px; }}
-    .kick {{ position:absolute; left:5%; bottom:15%; opacity:0;
-             font-size:32px; font-weight:600; color:{D.INK}; }}
-    .kick b {{ color:{D.ACCENT}; font-weight:600; }}
+    .t-set {{ color:{D.SAFE}; border-color:rgba(63,174,134,.45); }}
+    .t-open {{ color:{D.INK3}; font-style:italic; font-size:23px; }}
+    .kick {{ position:absolute; left:5%; bottom:6%; opacity:0;
+             font-size:44px; font-weight:700; letter-spacing:-.018em;
+             color:{D.INK}; }}
+    .kick b {{ color:{D.ACCENT}; font-weight:700; }}
     """
-    body = f"""
+    body = f"""<div class="pic">
     <div class="hd" data-in="60" data-dur="640" data-y="12">
       <h2>Same algorithm. Three answers.</h2>
-      <p>One scan · five RSA findings</p></div>
+      <p>One scan of the demo estate · RSA, found three ways</p></div>
     <div class="tbl">{''.join(rows)}</div>
-    <div class="kick" data-in="8400" data-dur="800" data-y="12">
-      Knowing the algorithm is not enough. <b>Purpose decides the migration.</b></div>"""
-    return body, css, 10200
+    <div class="kick" data-in="{kick}" data-dur="800" data-y="12">
+      Finding the algorithm is not enough.
+      <b>Purpose changes the migration.</b></div></div>"""
+    return body, css, kick + 2600
 
 
-def sc_chain():
-    items = []
-    for i, (k, v, note) in enumerate(CHAIN):
-        t = 400 + i * 620
-        items.append(f"""
-        <div class="st" data-in="{t}" data-dur="480" data-y="12">
-          <div class="k mono">{k}</div>
-          <div class="v mono">{v}</div>
-          <div class="n">{note}</div></div>""")
-    css = f"""
-    .hd {{ position:absolute; left:6%; top:9%; opacity:0; }}
-    .hd h2 {{ font-size:42px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .hd p {{ font-size:23px; color:{D.INK3}; margin:12px 0 0; }}
-    .col {{ position:absolute; left:6%; right:6%; top:25%;
-            display:grid; grid-template-columns:repeat(3,1fr); gap:46px 26px; }}
-    .st {{ opacity:0; border-left:3px solid {D.ACCENT}; padding:11px 0 11px 17px; }}
-    .k {{ font-size:14px; letter-spacing:.12em; text-transform:uppercase;
-          color:{D.INK4}; }}
-    .v {{ font-size:29px; color:{D.INK}; margin-top:9px; }}
-    .n {{ font-size:17px; color:{D.INK3}; margin-top:8px; }}
+def sc_rsa_short():
+    return sc_rsa(short=True)
+
+
+def _evidence_shots(scale=1.0):
+    k = lambda ms: int(ms * scale)                            # noqa: E731
+    return [
+        # the inventory, pointer resting on the RSA signing finding
+        dict(frame="w03-hover", at=0,
+             cam=[(0, .45, .30, .80), (k(2800), .40, .22, .62)],
+             rings=[("row0", k(700), k(2900))]),
+        # the click: the evidence drawer opens over the same list
+        dict(frame="w04-drawer", at=k(3000),
+             cam=[(k(3000), .40, .22, .62), (k(4900), .80, .215, .44),
+                  (k(7600), .80, .215, .44), (k(9100), .80, .56, .44),
+                  (k(11700), .80, .56, .44), (k(13200), .80, .79, .44),
+                  (k(15600), .80, .79, .44)],
+             rings=[("head", k(5000), k(6100)),
+                    ("sec0", k(6100), k(8700)),
+                    ("sec1", k(9300), k(12200)),
+                    ((.645, .745, .335, .105), k(13400), k(15500))]),
+    ]
+
+
+def sc_evidence():
+    return walk(_evidence_shots(1.0))
+
+
+def sc_evidence_short():
+    return walk(_evidence_shots(0.80))
+
+
+def sc_plan():
+    return walk([dict(
+        frame="w06-plan", at=0,
+        cam=[(0, .50, .52, .98), (1300, .50, .52, .98),
+             (3000, .395, .50, .70), (10200, .395, .50, .70)],
+        rings=[("p0", 3300, 5400), ("p1", 5700, 7800), ("p3", 8100, 10200)])])
+
+
+def sc_report():
+    return walk([dict(
+        frame="w09-report-close", at=0,
+        cam=[(0, .50, .43, 1.00), (10400, .50, .41, .95)],
+        rings=[("grid", 4900, 7400), ("verdict", 7700, 10200)])],
+        tag="Generated report · opened from the console", light=True)
+
+
+def sc_cbom():
+    return walk([dict(
+        frame="w07-validated", at=0,
+        cam=[(0, .50, .52, .95), (1400, .50, .52, .95),
+             (3200, .30, .56, .52), (9600, .30, .56, .52)],
+        rings=[("buttons", 3300, 5200), ("result", 5600, 9500)])])
+
+
+def sc_output_short():
+    # plan -> report -> CBOM in one continuous pass, the order a person
+    # would take through the console's output: what to do, the document,
+    # the machine-readable record.
+    return walk([
+        dict(frame="w06-plan", at=0,
+             cam=[(0, .40, .50, .70), (3600, .365, .50, .64)],
+             rings=[("p0", 500, 1500), ("p1", 1600, 2600), ("p3", 2700, 3700)]),
+        dict(frame="w09-report-close", at=3900,
+             cam=[(3900, .50, .43, 1.00), (7700, .50, .42, .96)]),
+        dict(frame="w07-validated", at=7800,
+             cam=[(7800, .34, .56, .60), (10800, .30, .56, .52)],
+             rings=[("result", 8600, 10800)]),
+    ], tag="Live console · outputs", tag_right=True)
+
+
+def sc_close():
+    css = FULL + f"""
+    .wrap {{ position:absolute; left:7%; top:50%; transform:translateY(-50%); }}
+    .l {{ font-size:40px; color:{D.INK2}; opacity:0; line-height:1.45;
+          font-weight:500; }}
+    .l b {{ color:{D.INK}; font-weight:600; }}
+    .nm {{ font-size:92px; font-weight:700; letter-spacing:-.026em;
+           color:{D.INK}; opacity:0; margin-top:52px; }}
+    .bar {{ width:0; height:5px; background:{D.ACCENT}; margin:20px 0 0; }}
+    .meta {{ display:grid; grid-template-columns:auto auto; gap:12px 34px;
+             margin-top:30px; opacity:0; font-size:30px; color:{D.INK3}; }}
+    .meta .mono {{ color:{D.INK}; }}
     """
-    body = f"""
-    <div class="hd" data-in="60" data-dur="640" data-y="12">
-      <h2>One finding, followed all the way down</h2>
-      <p>Nothing in this chain is inferred — each step is recorded against
-         the asset</p></div>
-    <div class="col">{''.join(items)}</div>"""
-    return body, css, 6400
-
-
-def sc_drawer():
-    css = f"""
-    .cap {{ position:absolute; left:5%; top:10%; opacity:0; width:33%; }}
-    .cap h2 {{ font-size:36px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .cap p {{ font-size:20px; color:{D.INK3}; margin:16px 0 0; line-height:1.55; }}
-    .shot {{ position:absolute; left:41%; right:5%; top:6%; bottom:6%;
-             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
-             overflow:hidden; background:{D.SURF};
-             display:flex; align-items:center; justify-content:center; }}
-    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
-                 display:block; }}
-    """
-    body = f"""
-    <div class="cap" data-in="200" data-dur="760" data-y="12">
-      <h2>And it is in the product</h2>
-      <p>The same chain, in the console. Every finding opens onto the evidence
-         behind it and the arithmetic behind its score — including which
-         inputs a human set by hand.</p></div>
-    <div class="shot" data-in="500" data-dur="900" data-y="16" data-scale="1.02">
-      <img src="{embed(SHOTS / '07-evidence-drawer.png', (0.0, 0.0, 1.0, 0.56), 900)}"></div>"""
-    return body, css, 5000
+    body = f"""<div class="pic"><div class="wrap">
+      <div class="l" data-in="200" data-dur="900" data-y="14">
+        Scattered evidence.<br>One explainable inventory.<br>
+        <b>A migration decision you can defend.</b></div>
+      <div class="nm" data-in="1600" data-dur="800" data-y="14">CryptoDrishti</div>
+      <div class="bar" data-in="2200" data-dur="700" data-grow="210"></div>
+      <div class="meta" data-in="2600" data-dur="800" data-y="10">
+        <span>Team</span><span class="mono">Zero-Day · 146876</span>
+        <span>Problem statement</span><span class="mono">SIH26164</span>
+        <span>Repository</span>
+        <span class="mono">github.com/sgtsujith141-wq/cryptodrishti</span>
+      </div></div></div>"""
+    return body, css, 4200
 
 
 def sc_honest():
-    css = f"""
-    .hd {{ position:absolute; left:6%; top:9%; opacity:0; }}
-    .hd h2 {{ font-size:42px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .two {{ position:absolute; left:6%; right:6%; top:27%;
-            display:grid; grid-template-columns:1fr 1fr; gap:30px; }}
+    css = FULL + f"""
+    .hd {{ position:absolute; left:5%; top:7%; opacity:0; }}
+    .hd h2 {{ font-size:56px; margin:0; font-weight:700; letter-spacing:-.024em; }}
+    .two {{ position:absolute; left:5%; right:5%; top:27%;
+            display:grid; grid-template-columns:1fr 1fr; gap:40px; }}
     .b {{ opacity:0; background:{D.SURF}; border:1px solid {D.RULE};
-          border-left:4px solid var(--c); border-radius:3px; padding:26px 28px; }}
-    .bt {{ font-size:27px; font-weight:700; color:var(--c); }}
-    .bd {{ font-size:20px; color:{D.INK2}; margin-top:14px; line-height:1.55; }}
-    .bm {{ font-family:{D.MONO}; font-size:17px; color:{D.INK3}; margin-top:16px;
-           padding-top:14px; border-top:1px solid {D.RULE}; }}
+          border-left:5px solid var(--c); border-radius:4px; padding:44px 46px; }}
+    .bt {{ font-size:44px; font-weight:700; color:var(--c); }}
+    .bd {{ font-size:31px; color:{D.INK2}; margin-top:22px; line-height:1.5; }}
+    .bm {{ font-family:{D.MONO}; font-size:21px; color:{D.INK3}; margin-top:26px;
+           padding-top:20px; border-top:1px solid {D.RULE}; }}
     """
-    body = f"""
+    body = f"""<div class="pic">
     <div class="hd" data-in="60" data-dur="640" data-y="12">
       <h2>What it did not see is on the record</h2></div>
     <div class="two">
@@ -339,186 +479,28 @@ def sc_honest():
           the console, the report and the CBOM.</div>
         <div class="bm">refused 169.254.169.254 — cloud instance metadata service</div>
       </div>
-    </div>"""
+    </div></div>"""
     return body, css, 5600
 
 
-def sc_cbom():
-    fields = [("bomFormat", "CycloneDX"), ("specVersion", "1.6"),
-              ("component.type", "cryptographic-asset"),
-              ("cryptoProperties", "assetType · primitive · purpose"),
-              ("evidence.occurrences", "location · line · technique")]
-    rows = "".join(f"""
-      <div class="f" data-in="{700+i*440}" data-dur="460" data-y="10">
-        <span class="k mono">{k}</span><span class="v mono">{v}</span></div>"""
-                   for i, (k, v) in enumerate(fields))
-    css = f"""
-    .hd {{ position:absolute; left:6%; top:9%; opacity:0; width:42%; }}
-    .hd h2 {{ font-size:40px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .hd p {{ font-size:21px; color:{D.INK3}; margin:14px 0 0; line-height:1.55; }}
-    .fl {{ position:absolute; left:6%; top:38%; width:42%; }}
-    .f {{ opacity:0; display:flex; justify-content:space-between; gap:20px;
-          padding:12px 0; border-top:1px solid {D.RULE}; }}
-    .k {{ font-size:19px; color:{D.INK3}; }}
-    .v {{ font-size:19px; color:{D.INK}; text-align:right; }}
-    .pass {{ position:absolute; left:6%; bottom:11%; opacity:0;
-             display:inline-flex; align-items:center; gap:14px;
-             border:1px solid rgba(63,174,134,.45); border-radius:3px;
-             padding:15px 22px; background:rgba(63,174,134,.08); }}
-    .pass .d {{ width:11px; height:11px; border-radius:50%; background:{D.SAFE}; }}
-    .pass .t {{ font-size:23px; color:{D.SAFE}; font-weight:600; }}
-    .shot {{ position:absolute; right:4%; left:53%; top:24%; height:36%;
-             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
-             overflow:hidden; background:{D.SURF};
-             display:flex; align-items:center; justify-content:center; }}
-    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
-                 display:block; }}
-    """
-    body = f"""
-    <div class="hd" data-in="60" data-dur="640" data-y="12">
-      <h2>An output a tool can consume</h2>
-      <p>Not a bespoke report — CycloneDX, the published standard for a
-         cryptographic bill of materials.</p></div>
-    <div class="fl">{rows}</div>
-    <div class="pass" data-in="3100" data-dur="620" data-y="10">
-      <span class="d"></span><span class="t">Validated against the official
-      CycloneDX JSON Schema — offline, at a pinned commit</span></div>
-    <div class="shot" data-in="1400" data-dur="800" data-y="14" data-scale="1.02">
-      <img src="{embed(SHOTS / '05-cbom-export.png', (0.055, 0.27, 1.0, 0.76))}"></div>"""
-    return body, css, 5400
-
-
-def sc_close():
-    css = f"""
-    .wrap {{ position:absolute; left:8%; top:50%; transform:translateY(-50%); }}
-    .l {{ font-size:36px; color:{D.INK2}; opacity:0; line-height:1.5; }}
-    .nm {{ font-size:84px; font-weight:700; letter-spacing:-.025em;
-           color:{D.INK}; opacity:0; margin-top:42px; }}
-    .bar {{ width:0; height:4px; background:{D.ACCENT}; margin:22px 0 0; }}
-    .meta {{ font-size:25px; color:{D.INK3}; margin-top:26px; opacity:0;
-             line-height:1.6; }}
-    .meta .mono {{ color:{D.INK2}; }}
-    """
-    body = f"""<div class="wrap">
-      <div class="l" data-in="200" data-dur="900" data-y="14">
-        Scattered evidence. One explainable inventory.<br>
-        A migration decision you can defend.</div>
-      <div class="nm" data-in="1300" data-dur="800" data-y="14">CryptoDrishti</div>
-      <div class="bar" data-in="1900" data-dur="700" data-grow="190"></div>
-      <div class="meta" data-in="2300" data-dur="800" data-y="10">
-        Team <span class="mono">146876 — Zero-Day</span><br>
-        Problem statement <span class="mono">SIH26164</span> ·
-        <span class="mono">github.com/sgtsujith141-wq/cryptodrishti</span></div>
-    </div>"""
-    return body, css, 6000
-
-
-# `cap` is the caption: spelled for a reader, and the only one of the two that
-# reaches the screen. It is what a viewer reads and what they will quote.
-#
-# `say` is spelled for a speech synthesiser -- `Crypto Drishti`, `R S A`, `M L
-# D S A sixty-five` -- and is kept only so `make_film.py --voice` can still
-# produce a narrated cut if the pinned voice ever becomes available again. The
-# shipped cuts do not use it. The two must keep carrying the same meaning.
-#
-# `beats` is a *minimum hold* for the scene, not its choreography length. The
-# choreography end is whatever the builder returns, and the renderer maps one
-# onto the other, so a reveal stretches across the time the captions need
-# instead of finishing early and leaving the frame dead.
-
-def _product(heading, lede, img_expr, *, crop=None, wide=True):
-    """A product scene: the capture is the subject, the words are a caption."""
-    css = f"""
-    .cap {{ position:absolute; left:5%; top:6.5%; opacity:0; }}
-    .cap h2 {{ font-size:37px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .cap p {{ font-size:21px; color:{D.INK3}; margin:10px 0 0; }}
-    .shot {{ position:absolute; left:5%; right:5%; top:23%; bottom:6%;
-             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
-             overflow:hidden; background:{D.SURF};
-             display:flex; align-items:center; justify-content:center; }}
-    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
-                 display:block; }}
-    """
-    body = f"""
-    <div class="cap" data-in="80" data-dur="640" data-y="12">
-      <h2>{heading}</h2><p>{lede}</p></div>
-    <div class="shot" data-in="520" data-dur="900" data-y="16" data-scale="1.02">
-      <img src="{img_expr}"></div>"""
-    return body, css, 3400
-
-
-def sc_inventory():
-    # Deliberately not the `_product` composition. This scene sits fourteen
-    # seconds after the dashboard, which uses that layout, and two identical
-    # compositions back to back make a film look templated. The table is run
-    # off the right edge instead: a list that continues past the frame is the
-    # point of the scene -- there is a row for every asset, not a top ten.
-    css = f"""
-    .cap {{ position:absolute; left:5%; top:19%; width:27%; opacity:0;
-            z-index:3; }}
-    .cap h2 {{ font-size:36px; margin:0; font-weight:700;
-               letter-spacing:-.02em; line-height:1.15; }}
-    .cap p {{ font-size:19px; color:{D.INK3}; margin:16px 0 0;
-              line-height:1.58; }}
-    /* -12% clears the frame edge once the caption-led stage scale is
-       applied, so the table really does run out of the picture */
-    .shot {{ position:absolute; left:36%; right:-12%; top:11%; bottom:9%;
-             opacity:0; border:1px solid {D.RULE2}; border-right:0;
-             border-radius:5px 0 0 5px; overflow:hidden;
-             background:{D.SURF}; }}
-    .shot img {{ width:100%; height:100%; object-fit:cover;
-                 object-position:left top; display:block; }}
-    """
-    body = f"""
-    <div class="cap" data-in="120" data-dur="700" data-y="14">
-      <h2>Every asset, ranked by what it costs you</h2>
-      <p>Score, class, evidence location, assurance grade and the replacement
-         it needs — one row per distinct asset, not a top ten.</p></div>
-    <div class="shot" data-in="460" data-dur="920" data-y="18">
-      <img src="{embed(SHOTS / '04-inventory.png', (0.055, 0.03, 1.0, 0.62))}">
-    </div>"""
-    return body, css, 3600
-
-
-def sc_migration():
-    # The payoff of the RSA sequence, in the product's own words: the three
-    # answers the film has just derived appear here as three funded
-    # workstreams. This is a genuine capture -- the workstream names, the
-    # asset and call-site counts and the effort grades are what the demo scan
-    # produced, not a mock-up of what the screen might look like.
-    return _product(
-        "Three answers, staffed as three workstreams",
-        "The same programme grouped by replacement algorithm — one workstream "
-        "per target, which is how a migration is actually budgeted",
-        embed(SHOTS / "03-migration-plan.png", (0.095, 0.215, 0.905, 0.775)))
-
-
-def sc_report():
-    return _product(
-        "The same scan, as a document",
-        "A self-contained report built to be printed and circulated — "
-        "the half a director reads",
-        embed(SHOTS / "08-report.png", (0.0, 0.0, 1.0, 0.62), 1700))
-
-
 def sc_repo():
-    css = f"""
-    .hd {{ position:absolute; left:6%; top:12%; opacity:0; width:52%; }}
-    .hd h2 {{ font-size:40px; margin:0; font-weight:700; letter-spacing:-.02em; }}
-    .hd p {{ font-size:21px; color:{D.INK3}; margin:14px 0 0; line-height:1.55; }}
-    .cmds {{ position:absolute; left:6%; top:44%; width:52%; }}
-    .c {{ opacity:0; font-family:{D.MONO}; font-size:22px; color:{D.INK};
-          padding:13px 18px; margin-bottom:11px; background:{D.SURF};
-          border:1px solid {D.RULE}; border-left:3px solid {D.ACCENT};
-          border-radius:3px; }}
-    .c span {{ color:{D.INK4}; font-size:17px; }}
-    .repo {{ position:absolute; right:6%; top:32%; width:34%; opacity:0;
+    css = FULL + f"""
+    .hd {{ position:absolute; left:5%; top:8%; opacity:0; width:56%; }}
+    .hd h2 {{ font-size:56px; margin:0; font-weight:700; letter-spacing:-.024em; }}
+    .hd p {{ font-size:27px; color:{D.INK3}; margin:16px 0 0; line-height:1.5; }}
+    .cmds {{ position:absolute; left:5%; top:38%; width:54%; }}
+    .c {{ opacity:0; font-family:{D.MONO}; font-size:31px; color:{D.INK};
+          padding:20px 26px; margin-bottom:16px; background:{D.SURF};
+          border:1px solid {D.RULE}; border-left:4px solid {D.ACCENT};
+          border-radius:4px; }}
+    .c span {{ color:{D.INK4}; font-size:22px; }}
+    .repo {{ position:absolute; right:5%; top:38%; width:34%; opacity:0;
              text-align:right; }}
-    .repo .k {{ font-family:{D.MONO}; font-size:13px; letter-spacing:.12em;
+    .repo .k {{ font-family:{D.MONO}; font-size:17px; letter-spacing:.13em;
                 text-transform:uppercase; color:{D.INK4}; }}
-    .repo .v {{ font-family:{D.MONO}; font-size:26px; color:{D.SAFE};
-                margin-top:10px; word-break:break-all; }}
-    .repo .n {{ font-size:18px; color:{D.INK3}; margin-top:18px;
+    .repo .v {{ font-family:{D.MONO}; font-size:36px; color:{D.SAFE};
+                margin-top:12px; word-break:break-all; line-height:1.35; }}
+    .repo .n {{ font-size:23px; color:{D.INK3}; margin-top:22px;
                 line-height:1.5; }}
     """
     cmds = [("python run.py --demo", "builds the estate and scans it"),
@@ -527,7 +509,7 @@ def sc_repo():
     rows = "".join(f"""
       <div class="c" data-in="{900 + i*520}" data-dur="480" data-y="10">
         {c}<br><span>{n}</span></div>""" for i, (c, n) in enumerate(cmds))
-    body = f"""
+    body = f"""<div class="pic">
     <div class="hd" data-in="80" data-dur="640" data-y="12">
       <h2>Check it yourself</h2>
       <p>Every figure in this film comes from a command in the repository.</p></div>
@@ -536,184 +518,78 @@ def sc_repo():
       <div class="k">Source</div>
       <div class="v">github.com/<br>sgtsujith141-wq/<br>cryptodrishti</div>
       <div class="n">664 tests · the labelled benchmark corpus and its
-        committed results · the vendored CycloneDX schemas</div></div>"""
+        committed results · the vendored CycloneDX schemas</div></div></div>"""
     return body, css, 3200
 
 
+# `cap` is the caption: spelled for a reader, and the only text that reaches
+# the band. `say` is kept equal to it so `make_film.py --voice` still has a
+# script if the pinned voice ever becomes available again; the shipped cuts do
+# not use it. An empty `cap` means the scene's own typography carries it.
+#
+# `beats` is a minimum hold. The renderer maps each scene's choreography onto
+# its length, so a camera move stretches across the time the captions need
+# instead of finishing early and leaving the frame dead.
+
+def _s(id_, build, beats, cap):
+    return dict(id=id_, build=build, beats=beats, cap=cap, say=cap)
+
 
 SCENES = [
-    dict(id="open", build=sc_open, beats=21500,
-         say="Every organisation runs cryptography it cannot fully see. A "
-             "call inside a payments service. A version pin in a dependency "
-             "file. A cipher list nobody has opened in years. The signature "
-             "algorithm on a certificate. A private key baked into a "
-             "container image that shipped months ago. Six kinds of artefact, "
-             "and no two of them describe cryptography the same way.",
-         cap="Every organisation runs cryptography it cannot fully see. "
-             "A call inside a payments service. A version pin in a dependency "
-             "file. A cipher list nobody has opened in years. The signature "
-             "algorithm on a certificate. A private key baked into a container "
-             "image that shipped months ago. Six kinds of artefact — and no "
-             "two describe cryptography the same way."),
-
-    dict(id="name", build=sc_name, beats=7500,
-         say="CryptoDrishti reads all of it, and turns it into one inventory "
-             "you can defend.",
-         cap="CryptoDrishti reads all of it, and turns it into one inventory "
-             "you can defend."),
-
-    dict(id="dashboard", build=sc_dashboard, beats=14000,
-         say="Here is a real scan of the demonstration estate. Twenty-three "
-             "distinct assets. Sixteen of them do not survive a quantum "
-             "computer. And notice what the tool says first: this inventory "
-             "is incomplete, because one endpoint was refused.",
-         cap="A real scan of the demonstration estate. 23 distinct assets, "
-             "16 of them quantum-vulnerable — and the tool says first that "
-             "the inventory is incomplete, because one endpoint was refused."),
-
-    dict(id="inventory", build=sc_inventory, beats=13000,
-         say="Every asset gets a row. A score, what a quantum computer does "
-             "to it, where the evidence was found, how strong that evidence "
-             "is, and the replacement it needs.",
-         cap="Every asset gets a row: a score, what a quantum computer does "
-             "to it, where the evidence was found, how strong it is, and the "
-             "replacement it needs."),
-
-    dict(id="rsa", build=sc_rsa, beats=44000,
-         say="Now the part that decides everything. That one scan found five "
-             "R S A findings. Watch what happens to them. The first is in a "
-             "payments service, line fifteen. The padding scheme is P S S, "
-             "which means this key signs. So the target is M L D S A "
-             "sixty-five. The second is in the gateway, line sixteen. The "
-             "padding is O A E P, which means this key wraps another key. "
-             "That is key establishment, and the target is a hybrid key "
-             "exchange. A completely different migration. The third is a "
-             "cipher list in a configuration file. It permits R S A, but it "
-             "never says what for. So the tool names no target at all. It "
-             "says: purpose must be resolved first. Knowing the algorithm is "
-             "not enough. Purpose decides the migration.",
-         cap="That one scan found five RSA findings. The first is a signing "
-             "call — RSA-PSS padding — so the target is ML-DSA-65. The second "
-             "is RSA-OAEP wrapping a key: that is key establishment, and the "
-             "target is a hybrid key exchange. A completely different "
-             "migration. The third is a cipher list that permits RSA without "
-             "ever saying what for — so the tool names no target at all. "
-             "Knowing the algorithm is not enough. Purpose decides the "
-             "migration."),
-
-    dict(id="migration", build=sc_migration, beats=13000,
-         say="Seven workstreams over twenty-one call sites. One per "
-             "replacement algorithm, not one per finding. That is the "
-             "difference between a list and a plan.",
-         cap="Seven workstreams over 21 call sites — one per replacement "
-             "algorithm, not one per finding. That is the difference between "
-             "a list and a plan."),
-
-    dict(id="drawer", build=sc_drawer, beats=15000,
-         say="Open any finding and the whole chain is there. The call site, "
-             "the symbol matched, the technique, how strong the evidence is "
-             "that this key is really used, and the exposure arithmetic "
-             "behind its score — including which numbers a human set by hand.",
-         cap="Open any finding and the chain is there: the call site, the "
-             "symbol matched, the technique, how strong the evidence is that "
-             "the key is really used, and the arithmetic behind its score."),
-
-    dict(id="honest", build=sc_honest, beats=26000,
-         say="It is just as careful about what it did not see. A container "
-             "image is replayed layer by layer, so a private key written in "
-             "one layer and deleted in the next is reported as historical: "
-             "gone at runtime, still extractable from the archive. And when "
-             "the destination policy refused an endpoint, the scan is marked "
-             "partial, and says which one and why.",
-         cap="It is just as careful about what it did not see. A key written "
-             "in one container layer and deleted in the next is reported as "
-             "historical — gone at runtime, still extractable. And a refused "
-             "endpoint makes the scan PARTIAL, and says why."),
-
-    dict(id="report", build=sc_report, beats=13000,
-         say="The same scan also comes out as a document — a self-contained "
-             "report with the exposure, the migration programme grouped by "
-             "replacement, and a stated limitations section.",
-         cap="The same scan also comes out as a document: exposure, the "
-             "migration programme grouped by replacement, and a stated "
-             "limitations section."),
-
-    dict(id="cbom", build=sc_cbom, beats=24000,
-         say="And for the tooling, a Cyclone D X cryptographic bill of "
-             "materials — the published standard — carrying the asset type, "
-             "the primitive, the resolved purpose and the evidence occurrence "
-             "for every finding. Validated offline against the official "
-             "schema, at a pinned commit.",
-         cap="And for the tooling: a CycloneDX cryptographic bill of "
-             "materials — the published standard — validated offline against "
-             "the official JSON Schema at a pinned commit."),
-
-    dict(id="repo", build=sc_repo, beats=12000,
-         say="None of this has to be taken on trust. Every figure in this "
-             "film comes from a command in the repository.",
-         cap="None of this has to be taken on trust — every figure in this "
-             "film comes from a command in the repository."),
-
-    dict(id="close", build=sc_close, beats=16000,
-         say="Scattered evidence becomes one explainable inventory, a risk "
-             "assessment you can argue with, and a migration decision you can "
-             "defend. CryptoDrishti. Team Zero-Day. Problem statement S I H "
-             "twenty six one six four.",
-         cap="Scattered evidence becomes one explainable inventory, a risk "
-             "assessment you can argue with, and a migration decision you can "
-             "defend.  CryptoDrishti · Team Zero-Day · SIH26164"),
+    _s("hook", sc_hook, 12000,
+       "A signing call. A pinned dependency. A cipher list nobody has opened "
+       "in years. A private key left inside a container image."),
+    _s("dashboard", sc_dashboard, 17000,
+       "One scan of the demonstration estate. Before anything else, it says "
+       "the inventory is incomplete: one endpoint was refused. Then the "
+       "numbers — 23 distinct assets, 16 of them quantum-vulnerable."),
+    _s("inventory", sc_inventory, 13000,
+       "Every asset gets a row, highest risk first. The top two are both "
+       "RSA — and they need different replacements."),
+    _s("rsa", sc_rsa, 38000,
+       "Three of the scan's RSA findings, side by side. A signing call — "
+       "RSA-PSS padding — so the target is ML-DSA-65. A key wrapped with "
+       "RSA-OAEP is key establishment, so a hybrid key exchange. A cipher "
+       "list that permits RSA without saying what for gets no target at all."),
+    _s("evidence", sc_evidence, 22000,
+       "Open the finding and the tool shows its working. Where the call is, "
+       "and what it does. How strong the evidence is — a real call site, not "
+       "a manifest. The exposure arithmetic under the operator's scenario. "
+       "Only then, the target: ML-DSA-65."),
+    _s("plan", sc_plan, 14000,
+       "The three answers become three workstreams: ML-DSA-65, the hybrid "
+       "group, and the findings whose purpose must be resolved first — one "
+       "workstream per replacement, which is how the work is staffed."),
+    _s("honest", sc_honest, 17000,
+       "It is as careful about what it did not see. A key deleted by a later "
+       "container layer is reported as historical — gone at runtime, still "
+       "extractable. A refused endpoint makes the scan PARTIAL, and says why."),
+    _s("report", sc_report, 14000,
+       "Open report, and the same scan becomes a document a director can "
+       "read: the headline counts, then the assessment behind them."),
+    _s("cbom", sc_cbom, 13000,
+       "Validate, and the CycloneDX bill of materials is checked against the "
+       "official JSON Schema — offline, at a pinned commit. It passes."),
+    _s("repo", sc_repo, 10000,
+       "Run it yourself: the demo, the 664 tests and the benchmark are all "
+       "in the repository."),
+    _s("close", sc_close, 12000, ""),
 ]
 
-# The short cut is re-edited, not trimmed: it keeps the argument and drops
-# the supporting detail.
-SHORT_IDS = ["name", "dashboard", "rsa", "drawer", "cbom", "close"]
-
-SHORT_SAY = {
-    "name": dict(
-        say="Cryptography hides in source, dependencies, configuration, "
-            "certificates and container images. Crypto Drishti finds all of "
-            "it.",
-        cap="Cryptography hides in source, dependencies, configuration, "
-            "certificates and container images. CryptoDrishti finds all of it "
-            "— and turns it into one inventory you can defend."),
-    "dashboard": dict(
-        say="One scan of the demonstration estate: twenty three distinct "
-            "assets, sixteen of them quantum vulnerable, and the scan's own "
-            "completeness stated up front.",
-        cap="One scan: 23 distinct assets, 16 quantum-vulnerable — and the "
-            "scan's own completeness stated up front."),
-    "rsa": dict(
-        say="One scan, five R S A findings. A signing call goes to M L D S "
-            "A sixty five. R S A wrapping a key goes to a hybrid key "
-            "exchange — a completely different migration. And a cipher list "
-            "that never says what R S A is for gets no target at all. "
-            "Purpose decides the migration.",
-        cap="Five RSA findings in one scan. A signing call goes to ML-DSA-65. "
-            "RSA wrapping a key is key establishment — a hybrid key exchange, "
-            "a completely different migration. And a cipher list that never "
-            "says what RSA is for gets no target at all. Purpose decides the "
-            "migration."),
-    "drawer": dict(
-        say="Open any finding and the chain is there: the call site, the "
-            "symbol, the technique, how strong the evidence is, and the "
-            "arithmetic behind the score.",
-        cap="Open any finding and the chain is there: call site, symbol, "
-            "technique, evidence strength, and the arithmetic behind the "
-            "score."),
-    "honest": dict(
-        say="A key deleted by a later container layer is still reported — "
-            "it is still extractable. A refused endpoint makes the scan "
-            "partial, and says why.",
-        cap="A key deleted by a later container layer is still reported — it "
-            "is still extractable. And a refused endpoint makes the scan "
-            "PARTIAL, and it says why."),
-    "cbom": dict(
-        say="The output is a Cyclone D X bill of materials, validated offline "
-            "against the official JSON schema.",
-        cap="The output is a CycloneDX bill of materials, validated offline "
-            "against the official JSON Schema."),
-    "close": dict(
-        say="Crypto Drishti. Team Zero Day. Problem statement S I H twenty "
-            "six one six four.",
-        cap="CryptoDrishti · Team Zero-Day · SIH26164"),
-}
+# The short cut is its own edit, not the long one trimmed: each beat is
+# re-timed, and the output scenes run as one continuous pass.
+SHORT = [
+    _s("hook", sc_hook_fast, 6400, ""),
+    _s("dashboard", sc_dashboard, 14400,
+       "One scan. One explainable cryptographic inventory."),
+    _s("rsa", sc_rsa_short, 25400,
+       "A signing call goes to ML-DSA-65. A wrapped key goes to a hybrid key "
+       "exchange. A cipher list that never says what for gets no target."),
+    _s("evidence", sc_evidence_short, 14400,
+       "Open the finding: where it is, what it does, how sure the evidence "
+       "is — and what it costs."),
+    _s("output", sc_output_short, 12400,
+       "A remediation programme. A report a director can read. A CBOM that "
+       "passes the official schema."),
+    _s("close", sc_close, 9400, ""),
+]

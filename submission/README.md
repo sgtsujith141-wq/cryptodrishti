@@ -9,11 +9,12 @@ code it describes.
 | Official template (unmodified) | `template/SIH2026-IDEA-Presentation-Format.pptx` | 7 slides, as supplied |
 | **Idea presentation** | `CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **6 slides, QA-clean** |
 | **Presentation PDF** | `CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **6 pages, vector text** |
-| **Demonstration film, full** | `video/CryptoDrishti-Final-Demo.mp4` | 3:54 · 1920×1080 H.264 · captions burned in, plus SRT |
+| **Demonstration film, full** | `video/CryptoDrishti-Final-Demo.mp4` | 3:09 · 1920×1080 H.264 · captions burned in, plus SRT |
 | **Demonstration film, short** | `video/CryptoDrishti-Short-Demo.mp4` | 1:26 · 1920×1080 H.264 · captions burned in, plus SRT |
 | Deck contact sheet | `contact/deck-contact-sheet.png` | all six slides side by side |
 | Film contact sheet | `contact/film-contact-sheet.png` | one frame from every scene of the full cut |
-| Screenshots | `screenshots/*.png` | 8 genuine captures, 7 dark-theme console + the report |
+| Screenshots | `screenshots/*.png` | 9 genuine captures: 7 dark-theme console, the report, and the report's headline |
+| Walkthrough | `walkthrough/*.png` + `walkthrough.json` | 8 states of the console driven with real clicks, with the on-screen position of every element the film points at |
 
 | | |
 |---|---|
@@ -28,7 +29,8 @@ and PDF, and the placeholder on slide 6 becomes the real link.
 
 | Script | What it does |
 |---|---|
-| `build/capture_screens.py` | dark-theme captures of every console scene |
+| `build/capture_screens.py` | dark-theme captures of every console scene, and the report |
+| `build/capture_walkthrough.py` | drives the running console with real clicks and records each state for the film |
 | `build/build_deck.py` | fills the official template |
 | `build/check_deck.py` | text, geometry and completeness QA |
 | `build/export_pdf.py` | PDF — LibreOffice if present, else macOS QuickLook |
@@ -60,19 +62,24 @@ dictionary is the only thing that clears that check — nothing bypasses it.
 ## Rebuilding everything
 
 ```bash
-python run.py --demo                                    # real data
-python run.py --port 8140 &                             # serve it
-python submission/build/capture_screens.py --port 8140  # dark-theme captures
-python docs/architecture/render.py                      # diagram, light + dark
-python submission/build/build_deck.py                   # fill the template
-python submission/build/check_deck.py                   # QA gate
-python docs/architecture/render.py                      # diagram, light + dark
-python submission/build/render_panels.py                # custom deck panels
-python submission/build/build_deck.py                   # fill the template
-python submission/build/check_deck.py                   # QA gate
-python submission/build/export_pdf.py                   # six-page PDF
-python submission/build/make_film.py                    # both film cuts + SRT
+python run.py --demo                                        # real data (replaces stored scans)
+python run.py --port 8140 &                                 # serve it
+python submission/build/capture_screens.py --port 8140      # dark-theme captures + report
+python submission/build/capture_walkthrough.py --port 8140  # the film's walkthrough
+python docs/architecture/render.py                          # diagram, light + dark
+python submission/build/render_panels.py                    # custom deck panels
+python submission/build/build_deck.py                       # fill the template
+python submission/build/check_deck.py                       # QA gate
+python submission/build/export_pdf.py                       # six-page PDF
+python submission/build/make_film.py                        # both film cuts + SRT
+python submission/build/check_film.py                       # film QA gate
+python submission/build/contact_sheet.py                    # both contact sheets
 ```
+
+The build tools need `python-pptx`, `playwright` (with Chromium), `PyMuPDF`,
+`Pillow` and `segno` (the slide 6 QR code) in the virtual environment, plus
+`ffmpeg`. **`run.py --demo` deletes every scan already stored** before it
+builds the demo state, so run it only against a database you do not need.
 
 `check_deck.py` exits non-zero if any shape leaves the canvas, collides with
 another, or runs into the template's footer bar — so a layout regression fails
@@ -165,11 +172,22 @@ was first built. They are now inlined as data URIs.
 
 ## About the film
 
-Two cuts, both from `build/make_film.py`, both 1920×1080 H.264/AAC with an SRT
-beside them. They are **assembled product films, not screen recordings**: real
-captures of the running tool are intercut with motion-designed scenes built
-from real scan output. No cursor is animated, no interaction is simulated, and
-no value appears on screen that the application did not produce.
+Two cuts, both from `build/make_film.py`, both 1920×1080 H.264 with an SRT
+beside them. The short cut is its own edit, not the long one trimmed.
+
+**The product is the main character.** `build/capture_walkthrough.py` drives
+the running console the way a presenter would — scroll to the assessment, move
+to the inventory, hover the RSA signing finding, click it, read the evidence
+drawer, open the remediation programme, press Validate and wait for the
+answer, press Open report and follow the tab it opens — and records each state
+as a full frame, together with where the browser laid out every element that
+matters. The film's camera moves across those real frames, and its focus
+rings are drawn at the positions the browser reported, so a ring sits on the
+real element rather than on a rectangle placed by eye. A dissolve between two
+frames is the moment a click changed the screen. No cursor is drawn, no
+interaction is simulated, and no value appears that the application did not
+produce. The typeset scenes between them — the opening fragments, the three
+RSA cases, what the scan did not see — are built from the same scan's output.
 
 Scenes are authored as HTML and driven by a deterministic `seek(t)`, so a
 render is reproducible frame for frame.
@@ -192,14 +210,12 @@ The SIH portal's duration and file-size limits for a demonstration video were
 meet a verified limit. Both cuts were made to be safe against the usual shapes
 of such a rule:
 
-* the **full cut** runs 3:54, inside a 4-minute ceiling — by six seconds, so
-  if a portal enforces exactly four minutes there is no slack to spare and the
-  short cut is the safer upload;
-* the **short cut** runs 1:26, inside 90 seconds, for a portal with a stricter
-  limit or a reviewer who wants the argument quickly;
+* the **full cut** runs 3:09, inside a 4-minute ceiling;
+* the **short cut** runs 1:26, inside 90 seconds, for a portal with a
+  stricter limit or a reviewer who wants the argument quickly;
 * both are H.264 in MP4 at 1920×1080 — the most broadly accepted combination —
-  and both are well under 100 MB (6.9 MB and 2.2 MB). Each carries a silent
-  AAC track so the container is well formed everywhere.
+  and both are well under 100 MB (16.5 MB and 9.2 MB). Each carries a
+  silent AAC track so the container is well formed everywhere.
 
 Bitrate was chosen for legible interface text rather than for the smallest
 file. If the portal turns out to impose a tighter size limit, re-encode from

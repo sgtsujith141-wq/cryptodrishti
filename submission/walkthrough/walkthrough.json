@@ -1,0 +1,232 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "scale": 2,
+  "states": [
+    {
+      "name": "w01-assessment",
+      "note": "assessment, with the scan's own PARTIAL notice",
+      "marks": {
+        "partial": {
+          "x": 0.51916,
+          "y": 0.14338,
+          "w": 0.29334,
+          "h": 0.24813
+        },
+        "vline": {
+          "x": 0.51916,
+          "y": 0.44188,
+          "w": 0.28427,
+          "h": 0.10559
+        },
+        "figs": {
+          "x": 0.51916,
+          "y": 0.58204,
+          "w": 0.29334,
+          "h": 0.34576
+        },
+        "radial": {
+          "x": 0.1875,
+          "y": 0.37666,
+          "w": 0.29167,
+          "h": 0.51852
+        }
+      }
+    },
+    {
+      "name": "w02-inventory",
+      "note": "inventory, highest risk first",
+      "marks": {
+        "row0": {
+          "x": 0.05,
+          "y": 0.19938,
+          "w": 0.9,
+          "h": 0.08316
+        },
+        "row1": {
+          "x": 0.05,
+          "y": 0.28254,
+          "w": 0.9,
+          "h": 0.08316
+        },
+        "ledger": {
+          "x": 0.05,
+          "y": 0.19815,
+          "w": 0.9,
+          "h": 1.91391
+        }
+      }
+    },
+    {
+      "name": "w03-hover",
+      "note": "pointer on the RSA signing finding",
+      "marks": {
+        "row0": {
+          "x": 0.05,
+          "y": -0.00062,
+          "w": 0.9,
+          "h": 0.08316
+        }
+      }
+    },
+    {
+      "name": "w04-drawer",
+      "note": "evidence drawer: purpose, assurance, proves use, exposure",
+      "marks": {
+        "drawer": {
+          "x": 0.625,
+          "y": 0.0,
+          "w": 0.375,
+          "h": 1.0
+        },
+        "head": {
+          "x": 0.64514,
+          "y": 0.02963,
+          "w": 0.33542,
+          "h": 0.12051
+        },
+        "sec0": {
+          "x": 0.64514,
+          "y": 0.17976,
+          "w": 0.33542,
+          "h": 0.22627
+        },
+        "sec1": {
+          "x": 0.64514,
+          "y": 0.43567,
+          "w": 0.33542,
+          "h": 0.25309
+        },
+        "sec2": {
+          "x": 0.64514,
+          "y": 0.71838,
+          "w": 0.33542,
+          "h": 0.51775
+        },
+        "sec3": {
+          "x": 0.64514,
+          "y": 1.26576,
+          "w": 0.33542,
+          "h": 0.66792
+        }
+      }
+    },
+    {
+      "name": "w05-drawer-exposure",
+      "note": "drawer scrolled to the exposure arithmetic",
+      "marks": {
+        "drawer": {
+          "x": 0.625,
+          "y": 0.0,
+          "w": 0.375,
+          "h": 1.0
+        },
+        "exposure": {
+          "x": 0.64514,
+          "y": -0.00014,
+          "w": 0.33542,
+          "h": 0.25309
+        }
+      }
+    },
+    {
+      "name": "w06-plan",
+      "note": "remediation programme, grouped by replacement",
+      "marks": {
+        "plan": {
+          "x": 0.05069,
+          "y": 0.33684,
+          "w": 0.89861,
+          "h": 0.50513
+        },
+        "p0": {
+          "x": 0.05069,
+          "y": 0.33684,
+          "w": 0.89861,
+          "h": 0.07234
+        },
+        "p1": {
+          "x": 0.05069,
+          "y": 0.40918,
+          "w": 0.89861,
+          "h": 0.07234
+        },
+        "p3": {
+          "x": 0.05069,
+          "y": 0.52917,
+          "w": 0.89861,
+          "h": 0.12172
+        }
+      }
+    },
+    {
+      "name": "w07-validated",
+      "note": "CBOM validated: 'Structural check: PASS (23 components). Official CycloneDX 1.6 (ECMA-4'",
+      "marks": {
+        "result": {
+          "x": 0.06514,
+          "y": 0.58337,
+          "w": 0.42007,
+          "h": 0.07897
+        },
+        "buttons": {
+          "x": 0.27595,
+          "y": 0.51574,
+          "w": 0.05683,
+          "h": 0.04294
+        }
+      }
+    },
+    {
+      "name": "w08-report",
+      "note": "the report tab",
+      "marks": {
+        "title": {
+          "x": 0.02778,
+          "y": 0.07784,
+          "w": 0.94444,
+          "h": 0.04591
+        },
+        "grid": {
+          "x": 0.02778,
+          "y": 0.19581,
+          "w": 0.94444,
+          "h": 0.10685
+        },
+        "verdict": {
+          "x": 0.02778,
+          "y": 0.32488,
+          "w": 0.94444,
+          "h": 0.07689
+        }
+      },
+      "url": "http://localhost/api/scan/f7e26327921c/report"
+    },
+    {
+      "name": "w09-report-close",
+      "note": "the report tab, narrower window",
+      "marks": {
+        "title": {
+          "x": 0.04167,
+          "y": 0.11675,
+          "w": 0.91667,
+          "h": 0.06887
+        },
+        "grid": {
+          "x": 0.04167,
+          "y": 0.29372,
+          "w": 0.91667,
+          "h": 0.16027
+        },
+        "verdict": {
+          "x": 0.04167,
+          "y": 0.48733,
+          "w": 0.91667,
+          "h": 0.18993
+        }
+      }
+    }
+  ]
+}

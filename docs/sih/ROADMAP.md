@@ -385,13 +385,14 @@ third-party clones under `demo/targets/`.
 
 **Closed by the final optimisation pass.**
 
-- **R10.13 — demonstration video: DONE, then rebuilt twice.**
+- **R10.13 — demonstration video: DONE, then rebuilt three times.**
   The current films are `submission/video/CryptoDrishti-Final-Demo.mp4`
-  (3:54) and `CryptoDrishti-Short-Demo.mp4` (1:26), 1920×1080 H.264, built
-  by `submission/build/make_film.py`. They are assembled product films rather
-  than screen recordings: real captures of the running tool are intercut with
-  motion-designed scenes built from real scan output, and no cursor,
-  interaction or output is simulated.
+  (3:09) and `CryptoDrishti-Short-Demo.mp4` (1:26), 1920×1080 H.264, built
+  by `submission/build/make_film.py`. The product is the main character: most
+  of the running time is the real console, driven with real clicks by
+  `submission/build/capture_walkthrough.py` and framed by a camera aimed at the
+  element positions the browser reported. The rest is typeset from the same
+  scan's output. No cursor is drawn and no interaction or output is simulated.
 
   Both are **caption-led and carry no narration track.** The first version was
   cut to narration synthesised by macOS `say`, which reads as a robot reading a

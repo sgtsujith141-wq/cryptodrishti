@@ -1,199 +1,131 @@
 1
-00:00:00,300 --> 00:00:04,923
-Every organisation runs cryptography it cannot fully see.
+00:00:00,300 --> 00:00:03,899
+A signing call. A pinned dependency.
 
 2
-00:00:04,923 --> 00:00:07,849
-A call inside a payments service.
-
-3
-00:00:07,849 --> 00:00:10,917
-A version pin in a dependency file.
-
-4
-00:00:10,917 --> 00:00:14,408
+00:00:03,899 --> 00:00:07,903
 A cipher list nobody has opened in years.
 
+3
+00:00:07,903 --> 00:00:12,150
+A private key left inside a container image.
+
+4
+00:00:12,900 --> 00:00:16,337
+One scan of the demonstration estate.
+
 5
-00:00:14,408 --> 00:00:17,900
-The signature algorithm on a certificate.
+00:00:16,337 --> 00:00:21,363
+Before anything else, it says the inventory is incomplete:
 
 6
-00:00:17,900 --> 00:00:23,230
-A private key baked into a container image that shipped months ago.
+00:00:21,363 --> 00:00:26,843
+one endpoint was refused. Then the numbers — 23 distinct assets,
 
 7
-00:00:23,230 --> 00:00:28,771
-Six kinds of artefact — and no two describe cryptography the same way.
+00:00:26,843 --> 00:00:29,750
+16 of them quantum-vulnerable.
 
 8
-00:00:29,521 --> 00:00:32,530
-CryptoDrishti reads all of it,
+00:00:30,500 --> 00:00:35,835
+Every asset gets a row, highest risk first.
 
 9
-00:00:32,530 --> 00:00:36,871
-and turns it into one inventory you can defend.
+00:00:35,835 --> 00:00:43,350
+The top two are both RSA — and they need different replacements.
 
 10
-00:00:37,621 --> 00:00:41,011
-A real scan of the demonstration estate.
+00:00:44,100 --> 00:00:51,043
+Three of the scan's RSA findings, side by side.
 
 11
-00:00:41,011 --> 00:00:45,031
-23 distinct assets, 16 of them quantum-vulnerable
+00:00:51,043 --> 00:00:59,867
+A signing call — RSA-PSS padding — so the target is ML-DSA-65.
 
 12
-00:00:45,031 --> 00:00:49,751
-— and the tool says first that the inventory is incomplete,
+00:00:59,867 --> 00:01:10,319
+A key wrapped with RSA-OAEP is key establishment, so a hybrid key exchange.
 
 13
-00:00:49,751 --> 00:00:52,650
-because one endpoint was refused.
+00:01:10,319 --> 00:01:17,012
+A cipher list that permits RSA without saying
 
 14
-00:00:53,400 --> 00:00:59,202
-Every asset gets a row: a score, what a quantum computer does to it,
+00:01:17,012 --> 00:01:21,950
+what for gets no target at all.
 
 15
-00:00:59,202 --> 00:01:03,410
-where the evidence was found, how strong it is,
+00:01:22,700 --> 00:01:27,181
+Open the finding and the tool shows its working.
 
 16
-00:01:03,410 --> 00:01:06,250
-and the replacement it needs.
+00:01:27,181 --> 00:01:30,709
+Where the call is, and what it does.
 
 17
-00:01:07,000 --> 00:01:10,997
-That one scan found five RSA findings.
+00:01:30,709 --> 00:01:36,303
+How strong the evidence is — a real call site, not a manifest.
 
 18
-00:01:10,997 --> 00:01:15,598
-The first is a signing call — RSA-PSS padding
+00:01:36,303 --> 00:01:41,261
+The exposure arithmetic under the operator's scenario.
 
 19
-00:01:15,598 --> 00:01:18,820
-— so the target is ML-DSA-65.
+00:01:41,261 --> 00:01:44,550
+Only then, the target: ML-DSA-65.
 
 20
-00:01:18,820 --> 00:01:25,143
-The second is RSA-OAEP wrapping a key: that is key establishment,
+00:01:45,300 --> 00:01:50,932
+The three answers become three workstreams: ML-DSA-65, the hybrid group,
 
 21
-00:01:25,143 --> 00:01:29,313
-and the target is a hybrid key exchange.
+00:01:50,932 --> 00:01:55,233
+and the findings whose purpose must be resolved first
 
 22
-00:01:29,313 --> 00:01:32,879
-A completely different migration.
+00:01:55,233 --> 00:02:00,514
+— one workstream per replacement, which is how the work is staffed.
 
 23
-00:01:32,879 --> 00:01:36,963
-The third is a cipher list that permits
+00:02:01,264 --> 00:02:04,940
+It is as careful about what it did not see.
 
 24
-00:01:36,963 --> 00:01:40,443
-RSA without ever saying what for
+00:02:04,940 --> 00:02:10,261
+A key deleted by a later container layer is reported as historical
 
 25
-00:01:40,443 --> 00:01:44,354
-— so the tool names no target at all.
-
-26
-00:01:44,354 --> 00:01:50,850
-Knowing the algorithm is not enough. Purpose decides the migration.
-
-27
-00:01:51,600 --> 00:01:55,096
-Seven workstreams over 21 call sites
-
-28
-00:01:55,096 --> 00:01:59,930
-— one per replacement algorithm, not one per finding.
-
-29
-00:01:59,930 --> 00:02:04,450
-That is the difference between a list and a plan.
-
-30
-00:02:05,200 --> 00:02:09,640
-Open any finding and the chain is there: the call site,
-
-31
-00:02:09,640 --> 00:02:12,609
-the symbol matched, the technique,
-
-32
-00:02:12,609 --> 00:02:17,048
-how strong the evidence is that the key is really used,
-
-33
-00:02:17,048 --> 00:02:20,157
-and the arithmetic behind its score.
-
-34
-00:02:20,907 --> 00:02:26,267
-It is just as careful about what it did not see.
-
-35
-00:02:26,267 --> 00:02:31,627
-A key written in one container layer and deleted
-
-36
-00:02:31,627 --> 00:02:35,942
-in the next is reported as historical
-
-37
-00:02:35,942 --> 00:02:40,257
+00:02:10,261 --> 00:02:13,508
 — gone at runtime, still extractable.
 
-38
-00:02:40,257 --> 00:02:46,757
-And a refused endpoint makes the scan PARTIAL, and says why.
+26
+00:02:13,508 --> 00:02:18,114
+A refused endpoint makes the scan PARTIAL, and says why.
 
-39
-00:02:47,507 --> 00:02:52,494
-The same scan also comes out as a document: exposure,
+27
+00:02:18,864 --> 00:02:26,631
+Open report, and the same scan becomes a document a director can read:
 
-40
-00:02:52,494 --> 00:02:56,994
-the migration programme grouped by replacement,
+28
+00:02:26,631 --> 00:02:32,714
+the headline counts, then the assessment behind them.
 
-41
-00:02:56,994 --> 00:03:00,357
-and a stated limitations section.
+29
+00:02:33,464 --> 00:02:38,831
+Validate, and the CycloneDX bill of materials is checked
 
-42
-00:03:01,107 --> 00:03:10,431
-And for the tooling: a CycloneDX cryptographic bill of materials
+30
+00:02:38,831 --> 00:02:42,198
+against the official JSON Schema
 
-43
-00:03:10,431 --> 00:03:19,883
-— the published standard — validated offline against the official
+31
+00:02:42,198 --> 00:02:46,314
+— offline, at a pinned commit. It passes.
 
-44
-00:03:19,883 --> 00:03:24,957
-JSON Schema at a pinned commit.
+32
+00:02:47,064 --> 00:02:50,426
+Run it yourself: the demo,
 
-45
-00:03:25,707 --> 00:03:30,161
-None of this has to be taken on trust
-
-46
-00:03:30,161 --> 00:03:37,557
-— every figure in this film comes from a command in the repository.
-
-47
-00:03:38,307 --> 00:03:43,087
-Scattered evidence becomes one explainable inventory,
-
-48
-00:03:43,087 --> 00:03:46,621
-a risk assessment you can argue with,
-
-49
-00:03:46,621 --> 00:03:50,389
-and a migration decision you can defend.
-
-50
-00:03:50,389 --> 00:03:54,157
-CryptoDrishti · Team Zero-Day · SIH26164
+33
+00:02:50,426 --> 00:02:56,914
+the 664 tests and the benchmark are all in the repository.

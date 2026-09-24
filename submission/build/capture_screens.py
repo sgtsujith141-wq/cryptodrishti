@@ -66,12 +66,31 @@ def capture_report(out: Path, port: int) -> None:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
             page = browser.new_page(viewport={"width": 1500, "height": 1020},
-                                    device_scale_factor=2)
+                                    device_scale_factor=3)
             page.goto(path.as_uri(), wait_until="networkidle")
             page.wait_for_timeout(500)
             page.screenshot(path=str(out / "08-report.png"))
+
+            # The headline, for a slide. At the report's normal width its four
+            # counts are a thin strip across the page and shrink to nothing
+            # on a slide. At a narrow width the report's own layout keeps the
+            # four cards in one row but gives each far more of the page, so a
+            # crop from the badge to the bottom of the cards is legible at
+            # slide size -- the same page, not a rearranged one.
+            page.set_viewport_size({"width": 760, "height": 900})
+            page.wait_for_timeout(400)
+            clip = page.evaluate("""() => {
+                const top = document.querySelector('h1').getBoundingClientRect();
+                const g = document.querySelector('.grid').getBoundingClientRect();
+                const pad = 18;
+                return {x: g.left - pad, y: Math.max(0, top.top - 70),
+                        width: g.width + 2 * pad,
+                        height: g.bottom + pad - Math.max(0, top.top - 70)};
+            }""")
+            page.screenshot(path=str(out / "09-report-headline.png"), clip=clip)
             browser.close()
     print("  08-report.png")
+    print("  09-report-headline.png")
 
 
 def main() -> int:

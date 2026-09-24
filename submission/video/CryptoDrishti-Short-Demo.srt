@@ -1,67 +1,31 @@
 1
-00:00:00,300 --> 00:00:04,945
-Cryptography hides in source, dependencies, configuration,
+00:00:07,300 --> 00:00:21,550
+One scan. One explainable cryptographic inventory.
 
 2
-00:00:04,945 --> 00:00:07,911
-certificates and container images.
+00:00:22,300 --> 00:00:28,992
+A signing call goes to ML-DSA-65.
 
 3
-00:00:07,911 --> 00:00:10,527
-CryptoDrishti finds all of it
+00:00:28,992 --> 00:00:37,463
+A wrapped key goes to a hybrid key exchange.
 
 4
-00:00:10,527 --> 00:00:14,543
-— and turns it into one inventory you can defend.
+00:00:37,463 --> 00:00:47,550
+A cipher list that never says what for gets no target.
 
 5
-00:00:15,293 --> 00:00:21,016
-One scan: 23 distinct assets, 16 quantum-vulnerable
+00:00:48,300 --> 00:00:55,358
+Open the finding: where it is, what it does,
 
 6
-00:00:21,016 --> 00:00:26,643
-— and the scan's own completeness stated up front.
+00:00:55,358 --> 00:01:02,550
+how sure the evidence is — and what it costs.
 
 7
-00:00:27,393 --> 00:00:32,495
-Five RSA findings in one scan. A signing call goes to ML-DSA-65.
+00:01:03,300 --> 00:01:10,262
+A remediation programme. A report a director can read.
 
 8
-00:00:32,495 --> 00:00:37,597
-RSA wrapping a key is key establishment — a hybrid key exchange,
-
-9
-00:00:37,597 --> 00:00:40,514
-a completely different migration.
-
-10
-00:00:40,514 --> 00:00:43,784
-And a cipher list that never says what
-
-11
-00:00:43,784 --> 00:00:46,701
-RSA is for gets no target at all.
-
-12
-00:00:46,701 --> 00:00:49,407
-Purpose decides the migration.
-
-13
-00:00:50,157 --> 00:00:55,552
-Open any finding and the chain is there: call site, symbol,
-
-14
-00:00:55,552 --> 00:01:01,507
-technique, evidence strength, and the arithmetic behind the score.
-
-15
-00:01:02,257 --> 00:01:07,577
-The output is a CycloneDX bill of materials,
-
-16
-00:01:07,577 --> 00:01:13,607
-validated offline against the official JSON Schema.
-
-17
-00:01:14,357 --> 00:01:25,707
-CryptoDrishti · Team Zero-Day · SIH26164
+00:01:10,262 --> 00:01:15,550
+A CBOM that passes the official schema.

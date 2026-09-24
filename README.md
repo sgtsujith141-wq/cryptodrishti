@@ -1,64 +1,119 @@
 # CryptoDrishti
 
-**Find every cryptographic asset an organisation owns, prove what the evidence
-actually supports, and say what each one must become.**
-
-Seven sensors read source code, dependency manifests, ELF binaries, X.509
-certificates, deployment configuration, container image archives and live TLS
-endpoints. Every finding becomes a distinct asset, classified by what a quantum
-computer does to it, scored through Mosca's inequality, matched to a named
-post-quantum replacement, and exported as a
-[CycloneDX](https://cyclonedx.org/) CBOM — 1.6 (ECMA-424) or 1.7 — validated
-offline against the official JSON Schema.
-
-Three things it does that a keyword scanner cannot:
-
-- **Purpose, not keyword.** RSA signing and RSA key transport are one algorithm
-  and two different migrations, ML-DSA against ML-KEM. Purpose is resolved from
-  the call site, and where the evidence is silent the tool names *no* target
-  rather than the wrong one.
-- **Assurance is a field.** `capability` · `declared` · `used` · `observed`.
-  A library that *can* do RSA is not evidence that RSA runs.
-- **Containers read layer by layer.** A key deleted by a later layer is
-  reported as **historical** — gone at runtime, still extractable from the
-  archive.
-
-Built for Smart India Hackathon 2026 — problem statement **SIH26164**,
-*Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)*, National
-Technical Research Organisation. Team **146876 — Zero-Day**.
+**SIH26164 · Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)**<br>
+Smart India Hackathon 2026 · Software · Blockchain & Cybersecurity · Team **Zero-Day** (146876)
 
 [![CI](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml/badge.svg)](https://github.com/sgtsujith141-wq/cryptodrishti/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![CycloneDX 1.6 + 1.7](https://img.shields.io/badge/CBOM-CycloneDX%201.6%20%2B%201.7-brightgreen)](https://cyclonedx.org/)
-[![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](#testing)
 
-> ### SIH 2026 submission — SIH26164
->
-> **Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)** ·
-> Blockchain & Cybersecurity ·
-> Software · Team **146876 — Zero-Day**
->
-> | Deliverable | Link |
-> |---|---|
-> | Idea presentation (6 slides) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx) |
-> | Presentation PDF (6 pages) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf) |
-> | Demonstration film, full | [`submission/video/CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) — 3:54, caption-led |
-> | Demonstration film, short | [`submission/video/CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) — 1:26, caption-led |
-> | Repository | https://github.com/sgtsujith141-wq/cryptodrishti |
-> | Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+**Find every cryptographic asset an organisation owns, prove what the evidence
+actually supports, and say what each one must become.**
 
-> **On the film having no voice-over.** Both cuts are caption-led by
-> choice. The neural voice they were built for is unavailable — the
-> account's monthly character allowance is spent until 19 October 2026 —
-> and the only remaining synthesiser reads as a robot reading a script.
-> Typeset captions on a silent film are the better result, so that path
-> was removed from the builder rather than left as a default.
-> [`presenter/video.md`](presenter/video.md) records the decision and how
-> to restore narration.
+![The CryptoDrishti console, dark theme: the assessment of the demo estate — PARTIAL stated first, then 23 assets, 16 quantum-vulnerable](submission/walkthrough/w01-assessment.png)
 
-![CryptoDrishti console](submission/screenshots/01-assessment.png)
+| Submission | |
+|---|---|
+| Idea presentation — 6 slides | [`CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx) · [PDF](submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf) |
+| Demonstration film — full | [`CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) — caption-led |
+| Demonstration film — short | [`CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) — caption-led |
+| Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+| Repository | <https://github.com/sgtsujith141-wq/cryptodrishti> |
 
-<sub>Every screenshot in this README is a capture of the running tool against the database `python run.py --demo` produces. Nothing is mocked.</sub>
+## What it discovers
+
+Seven sensors, each returning evidence with a location, a technique and a
+confidence:
+
+| Surface | What is read |
+|---|---|
+| Source code | Python by its real AST; rule packs for C/C++, C#, Go, Java, JavaScript, PHP, Ruby |
+| Dependencies | 13 manifest formats |
+| Binaries | ELF symbols, cryptographic constants, version banners |
+| Certificates | X.509, PEM/DER, KeyUsage |
+| Configuration | nginx, sshd, OpenSSL, Java |
+| Container images | OCI layout, OCI tar, `docker save` — replayed layer by layer |
+| TLS endpoints | a live handshake, only against endpoints the operator names |
+
+Every finding becomes one distinct asset, classified by what a quantum computer
+does to it, scored with Mosca's inequality, matched to a named post-quantum
+replacement, and exported as a CycloneDX CBOM.
+
+## Same algorithm, three answers
+
+Knowing the algorithm is not enough — purpose decides the migration. Three RSA
+findings from the same demo scan:
+
+| Finding | Evidence | Purpose | Migration |
+|---|---|---|---|
+| `svc-payments/signing.py:15` | RSA-PSS padding — a call site (**used**) | signature | **ML-DSA-65** |
+| `svc-gateway/transport.py:16` | RSA-OAEP padding wraps a key (**used**) | key establishment | **X25519MLKEM768** |
+| `legacy/nginx.conf:5` | a cipher list permits RSA (**declared**) | unresolved | *purpose must be resolved first* |
+
+Where the evidence does not settle the purpose, the tool names no target rather
+than the wrong one. Assurance is a field of every finding —
+`capability` · `declared` · `used` · `observed` — so a library that *can* do RSA
+is never mistaken for RSA that runs.
+
+## Architecture
+
+![Architecture: inputs, security gates, seven sensors, normalise → correlate → risk → recommend, then SQLite, console, CBOM and report](docs/architecture/architecture-dark.png)
+
+Source: [`docs/architecture/architecture.mmd`](docs/architecture/architecture.mmd).
+
+## Run the demo
+
+```bash
+git clone https://github.com/sgtsujith141-wq/cryptodrishti.git && cd cryptodrishti
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+./.venv/bin/python run.py --demo     # offline: build fixtures, scan, assess
+./.venv/bin/python run.py            # console on http://127.0.0.1:8000
+```
+
+`--demo` needs no network and no credentials, and **replaces any scans already
+in the local database** with the demo state. Expect **23 assets, 16
+quantum-vulnerable, PARTIAL** for `demo-estate`.
+
+## What it generates
+
+**A report a director can read** — self-contained HTML, printable to PDF,
+opened from the console:
+
+![The generated report's headline: Cryptographic Risk Assessment — 23 assets, 16 quantum vulnerable, 2 critical, 19.7 years peak exposure](submission/screenshots/09-report-headline.png)
+
+**A CycloneDX CBOM** — 1.6 (ECMA-424) or 1.7 — validated offline against the
+official JSON Schema, vendored and pinned at commit `0bd48c8`. The console's
+Validate button runs the same check live; on the demo scan it reports
+*Structural check: PASS (23 components). Official CycloneDX 1.6 (ECMA-424) JSON
+Schema: PASS.*
+
+## Measured accuracy — and what it does not measure
+
+| Corpus | Result |
+|---|---|
+| Original corpus, like-for-like before → after | F1 **0.941 → 0.983** (79 TP / 5 FP / 5 FN → 84 / 3 / 0) |
+| Expanded corpus, 116 labelled findings, six scanners | precision, recall and F1 **1.000** |
+
+Both corpora are synthetic and were written by this project's developers; the
+two results are separate, non-comparable experiments. Real-world enterprise
+accuracy has not been measured. Details: [Measured accuracy](#measured-accuracy).
+
+## Limitations, briefly
+
+- Full AST analysis is Python only; seven other languages use rule packs, and
+  Rust and Swift are recognised but effectively uncovered.
+- Binary analysis is ELF only.
+- Purpose resolution is best-effort: *unresolved* is a common, deliberate answer.
+- No KMS, HSM, cloud or Kubernetes integration.
+- A working prototype with 664 tests and CI on three Python versions — not a
+  deployed product.
+
+The full list: [Known limitations](#known-limitations).
+
+> **The film has no voice-over, by choice.** The neural voice it was built for
+> is unavailable (the account's monthly allowance is spent until 19 October
+> 2026) and the only other synthesiser reads as a robot. Both cuts are
+> caption-led instead; [`presenter/video.md`](presenter/video.md) records why.
 
 ---
 
@@ -1012,8 +1067,8 @@ Report/                     project report and design history
 |---|---|---|
 | Six-slide idea presentation | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/) | built from the official template, QA-clean |
 | Final submission PDF | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/) | **6 pages, vector text, verified** |
-| Demonstration film, full | [`submission/video/`](submission/video/) | 3:54, 1920×1080 H.264, **caption-led — no narration track**, captions burned in and also written as SRT |
-| Demonstration film, short | [`submission/video/`](submission/video/) | 1:26, re-edited rather than trimmed |
+| Demonstration film, full | [`submission/video/`](submission/video/) | 3:09, 1920×1080 H.264, **caption-led — no narration track**, captions burned in and also written as SRT |
+| Demonstration film, short | [`submission/video/`](submission/video/) | 1:26, its own edit rather than the long one trimmed |
 | Architecture diagram | [`docs/architecture/`](docs/architecture/) | `.mmd` source plus SVG and PNG exports |
 | Presentation script, film documentation, Q&A | [`presenter/`](presenter/) | timed eight-minute live script, the film's concept and acts, and the figures that may be quoted |
 | Design system and sources | [`submission/build/`](submission/build/) | `design.py` · `render_panels.py` · `film_scenes.py` · `make_film.py` |
