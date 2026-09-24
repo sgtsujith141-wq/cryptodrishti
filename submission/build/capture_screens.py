@@ -38,6 +38,42 @@ SCENES = [
 ]
 
 
+def capture_report(out: Path, port: int) -> None:
+    """Render the real HTML report and capture it.
+
+    The report is the artefact a non-engineer actually reads, so the deck
+    should show it. It is deliberately light-themed -- it is built to be
+    printed and circulated, not read in a console -- and it is captured as it
+    genuinely is rather than recoloured to match the rest of the deck.
+    """
+    import tempfile
+
+    from playwright.sync_api import sync_playwright
+
+    from app import report, store
+
+    scan = next((s for s in store.list_scans()
+                 if s["target_label"] == "demo-estate"), None)
+    if scan is None:
+        print("  no demo-estate scan in the database", file=sys.stderr)
+        return
+    result = store.load_result(scan["id"])
+    html = report.build(result, scan.get("summary"))
+
+    with tempfile.TemporaryDirectory(prefix="cd-report-") as tmp:
+        path = Path(tmp) / "report.html"
+        path.write_text(html, encoding="utf-8")
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page(viewport={"width": 1500, "height": 1020},
+                                    device_scale_factor=2)
+            page.goto(path.as_uri(), wait_until="networkidle")
+            page.wait_for_timeout(500)
+            page.screenshot(path=str(out / "08-report.png"))
+            browser.close()
+    print("  08-report.png")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8140)
@@ -91,7 +127,8 @@ def main() -> int:
 
         browser.close()
 
-    print(f"\n{len(SCENES) + 1} dark-theme captures written to "
+    capture_report(out, args.port)
+    print(f"\n{len(SCENES) + 2} captures written to "
           f"{out.relative_to(ROOT)}")
     return 0
 

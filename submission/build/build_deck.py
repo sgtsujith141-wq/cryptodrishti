@@ -555,16 +555,16 @@ def build_impact(slide):
             "scanners scores 1.000 — a separate, non-comparable experiment. "
             "Both corpora were written by this project's developers and "
             "measure those corpora only; real-world enterprise accuracy has "
-            "not been measured.", 10.5, colour=S.MUTED, italic=True, h=0.72,
+            "not been measured.", 10.5, colour=S.MUTED, italic=True, h=0.58,
             name="cd-bench-caveat")
 
-    # Caption above, so the figure can sit hard against the footer margin.
-    S.label(slide, rx, by + 2.06, rw,
-            "Remediation programme — grouped by the replacement each asset "
-            "needs, which is how the work is staffed.", 10.5, colour=S.MUTED,
-            italic=True, h=0.26, name="cd-plan-caption")
-    shot = crop("03-migration-plan.png", (0.055, 0.300, 1.0, 0.560))
-    picture(slide, shot, rx, by + 2.36, rw)
+    # The generated report: the artefact a non-engineer actually reads.
+    S.label(slide, rx, by + 1.98, rw,
+            "The generated report — the same scan, as a printable document.",
+            10.5, colour=S.MUTED, italic=True, h=0.26,
+            name="cd-report-caption")
+    shot = crop("08-report.png", (0.0, 0.0, 1.0, 0.300))
+    picture(slide, shot, rx, by + 2.26, rw)
 
 
 # ==========================================================================
@@ -582,7 +582,7 @@ def build_references(slide):
 
     tb = shape_by_name(slide, "TextBox 8")
     tb.left, tb.top = Inches(LEFT), Inches(TOP)
-    tb.width, tb.height = Inches(lw), Inches(4.10)
+    tb.width, tb.height = Inches(lw), Inches(3.86)
     tb.name = "cd-body"
     tf = tb.text_frame
     tf.word_wrap = True
@@ -592,32 +592,34 @@ def build_references(slide):
         for e in entries:
             bullet(tf, e, size=T_CAPTION, after=4)
 
-    rb = box(slide, rx, TOP, rw, 4.10, name="cd-refs-right")
+    rb = box(slide, rx, TOP, rw, 3.86, name="cd-refs-right")
     rf = rb.text_frame
     for i, (group, entries) in enumerate([C.REFERENCES[1], C.REFERENCES[2]]):
         heading(rf, group, first=(i == 0), size=T_LABEL + 1)
         for e in entries:
             bullet(rf, e, size=T_CAPTION, after=4)
 
-    # Which standard governs which part of the product.
-    my = 5.76
-    S.label(slide, LEFT, my - 0.26, WIDE,
-            "WHICH STANDARD GOVERNS WHICH PART OF THE PRODUCT", 10.5,
-            bold=True, colour=S.MUTED, name="cd-map-eyebrow")
-    mapping = [("FIPS 203 / 204 / 205", "the migration targets it names"),
-               ("NIST IR 8547", "how it classifies what is at risk"),
-               ("CycloneDX 1.6 / 1.7", "the CBOM it exports and validates"),
-               ("OCI image spec", "how it reads container layers"),
-               ("Mosca X + Y > Z", "how it scores exposure")]
-    mw = (WIDE - 0.14 * 4) / 5
-    for i, (std, does) in enumerate(mapping):
-        S.chip(slide, LEFT + i * (mw + 0.14), my, mw, 0.62, std, does,
-               title_size=11, sub_size=10.5, title_colour=S.NAVY,
-               accent_edge=S.ACCENT, name="cd-map")
+    # The standards-to-product map was a nice-to-have; the repository and
+    # demo links are not, and the slide is not big enough for both.
+    # Repository, demo link and the conformance result.
+    ry = 5.46
+    cw3 = (WIDE - 0.20 * 2) / 3
+    S.chip(slide, LEFT, ry, cw3, 0.66, "Repository", C.REPO_URL,
+           title_size=12, sub_size=11.5, title_colour=S.NAVY,
+           accent_edge=S.ACCENT, name="cd-repo")
+    S.chip(slide, LEFT + cw3 + 0.20, ry, cw3, 0.66, "Demo video",
+           C.YOUTUBE_URL or "[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]",
+           title_size=12, sub_size=11 if C.YOUTUBE_URL else 10.5,
+           title_colour=S.NAVY, accent_edge=S.ACCENT, name="cd-youtube")
+    S.chip(slide, LEFT + (cw3 + 0.20) * 2, ry, cw3, 0.66,
+           "CycloneDX 1.6 / 1.7 — validated",
+           "offline, against the official JSON Schema at a pinned commit",
+           title_size=12, sub_size=10.5, title_colour=S.TEAL,
+           accent_edge=S.TEAL, name="cd-validated")
 
-    S.label(slide, LEFT, my + 0.72, WIDE,
-            "Scope — " + C.REFERENCE_NOTE, 10.5, colour=S.MUTED, italic=True,
-            h=0.44, name="cd-ref-note")
+    S.label(slide, LEFT, ry + 0.78, WIDE,
+            "Scope — " + C.REFERENCE_NOTE, 10, colour=S.MUTED, italic=True,
+            h=0.34, name="cd-ref-note")
 
 
 # ==========================================================================

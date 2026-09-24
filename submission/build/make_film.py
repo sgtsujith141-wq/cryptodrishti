@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import argparse
 import re
+import json
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -38,8 +40,15 @@ OUTDIR = ROOT / "submission" / "video"
 
 W, H = 1920, 1080
 FPS = 30
-VOICE = "Rishi"       # en_IN: the submission's own accent, and not the
-RATE = 166            # rejected en_GB voice from the previous cut
+# Narration voice. The first cut used macOS `say`, which reads as a robot
+# reading a script. This uses the same neural voice and settings the team's
+# other submission pinned, via the authenticated ElevenLabs CLI -- the voice
+# id and parameters are read from that project rather than guessed, so the
+# two films sound like they came from the same team.
+SMS_NARRATION = Path("/Volumes/Volume/Projects/SecureMailScope/"
+                     "submission/demo/narration-script.json")
+FALLBACK_VOICE = "Rishi"      # macOS `say`, only if the CLI is unavailable
+FALLBACK_RATE = 166
 LEAD = 0.55           # silence before a line starts
 TAIL = 1.30           # silence after it ends, to let a frame settle
 
@@ -75,13 +84,64 @@ body{{position:relative;}}
 </style></head><body>{body}<script>{ENGINE}</script></body></html>"""
 
 
-def narrate(text: str, path: Path) -> float:
-    subprocess.run(["say", "-v", VOICE, "-r", str(RATE), "-o", str(path), text],
-                   check=True, capture_output=True)
+def _voice_config() -> dict | None:
+    """The pinned neural voice, read from the team's other submission."""
+    binary = shutil.which("elevenlabs")
+    if binary is None:
+        # A background shell may not inherit the npm global bin directory.
+        for candidate in (Path.home() / ".npm-global/bin/elevenlabs",
+                          Path("/usr/local/bin/elevenlabs"),
+                          Path("/opt/homebrew/bin/elevenlabs")):
+            if candidate.is_file():
+                binary = str(candidate)
+                break
+    if binary is None or not SMS_NARRATION.is_file():
+        return None
+    try:
+        d = json.loads(SMS_NARRATION.read_text())
+        return {"binary": binary, "voice_id": d["voice_id"],
+                "model": d["model"], "settings": d["settings"]}
+    except (KeyError, ValueError):
+        return None
+
+
+def narrate(text: str, path: Path, cfg: dict | None) -> tuple[float, str]:
+    """Render one line. Returns its duration and which engine produced it."""
+    engine = "say"
+    if cfg is not None:
+        params = json.dumps({"voice_id": cfg["voice_id"],
+                             "output_format": "mp3_44100_128"})
+        body = json.dumps({"text": text, "model_id": cfg["model"],
+                           "voice_settings": cfg["settings"]})
+        mp3 = path.with_suffix(".mp3")
+        for attempt in range(3):
+            result = subprocess.run(
+                [cfg["binary"], "text-to-speech", "convert",
+                 "--params", params, "--json", body, "-o", str(mp3),
+                 "--intent", "generate narration for a hackathon product "
+                             "demonstration video"],
+                capture_output=True, text=True)
+            if result.returncode == 0 and mp3.is_file() and mp3.stat().st_size:
+                path = mp3
+                engine = "elevenlabs"
+                break
+            # Rate limits are the likely cause of a transient failure, so back
+            # off rather than silently dropping to the robot voice.
+            if attempt < 2:
+                time.sleep(3 * (attempt + 1))
+        if engine != "elevenlabs":
+            detail = (result.stderr.strip() or result.stdout.strip()
+                      or f"exit {result.returncode}")
+            print(f"    neural voice failed, using `say`: {detail[:200]}",
+                  file=sys.stderr)
+    if engine == "say":
+        subprocess.run(["say", "-v", FALLBACK_VOICE, "-r",
+                        str(FALLBACK_RATE), "-o", str(path), text],
+                       check=True, capture_output=True)
     out = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                           "format=duration", "-of", "csv=p=0", str(path)],
                          capture_output=True, text=True, check=True)
-    return float(out.stdout.strip())
+    return float(out.stdout.strip()), engine
 
 
 def srt_time(sec: float) -> str:
@@ -132,10 +192,14 @@ def build(cut: str) -> int:
         work = Path(tmp)
 
         # ---- narration, and the durations it dictates --------------------
-        plan, clips = [], []
+        cfg = _voice_config()
+        print(f"  voice: {'ElevenLabs ' + cfg['voice_id'] if cfg else 'macOS say'}")
+        plan, clips, engines = [], [], set()
         for i, sc in enumerate(scenes):
             aiff = work / f"say-{i}.aiff"
-            spoken = narrate(sc["say"], aiff)
+            spoken, engine = narrate(sc["say"], aiff, cfg)
+            engines.add(engine)
+            aiff = aiff.with_suffix(".mp3") if engine == "elevenlabs" else aiff
             body, css, choreo = sc["build"]()
             # The scene is held for whichever is longer: the choreography it
             # needs, or the line it has to say.
@@ -217,7 +281,7 @@ def build(cut: str) -> int:
             return 1
 
     print(f"  written: {mp4.relative_to(ROOT)} "
-          f"({mp4.stat().st_size:,} bytes)")
+          f"({mp4.stat().st_size:,} bytes)  voice: {'/'.join(sorted(engines))}")
     print(f"  captions: {srt.relative_to(ROOT)}")
     return 0
 

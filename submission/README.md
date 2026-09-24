@@ -7,12 +7,22 @@ code it describes.
 | Asset | Path | State |
 |---|---|---|
 | Official template (unmodified) | `template/SIH2026-IDEA-Presentation-Format.pptx` | 7 slides, as supplied |
-| Idea presentation | `CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **6 slides, QA-clean** |
-| Final submission PDF | `CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **6 pages, vector text, 13.333 × 7.50 in** |
-| Demonstration film, full | `video/CryptoDrishti-Final-Demo.mp4` | **1920×1080 H.264/AAC, ~3:55, with SRT** |
-| Demonstration film, short | `video/CryptoDrishti-Short-Demo.mp4` | **1920×1080 H.264/AAC, ~1:19, with SRT** |
-| Screenshots | `screenshots/*.png` | 7 dark-theme captures of the running console |
-| Diagram panels | `build/generated/*.png` | custom panels, rendered from HTML |
+| **Idea presentation** | `CryptoDrishti-SIH26164-Idea-Presentation.pptx` | **6 slides, QA-clean** |
+| **Presentation PDF** | `CryptoDrishti-SIH26164-Idea-Presentation.pdf` | **6 pages, vector text** |
+| **Demonstration film, full** | `video/CryptoDrishti-Final-Demo.mp4` | 1920×1080 H.264/AAC, with SRT |
+| **Demonstration film, short** | `video/CryptoDrishti-Short-Demo.mp4` | 1920×1080 H.264/AAC, with SRT |
+| Deck contact sheet | `contact/deck-contact-sheet.png` | all six slides side by side |
+| Film contact sheet | `contact/film-contact-sheet.png` | twelve frames across the full cut |
+| Screenshots | `screenshots/*.png` | 8 genuine captures, 7 dark-theme console + the report |
+
+| | |
+|---|---|
+| Repository | https://github.com/sgtsujith141-wq/cryptodrishti |
+| Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+
+Nothing has been uploaded to the SIH portal or to YouTube. Once the film is
+uploaded, put the link in `deck_content.py` (`YOUTUBE_URL`), rebuild the deck
+and PDF, and the placeholder on slide 6 becomes the real link.
 
 ### Build scripts
 

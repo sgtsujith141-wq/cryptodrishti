@@ -419,6 +419,83 @@ def sc_close():
 # onto the other, so a reveal stretches across a long narration line instead of
 # finishing early and leaving the frame dead.
 
+def _product(heading, lede, img_expr, *, crop=None, wide=True):
+    """A product scene: the capture is the subject, the words are a caption."""
+    css = f"""
+    .cap {{ position:absolute; left:5%; top:6.5%; opacity:0; }}
+    .cap h2 {{ font-size:37px; margin:0; font-weight:700; letter-spacing:-.02em; }}
+    .cap p {{ font-size:21px; color:{D.INK3}; margin:10px 0 0; }}
+    .shot {{ position:absolute; left:5%; right:5%; top:23%; bottom:6%;
+             opacity:0; border:1px solid {D.RULE2}; border-radius:5px;
+             overflow:hidden; background:{D.SURF};
+             display:flex; align-items:center; justify-content:center; }}
+    .shot img {{ max-width:100%; max-height:100%; object-fit:contain;
+                 display:block; }}
+    """
+    body = f"""
+    <div class="cap" data-in="80" data-dur="640" data-y="12">
+      <h2>{heading}</h2><p>{lede}</p></div>
+    <div class="shot" data-in="520" data-dur="900" data-y="16" data-scale="1.02">
+      <img src="{img_expr}"></div>"""
+    return body, css, 3400
+
+
+def sc_inventory():
+    return _product(
+        "Every asset, ranked by what it costs you",
+        "Score, class, evidence location, assurance grade and the replacement "
+        "it needs — one row per distinct asset",
+        embed(SHOTS / "04-inventory.png", (0.055, 0.03, 1.0, 0.46)))
+
+
+def sc_report():
+    return _product(
+        "The same scan, as a document",
+        "A self-contained report built to be printed and circulated — "
+        "the half a director reads",
+        embed(SHOTS / "08-report.png", (0.0, 0.0, 1.0, 0.62), 1700))
+
+
+def sc_repo():
+    css = f"""
+    .hd {{ position:absolute; left:6%; top:12%; opacity:0; width:52%; }}
+    .hd h2 {{ font-size:40px; margin:0; font-weight:700; letter-spacing:-.02em; }}
+    .hd p {{ font-size:21px; color:{D.INK3}; margin:14px 0 0; line-height:1.55; }}
+    .cmds {{ position:absolute; left:6%; top:44%; width:52%; }}
+    .c {{ opacity:0; font-family:{D.MONO}; font-size:22px; color:{D.INK};
+          padding:13px 18px; margin-bottom:11px; background:{D.SURF};
+          border:1px solid {D.RULE}; border-left:3px solid {D.ACCENT};
+          border-radius:3px; }}
+    .c span {{ color:{D.INK4}; font-size:17px; }}
+    .repo {{ position:absolute; right:6%; top:32%; width:34%; opacity:0;
+             text-align:right; }}
+    .repo .k {{ font-family:{D.MONO}; font-size:13px; letter-spacing:.12em;
+                text-transform:uppercase; color:{D.INK4}; }}
+    .repo .v {{ font-family:{D.MONO}; font-size:26px; color:{D.SAFE};
+                margin-top:10px; word-break:break-all; }}
+    .repo .n {{ font-size:18px; color:{D.INK3}; margin-top:18px;
+                line-height:1.5; }}
+    """
+    cmds = [("python run.py --demo", "builds the estate and scans it"),
+            ("python -m pytest", "664 tests"),
+            ("python -m benchmark.run", "reproduces the accuracy figures")]
+    rows = "".join(f"""
+      <div class="c" data-in="{900 + i*520}" data-dur="480" data-y="10">
+        {c}<br><span>{n}</span></div>""" for i, (c, n) in enumerate(cmds))
+    body = f"""
+    <div class="hd" data-in="80" data-dur="640" data-y="12">
+      <h2>Check it yourself</h2>
+      <p>Every figure in this film comes from a command in the repository.</p></div>
+    <div class="cmds">{rows}</div>
+    <div class="repo" data-in="600" data-dur="760" data-y="12">
+      <div class="k">Source</div>
+      <div class="v">github.com/<br>sgtsujith141-wq/<br>cryptodrishti</div>
+      <div class="n">664 tests · the labelled benchmark corpus and its
+        committed results · the vendored CycloneDX schemas</div></div>"""
+    return body, css, 3200
+
+
+
 SCENES = [
     dict(id="open", build=sc_open, beats=21500,
          say="Every organisation runs cryptography it cannot fully see. A "
@@ -429,46 +506,40 @@ SCENES = [
              "and no two of them describe cryptography the same way.",
          cap="Every organisation runs cryptography it cannot fully see. "
              "A call inside a payments service. A version pin in a dependency "
-             "file. A cipher list in an nginx config nobody has opened in "
-             "years. The signature algorithm on a certificate. A private key "
-             "baked into a container image that shipped months ago. "
-             "Six kinds of artefact — and no two describe cryptography the "
-             "same way."),
+             "file. A cipher list nobody has opened in years. The signature "
+             "algorithm on a certificate. A private key baked into a container "
+             "image that shipped months ago. Six kinds of artefact — and no "
+             "two describe cryptography the same way."),
 
     dict(id="name", build=sc_name, beats=7500,
-         say="Crypto Drishti reads all of it, and turns it into one inventory "
+         say="CryptoDrishti reads all of it, and turns it into one inventory "
              "you can defend.",
          cap="CryptoDrishti reads all of it, and turns it into one inventory "
              "you can defend."),
 
-    dict(id="structure", build=sc_structure, beats=14000,
-         say="Seven sensors: source, dependencies, binaries, certificates, "
-             "configuration, containers, and one live T L S endpoint the "
-             "operator names. Every hit becomes one distinct cryptographic "
-             "asset — and purpose and assurance are part of that asset's "
-             "identity.",
-         cap="Seven sensors: source, dependencies, binaries, certificates, "
-             "configuration, containers, and one live TLS endpoint the "
-             "operator names. Every hit becomes one distinct cryptographic "
-             "asset — and purpose and assurance are part of that asset's "
-             "identity."),
-
-    dict(id="dashboard", build=sc_dashboard, beats=16000,
-         say="Here is a real scan of the demonstration estate. Twenty three "
+    dict(id="dashboard", build=sc_dashboard, beats=14000,
+         say="Here is a real scan of the demonstration estate. Twenty-three "
              "distinct assets. Sixteen of them do not survive a quantum "
-             "computer. And the scan states its own completeness at the top, "
-             "before a single finding.",
-         cap="A real scan of the demonstration estate. 23 distinct assets. "
-             "16 of them do not survive a quantum computer. And the scan "
-             "states its own completeness at the top, before a single "
-             "finding."),
+             "computer. And notice what the tool says first: this inventory "
+             "is incomplete, because one endpoint was refused.",
+         cap="A real scan of the demonstration estate. 23 distinct assets, "
+             "16 of them quantum-vulnerable — and the tool says first that "
+             "the inventory is incomplete, because one endpoint was refused."),
 
-    dict(id="rsa", build=sc_rsa, beats=46000,
+    dict(id="inventory", build=sc_inventory, beats=13000,
+         say="Every asset gets a row. A score, what a quantum computer does "
+             "to it, where the evidence was found, how strong that evidence "
+             "is, and the replacement it needs.",
+         cap="Every asset gets a row: a score, what a quantum computer does "
+             "to it, where the evidence was found, how strong it is, and the "
+             "replacement it needs."),
+
+    dict(id="rsa", build=sc_rsa, beats=44000,
          say="Now the part that decides everything. That one scan found five "
              "R S A findings. Watch what happens to them. The first is in a "
-             "payments service, at line fifteen. The padding scheme is P S S, "
-             "which means this key signs. So the target is M L D S A sixty "
-             "five. The second is in the gateway, at line sixteen. The "
+             "payments service, line fifteen. The padding scheme is P S S, "
+             "which means this key signs. So the target is M L D S A "
+             "sixty-five. The second is in the gateway, line sixteen. The "
              "padding is O A E P, which means this key wraps another key. "
              "That is key establishment, and the target is a hybrid key "
              "exchange. A completely different migration. The third is a "
@@ -485,63 +556,55 @@ SCENES = [
              "Knowing the algorithm is not enough. Purpose decides the "
              "migration."),
 
-    dict(id="chain", build=sc_chain, beats=24000,
-         say="Every finding carries the chain that produced it. The call "
-             "site. The symbol that matched. The technique — an abstract "
-             "syntax tree analysis, not a keyword guess. The sensor's "
-             "confidence. How strong the evidence is that this key is really "
-             "used. What a quantum computer does to it. The resolved purpose. "
-             "The exposure arithmetic. And only at the end, a target.",
-         cap="Every finding carries the chain that produced it. The call "
-             "site. The symbol matched. The technique — an AST analysis, not "
-             "a keyword guess. The confidence. How strong the evidence is "
-             "that the key is really used. What a quantum computer does to "
-             "it. The resolved purpose. The exposure arithmetic. And only at "
-             "the end, a target."),
+    dict(id="drawer", build=sc_drawer, beats=15000,
+         say="Open any finding and the whole chain is there. The call site, "
+             "the symbol matched, the technique, how strong the evidence is "
+             "that this key is really used, and the exposure arithmetic "
+             "behind its score — including which numbers a human set by hand.",
+         cap="Open any finding and the chain is there: the call site, the "
+             "symbol matched, the technique, how strong the evidence is that "
+             "the key is really used, and the arithmetic behind its score."),
 
-    dict(id="drawer", build=sc_drawer, beats=14000,
-         say="That whole chain is in the product, on one screen, for every "
-             "finding — including which inputs a human set by hand, and which "
-             "are still defaults.",
-         cap="That whole chain is in the product, on one screen, for every "
-             "finding — including which inputs a human set by hand, and which "
-             "are still defaults."),
-
-    dict(id="honest", build=sc_honest, beats=28000,
+    dict(id="honest", build=sc_honest, beats=26000,
          say="It is just as careful about what it did not see. A container "
              "image is replayed layer by layer, so a private key written in "
              "one layer and deleted in the next is reported as historical: "
              "gone at runtime, still extractable from the archive. And when "
              "the destination policy refused an endpoint, the scan is marked "
-             "partial, and says which one and why. A partial scan presented "
-             "as a complete inventory is the most damaging thing this tool "
-             "could produce, so it cannot happen quietly.",
-         cap="It is just as careful about what it did not see. A container "
-             "image is replayed layer by layer, so a key written in one layer "
-             "and deleted in the next is reported as historical: gone at "
-             "runtime, still extractable from the archive. And when the "
-             "destination policy refused an endpoint, the scan is marked "
-             "PARTIAL — and says which one, and why."),
+             "partial, and says which one and why.",
+         cap="It is just as careful about what it did not see. A key written "
+             "in one container layer and deleted in the next is reported as "
+             "historical — gone at runtime, still extractable. And a refused "
+             "endpoint makes the scan PARTIAL, and says why."),
 
-    dict(id="cbom", build=sc_cbom, beats=26000,
-         say="The output is not a bespoke report. It is a Cyclone D X "
-             "cryptographic bill of materials — the published standard — "
-             "carrying the asset type, the primitive, the resolved purpose "
-             "and the evidence occurrence for every finding. And it is "
-             "validated offline against the official JSON schema, vendored at "
-             "a pinned commit. Continuous integration fails the build on a "
-             "violation.",
-         cap="The output is not a bespoke report. It is a CycloneDX "
-             "cryptographic bill of materials — the published standard — "
-             "carrying the asset type, the primitive, the resolved purpose "
-             "and the evidence occurrence for every finding. Validated "
-             "offline against the official JSON Schema, vendored at a pinned "
-             "commit. CI fails the build on a violation."),
+    dict(id="report", build=sc_report, beats=13000,
+         say="The same scan also comes out as a document — a self-contained "
+             "report with the exposure, the migration programme grouped by "
+             "replacement, and a stated limitations section.",
+         cap="The same scan also comes out as a document: exposure, the "
+             "migration programme grouped by replacement, and a stated "
+             "limitations section."),
+
+    dict(id="cbom", build=sc_cbom, beats=24000,
+         say="And for the tooling, a Cyclone D X cryptographic bill of "
+             "materials — the published standard — carrying the asset type, "
+             "the primitive, the resolved purpose and the evidence occurrence "
+             "for every finding. Validated offline against the official "
+             "schema, at a pinned commit.",
+         cap="And for the tooling: a CycloneDX cryptographic bill of "
+             "materials — the published standard — validated offline against "
+             "the official JSON Schema at a pinned commit."),
+
+    dict(id="repo", build=sc_repo, beats=12000,
+         say="None of this has to be taken on trust. Every figure in this "
+             "film comes from a command in the repository.",
+         cap="None of this has to be taken on trust — every figure in this "
+             "film comes from a command in the repository."),
 
     dict(id="close", build=sc_close, beats=16000,
          say="Scattered evidence becomes one explainable inventory, a risk "
              "assessment you can argue with, and a migration decision you can "
-             "defend. Crypto Drishti. Team Zero Day. Problem statement S I H "
+             "defend. CryptoDrishti. Team Zero-Day. Problem statement S I H "
              "twenty six one six four.",
          cap="Scattered evidence becomes one explainable inventory, a risk "
              "assessment you can argue with, and a migration decision you can "
@@ -550,7 +613,7 @@ SCENES = [
 
 # The short cut is re-edited, not trimmed: it keeps the argument and drops
 # the supporting detail.
-SHORT_IDS = ["name", "dashboard", "rsa", "honest", "cbom", "close"]
+SHORT_IDS = ["name", "dashboard", "rsa", "drawer", "cbom", "close"]
 
 SHORT_SAY = {
     "name": dict(
@@ -577,6 +640,13 @@ SHORT_SAY = {
             "a completely different migration. And a cipher list that never "
             "says what RSA is for gets no target at all. Purpose decides the "
             "migration."),
+    "drawer": dict(
+        say="Open any finding and the chain is there: the call site, the "
+            "symbol, the technique, how strong the evidence is, and the "
+            "arithmetic behind the score.",
+        cap="Open any finding and the chain is there: call site, symbol, "
+            "technique, evidence strength, and the arithmetic behind the "
+            "score."),
     "honest": dict(
         say="A key deleted by a later container layer is still reported — "
             "it is still extractable. A refused endpoint makes the scan "

@@ -32,6 +32,20 @@ Technical Research Organisation. Team **146876 — Zero-Day**.
 [![CycloneDX 1.6 + 1.7](https://img.shields.io/badge/CBOM-CycloneDX%201.6%20%2B%201.7-brightgreen)](https://cyclonedx.org/)
 [![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](#testing)
 
+> ### SIH 2026 submission — SIH26164
+>
+> **Enterprise Cryptographic Discovery & Analysis Tool (ECDAT)** · Theme 26164 ·
+> Software · Team **146876 — Zero-Day**
+>
+> | Deliverable | Link |
+> |---|---|
+> | Idea presentation (6 slides) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx) |
+> | Presentation PDF (6 pages) | [`submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf) |
+> | Demonstration film, full | [`submission/video/CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) |
+> | Demonstration film, short | [`submission/video/CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) |
+> | Repository | https://github.com/sgtsujith141-wq/cryptodrishti |
+> | Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+
 ![CryptoDrishti console](submission/screenshots/01-assessment.png)
 
 <sub>Every screenshot in this README is a capture of the running tool against the database `python run.py --demo` produces. Nothing is mocked.</sub>
@@ -198,6 +212,11 @@ assurance grade, and the exposure arithmetic behind the score, with each input
 labelled by where its value came from:
 
 ![Evidence drawer](submission/screenshots/07-evidence-drawer.png)
+
+**The generated report** — the same scan as a self-contained document, built
+to be printed and circulated rather than read in a console:
+
+![Report](submission/screenshots/08-report.png)
 
 <details>
 <summary>More views — exposure window, migration programme, CBOM export, scan history</summary>
