@@ -17,7 +17,7 @@ actually supports, and say what each one must become.**
 | Idea presentation — 6 slides | [`CryptoDrishti-SIH26164-Idea-Presentation.pptx`](submission/CryptoDrishti-SIH26164-Idea-Presentation.pptx) · [PDF](submission/CryptoDrishti-SIH26164-Idea-Presentation.pdf) |
 | Demonstration film — full | [`CryptoDrishti-Final-Demo.mp4`](submission/video/CryptoDrishti-Final-Demo.mp4) — caption-led |
 | Demonstration film — short | [`CryptoDrishti-Short-Demo.mp4`](submission/video/CryptoDrishti-Short-Demo.mp4) — caption-led |
-| Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+| Demo video (YouTube) | https://youtu.be/ozoNwGR3Iq8 |
 | Repository | <https://github.com/sgtsujith141-wq/cryptodrishti> |
 
 ## What it discovers

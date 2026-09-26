@@ -19,7 +19,7 @@ code it describes.
 | | |
 |---|---|
 | Repository | https://github.com/sgtsujith141-wq/cryptodrishti |
-| Demo video (YouTube) | **[YOUTUBE LINK TO BE ADDED AFTER UPLOAD]** |
+| Demo video (YouTube) | https://youtu.be/ozoNwGR3Iq8 |
 
 Nothing has been uploaded to the SIH portal or to YouTube. Once the film is
 uploaded, put the link in `deck_content.py` (`YOUTUBE_URL`), rebuild the deck
