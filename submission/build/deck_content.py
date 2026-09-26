@@ -39,7 +39,7 @@ PORTAL = {
 REPO_URL = "github.com/sgtsujith141-wq/cryptodrishti"
 # Filled in once the film is uploaded; until then the deck says so
 # plainly rather than shipping a dead or invented link.
-YOUTUBE_URL = ""
+YOUTUBE_URL = "https://youtu.be/ozoNwGR3Iq8"
 
 PRODUCT = "CryptoDrishti"
 STRAPLINE = ("An evidence-driven tool for discovering enterprise cryptography, "
@@ -256,7 +256,7 @@ REFERENCES = [
         "Be Ready?”, IEEE Security & Privacy 16(5), 2018 — the source of the "
         "X + Y > Z inequality.",
         "P. W. Shor, “Polynomial-Time Algorithms for Prime Factorization and "
-        "Discrete Logarithms”, SIAM J. Computing, 1997.",
+        "Discrete Logarithms on a Quantum Computer”, SIAM J. Computing, 1997.",
         "L. K. Grover, “A fast quantum mechanical algorithm for database "
         "search”, STOC 1996.",
     ]),

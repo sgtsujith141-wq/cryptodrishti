@@ -588,7 +588,7 @@ def build_impact(slide):
             "F1  0.941  →  0.983", 18, bold=True, colour=S.TEAL,
             name="cd-bench-f1", h=0.32)
     S.label(slide, LEFT + 3.10, my + 0.36, lw2 - 3.28,
-            "79/5/5  →  84 TP · 3 FP · 0 FN", 11, colour=S.MUTED,
+            "79 TP · 5 FP · 5 FN  →  84 TP · 3 FP · 0 FN", 11, colour=S.MUTED,
             name="cd-bench-counts")
     S.label(slide, LEFT, my + 0.72, lw2,
             "An expanded synthetic corpus of 116 findings across six "
