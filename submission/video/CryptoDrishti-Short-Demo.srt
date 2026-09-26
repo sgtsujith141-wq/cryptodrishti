@@ -1,31 +1,31 @@
 1
-00:00:07,300 --> 00:00:21,550
+00:00:07,550 --> 00:00:21,038
 One scan. One explainable cryptographic inventory.
 
 2
-00:00:22,300 --> 00:00:28,992
+00:00:22,888 --> 00:00:30,704
 A signing call goes to ML-DSA-65.
 
 3
-00:00:28,992 --> 00:00:37,463
+00:00:30,704 --> 00:00:38,520
 A wrapped key goes to a hybrid key exchange.
 
 4
-00:00:37,463 --> 00:00:47,550
+00:00:38,520 --> 00:00:46,336
 A cipher list that never says what for gets no target.
 
 5
-00:00:48,300 --> 00:00:55,358
+00:00:48,888 --> 00:00:55,668
 Open the finding: where it is, what it does,
 
 6
-00:00:55,358 --> 00:01:02,550
+00:00:55,668 --> 00:01:02,448
 how sure the evidence is — and what it costs.
 
 7
-00:01:03,300 --> 00:01:10,262
+00:01:04,298 --> 00:01:09,482
 A remediation programme. A report a director can read.
 
 8
-00:01:10,262 --> 00:01:15,550
+00:01:09,482 --> 00:01:14,666
 A CBOM that passes the official schema.

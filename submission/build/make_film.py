@@ -52,8 +52,16 @@ OUTDIR = ROOT / "submission" / "video"
 
 W, H = 1920, 1080
 FPS = 30
-# The narration voice, used only when `--voice` is passed and the quota
-# preflight clears: the same neural voice and settings the team's other
+# Narration. The default engine is Microsoft's neural TTS through the free
+# `edge-tts` client: no account, no quota. macOS `say` is not an option -- it
+# reads as a robot and was rejected. ElevenLabs (below) is used only when asked
+# for by name, because its free allowance is spent and retrying it wastes time.
+EDGE_VOICE = "en-US-AndrewMultilingualNeural"
+EDGE_RATE = "+5%"
+LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=9"
+
+# The ElevenLabs voice, used only with `--voice elevenlabs` and only if the
+# quota preflight clears: the same neural voice and settings the team's other
 # submission pinned, via the authenticated ElevenLabs CLI. The voice id and
 # parameters are read from that project rather than guessed, so the two films
 # would sound like they came from the same team. That project is never
@@ -167,13 +175,23 @@ def _quota_remaining(binary: str) -> int | None:
         return None
 
 
-def voice_config(needed: int) -> dict | None:
-    """The pinned neural voice, or None with the reason printed.
+def voice_config(needed: int, engine: str = "edge") -> dict | None:
+    """The narration engine to use, or None with the reason printed.
 
     The check is made before a single character is spent. A half-narrated film
     is worse than a caption-led one, because the failure shows up as the voice
     vanishing in the middle of a sentence.
     """
+    if engine == "none":
+        return None
+    if engine == "edge":
+        try:
+            import edge_tts  # noqa: F401,PLC0415
+        except ImportError:
+            print("  edge-tts is not installed: pip install edge-tts")
+            return None
+        return {"engine": "edge", "voice": EDGE_VOICE, "rate": EDGE_RATE,
+                "label": f"Microsoft Edge neural TTS · {EDGE_VOICE}"}
     binary = _elevenlabs_binary()
     if binary is None:
         print("  no elevenlabs CLI on PATH")
@@ -183,8 +201,10 @@ def voice_config(needed: int) -> dict | None:
         return None
     try:
         d = json.loads(SMS_NARRATION.read_text())
-        cfg = {"binary": binary, "voice_id": d["voice_id"],
-               "model": d["model"], "settings": d["settings"]}
+        cfg = {"engine": "elevenlabs", "binary": binary,
+               "voice_id": d["voice_id"], "model": d["model"],
+               "settings": d["settings"],
+               "label": f"ElevenLabs · {d['voice_id']}"}
     except (KeyError, ValueError):
         print(f"  pinned voice file at {SMS_NARRATION} is unreadable")
         return None
@@ -204,8 +224,36 @@ class NarrationFailed(RuntimeError):
     """The neural voice failed part-way through. Never degrade silently."""
 
 
+def _duration(path: Path) -> float:
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                          "format=duration", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, check=True)
+    return float(out.stdout.strip())
+
+
+def _narrate_edge(text: str, path: Path, cfg: dict) -> float:
+    import asyncio                                          # noqa: PLC0415
+
+    import edge_tts                                         # noqa: PLC0415
+    # The free service occasionally answers with no audio under load; that
+    # has always cleared on a later attempt, so back off patiently.
+    err = None
+    for attempt in range(5):
+        try:
+            asyncio.run(edge_tts.Communicate(
+                text, cfg["voice"], rate=cfg["rate"]).save(str(path)))
+            if path.is_file() and path.stat().st_size:
+                return _duration(path)
+        except Exception as exc:                            # noqa: BLE001
+            err = exc
+        time.sleep((3, 6, 10, 15, 0)[attempt])
+    raise NarrationFailed(f"edge-tts failed: {err}")
+
+
 def narrate(text: str, path: Path, cfg: dict) -> float:
-    """Render one line with the pinned voice. Returns its duration."""
+    """Render one line of narration. Returns its duration."""
+    if cfg["engine"] == "edge":
+        return _narrate_edge(text, path, cfg)
     params = json.dumps({"voice_id": cfg["voice_id"],
                          "output_format": "mp3_44100_128"})
     body = json.dumps({"text": text, "model_id": cfg["model"],
@@ -227,10 +275,7 @@ def narrate(text: str, path: Path, cfg: dict) -> float:
         detail = (result.stderr.strip() or result.stdout.strip()
                   or f"exit {result.returncode}")
         raise NarrationFailed(detail[:400])
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                          "format=duration", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True, check=True)
-    return float(out.stdout.strip())
+    return _duration(path)
 
 
 def srt_time(sec: float) -> str:
@@ -356,7 +401,7 @@ def caption_plan(cap: str) -> list[tuple[str, float]]:
             for line in caption_lines(cap, CAPTION_WIDTH)]
 
 
-def build(cut: str, voiced: bool) -> int:
+def build(cut: str, engine: str = "edge") -> int:
     # The short cut is its own edit (`F.SHORT`), not the long one trimmed.
     scenes = list(F.SHORT if cut == "short" else F.SCENES)
 
@@ -371,27 +416,42 @@ def build(cut: str, voiced: bool) -> int:
     with tempfile.TemporaryDirectory(prefix="cd-film-") as tmp:
         work = Path(tmp)
 
-        cfg = voice_config(sum(len(sc["say"]) for sc in scenes)) if voiced \
-            else None
+        cfg = voice_config(sum(len(sc["say"]) for sc in scenes), engine)
         if cfg is None:
-            print("  building the caption-led cut: no narration track, "
-                  "captions burned into the picture")
+            if engine != "none":
+                print("  no narration engine available -- refusing to build "
+                      "a silent cut. Use --voice none to force one.",
+                      file=sys.stderr)
+                return 1
+            print("  building a caption-only cut (--voice none): no "
+                  "narration. check_film.py will fail it.")
         else:
-            print(f"  building the voiced cut: {cfg['voice_id']}")
+            print(f"  narration: {cfg['label']}")
 
         # ---- timing, and the narration that may dictate it ---------------
         # `timed` drives the burned-in band, `cues` the sidecar SRT. They are
         # the same list except where the scene already says the line itself:
         # the band then stays empty, while the SRT keeps every line so the
         # transcript stays complete.
-        shown = screen_text(scenes) if cfg is None else [""] * len(scenes)
+        shown = screen_text(scenes)
         plan, clips = [], []
         for i, sc in enumerate(scenes):
             body, css, choreo = sc["build"]()
             chunks = caption_plan(sc["cap"])
             floor = sc["beats"] / 1000.0 + 0.6
 
-            if cfg is not None:
+            if cfg is not None and not sc["say"].strip():
+                # A scene with nothing to say holds its picture in silence.
+                seconds = floor
+                timed = []
+                wav = work / f"aud-{i}.wav"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+                     "-i", "anullsrc=r=48000:cl=stereo",
+                     "-t", f"{seconds:.3f}", str(wav)], check=True)
+                clips.append(wav)
+                print(f"  {sc['id']:10s} (no line)      scene {seconds:5.1f}s")
+            elif cfg is not None:
                 mp3 = work / f"say-{i}.mp3"
                 try:
                     spoken = narrate(sc["say"], mp3, cfg)
@@ -406,8 +466,10 @@ def build(cut: str, voiced: bool) -> int:
                 wav = work / f"aud-{i}.wav"
                 subprocess.run(
                     ["ffmpeg", "-y", "-v", "error", "-i", str(mp3),
-                     "-af", f"adelay={int(LEAD*1000)}|{int(LEAD*1000)},apad,"
-                            "loudnorm=I=-18:TP=-2.0:LRA=9",
+                     # Normalise the speech itself, then pad it: measuring
+                     # loudness across the added silence would under-read it.
+                     "-af", LOUDNESS + f",adelay={int(LEAD*1000)}|"
+                                       f"{int(LEAD*1000)},apad",
                      "-t", f"{seconds:.3f}", "-ar", "48000", "-ac", "2",
                      str(wav)], check=True)
                 clips.append(wav)
@@ -432,8 +494,9 @@ def build(cut: str, voiced: bool) -> int:
                       + (f", {dupes} already on screen)" if dupes else ")"))
 
             cues = list(timed)
-            if cfg is None:
-                timed = [c for c in timed if not already_shown(c[0], shown[i])]
+            # Captions stay burned in with or without a voice; a line the
+            # scene already typesets is still withheld from the band.
+            timed = [c for c in timed if not already_shown(c[0], shown[i])]
             plan.append((sc, body, css, seconds, timed, cues, choreo))
 
         total = sum(pl[3] for pl in plan)
@@ -478,7 +541,7 @@ def build(cut: str, voiced: bool) -> int:
              "-c:a", "aac", "-b:a", "160k", "-shortest", str(mp4)],
             stdin=subprocess.PIPE)
 
-        burn = cfg is None
+        burn = True
         fade = int(FPS * 0.30)
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
@@ -535,9 +598,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--short", action="store_true")
     ap.add_argument("--full", action="store_true")
-    ap.add_argument("--voice", action="store_true",
-                    help="attempt the pinned neural voice; without it the "
-                         "caption-led cut is built directly")
+    ap.add_argument("--voice", choices=["edge", "elevenlabs", "none"],
+                    default="edge",
+                    help="narration engine (default: Microsoft Edge neural "
+                         "TTS). `none` builds a silent cut, which QA fails.")
     args = ap.parse_args()
     if args.short:
         cuts = ["short"]
@@ -547,12 +611,11 @@ def main() -> int:
         cuts = ["full", "short"]
     for cut in cuts:
         print(f"=== {cut} cut ===")
-        rc = build(cut, voiced=args.voice)
+        rc = build(cut, engine=args.voice)
         if rc == 2:
-            # The voice died part-way. Build the cut that does not need it
-            # rather than shipping half a narration.
-            print("  rebuilding this cut caption-led", file=sys.stderr)
-            rc = build(cut, voiced=False)
+            # The voice died part-way. A silent fallback is not acceptable,
+            # so stop and say so rather than shipping half a narration.
+            print("  narration failed; nothing was written", file=sys.stderr)
         if rc:
             return rc
     return 0

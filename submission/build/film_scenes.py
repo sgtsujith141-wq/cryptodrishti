@@ -531,8 +531,11 @@ def sc_repo():
 # its length, so a camera move stretches across the time the captions need
 # instead of finishing early and leaving the frame dead.
 
-def _s(id_, build, beats, cap):
-    return dict(id=id_, build=build, beats=beats, cap=cap, say=cap)
+def _s(id_, build, beats, cap, say=None):
+    # `say` is written for the ear -- acronyms spelled the way they should be
+    # spoken -- and defaults to the caption where the two read the same.
+    return dict(id=id_, build=build, beats=beats, cap=cap,
+                say=cap if say is None else say)
 
 
 SCENES = [
@@ -579,17 +582,36 @@ SCENES = [
 # The short cut is its own edit, not the long one trimmed: each beat is
 # re-timed, and the output scenes run as one continuous pass.
 SHORT = [
-    _s("hook", sc_hook_fast, 6400, ""),
+    _s("hook", sc_hook_fast, 6400, "",
+       say="Your cryptography is everywhere. Your inventory usually isn't."),
     _s("dashboard", sc_dashboard, 14400,
-       "One scan. One explainable cryptographic inventory."),
+       "One scan. One explainable cryptographic inventory.",
+       say="This is Crypto Drishti, on a demonstration estate. First, it "
+           "tells you the scan is incomplete: one endpoint was refused. Then "
+           "the numbers. Twenty-three assets, sixteen of them "
+           "quantum-vulnerable."),
     _s("rsa", sc_rsa_short, 25400,
        "A signing call goes to ML-DSA-65. A wrapped key goes to a hybrid key "
-       "exchange. A cipher list that never says what for gets no target."),
+       "exchange. A cipher list that never says what for gets no target.",
+       say="Here is what a keyword scanner misses. Three R S A findings. A "
+           "signing call, so the target is M L D S A sixty-five. A wrapped "
+           "key is key establishment, so a hybrid key exchange. A cipher list "
+           "that never says what R S A is for gets no target at all. Finding "
+           "the algorithm is not enough. Purpose changes the migration."),
     _s("evidence", sc_evidence_short, 14400,
        "Open the finding: where it is, what it does, how sure the evidence "
-       "is — and what it costs."),
+       "is — and what it costs.",
+       say="Open the finding, and the tool shows its working. Where the call "
+           "is, and what it does. How strong the evidence is: a real call "
+           "site, not just a library. The exposure arithmetic. And only then, "
+           "the target."),
     _s("output", sc_output_short, 12400,
        "A remediation programme. A report a director can read. A CBOM that "
-       "passes the official schema."),
-    _s("close", sc_close, 9400, ""),
+       "passes the official schema.",
+       say="Then the work itself. A remediation programme, grouped by target. "
+           "A report a director can read. And a cryptographic bill of "
+           "materials that passes the official schema."),
+    _s("close", sc_close, 9400, "",
+       say="Scattered evidence. One explainable inventory. A migration "
+           "decision you can defend. Crypto Drishti, from team Zero-Day."),
 ]

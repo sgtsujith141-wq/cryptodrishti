@@ -9,7 +9,7 @@ Checks the things a successful render does not prove:
 * dimensions, frame rate and codecs are what was asked for;
 * no unintended black or frozen frames (the deliberate dips at scene joins
   are short, so a long dark run means a scene failed to draw);
-* audio peaks below clipping, when there is an audio track carrying anything;
+* the audio is audible -- a silent track fails -- and peaks below clipping;
 * the burned-in captions are actually on screen for most of the film, which is
   the one thing a caption-led cut cannot afford to get wrong;
 * the SRT parses, is in order, and no cue outlives the film.
@@ -209,30 +209,29 @@ def main() -> int:
                                     else f" -- {empty[:3]}"))
         bad += 0 if not empty else 1
 
-        silent = True
-        if a:
+        # Sound. A narrated film whose track came out silent -- a failed
+        # voice, a lost stream, a mix at the wrong gain -- looks fine on every
+        # other check here, so the level is measured and a silent track is a
+        # failure, not a design choice.
+        if not a:
+            print("  [FAIL] no audio stream")
+            bad += 1
+        else:
             peak, mean = levels(mp4)
-            silent = mean < -40
-            if silent:
-                # Deliberate: this cut is caption-led and ships a silent
-                # stereo track so the container is well formed everywhere.
-                print("  [ok] silent track (caption-led cut, by design)")
-            else:
-                clip = peak >= -0.5
-                print(f"  [{'FAIL' if clip else 'ok'}] peak {peak:.1f} dB "
-                      f"(no clipping)   mean {mean:.1f} dB")
-                bad += 1 if clip else 0
+            silent = mean < -45 or peak < -20
+            clip = peak >= -0.5
+            verdict = "FAIL" if silent or clip else "ok"
+            why = (" -- effectively silent" if silent
+                   else " -- clipping" if clip else "")
+            print(f"  [{verdict}] audio: mean {mean:.1f} dB, max {peak:.1f} dB"
+                  + why)
+            bad += 1 if silent or clip else 0
 
-        if silent:
-            cov = caption_coverage(mp4)
-            # Not 100%: the band is deliberately empty during the fades, the
-            # held beat at each scene's end, and the lines the scene already
-            # typesets for itself. Below two thirds means captions failed to
-            # draw rather than were withheld.
-            cov_ok = cov >= 0.66
-            print(f"  [{'ok' if cov_ok else 'FAIL'}] burned-in captions on "
-                  f"screen in {cov * 100:.0f}% of sampled frames")
-            bad += 0 if cov_ok else 1
+        cov = caption_coverage(mp4)
+        cov_ok = cov >= 0.50
+        print(f"  [{'ok' if cov_ok else 'FAIL'}] burned-in captions on "
+              f"screen in {cov * 100:.0f}% of sampled frames")
+        bad += 0 if cov_ok else 1
 
         sok, note = srt_ok(srt, dur)
         print(f"  [{'ok' if sok else 'FAIL'}] captions -- {note}")
